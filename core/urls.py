@@ -9,7 +9,9 @@ urlpatterns = [
 
     # Student views
     path("lessons/", views.student_lessons, name="student_lessons"),
+    path("lessons/<int:pk>/", views.lesson_intro, name="lesson_intro"),
     path("lessons/<int:pk>/read/", views.lesson_read, name="lesson_read"),
+    path("lessons/<int:pk>/quiz/", views.lesson_quiz, name="lesson_quiz"),
     path("lessons/<int:lesson_id>/term/<int:term_id>/", views.glossary_term_detail, name="glossary_term_detail"),
 
     # Instructor Dashboard

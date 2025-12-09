@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Count
+from django.utils import timezone
 from functools import wraps
 
 from .forms import (
@@ -71,13 +72,42 @@ def student_lessons(request):
 
 
 @login_required
-def lesson_read(request, pk):
+def lesson_intro(request, pk):
+    """Lesson introduction page before reading."""
     user = request.user
     lesson = get_object_or_404(
-        Lesson.objects.select_related("story", "story__glossary"),
+        Lesson.objects.select_related("story", "quiz", "site"),
         pk=pk,
     )
 
+    # Check access for students
+    if hasattr(user, "is_student") and user.is_student():
+        roster_ids = lesson.rosters.values_list("id", flat=True)
+        if not RosterMembership.objects.filter(student=user, roster_id__in=roster_ids).exists():
+            messages.error(request, "You don't have access to this lesson.")
+            return redirect("core:student_lessons")
+
+    allowed_modes = lesson.allowed_modes or [lesson.default_mode]
+    progress = LessonProgress.objects.filter(student=user, lesson=lesson).first()
+
+    context = {
+        "lesson": lesson,
+        "allowed_modes": allowed_modes,
+        "progress": progress,
+    }
+    return render(request, "core/student/lesson_intro.html", context)
+
+
+@login_required
+def lesson_read(request, pk):
+    """Main reading view with mode support."""
+    user = request.user
+    lesson = get_object_or_404(
+        Lesson.objects.select_related("story", "story__glossary", "quiz"),
+        pk=pk,
+    )
+
+    # Check access for students
     if hasattr(user, "is_student") and user.is_student():
         roster_ids = lesson.rosters.values_list("id", flat=True)
         if not RosterMembership.objects.filter(student=user, roster_id__in=roster_ids).exists():
@@ -90,7 +120,17 @@ def lesson_read(request, pk):
         mode = lesson.default_mode
 
     story = lesson.story
-    segments = story.segments.all()
+    segments = story.segments.order_by("index")
+
+    # Create or update lesson progress
+    progress, created = LessonProgress.objects.get_or_create(
+        student=user,
+        lesson=lesson,
+        defaults={"reading_start": timezone.now()}
+    )
+    if created or not progress.reading_start:
+        progress.reading_start = timezone.now()
+        progress.save()
 
     context = {
         "lesson": lesson,
@@ -98,8 +138,41 @@ def lesson_read(request, pk):
         "segments": segments,
         "mode": mode,
         "allowed_modes": allowed_modes,
+        "progress": progress,
     }
-    return render(request, "core/lesson_read.html", context)
+    return render(request, "core/student/lesson_read.html", context)
+
+
+@login_required
+def lesson_quiz(request, pk):
+    """Quiz view for a lesson."""
+    user = request.user
+    lesson = get_object_or_404(
+        Lesson.objects.select_related("story", "quiz"),
+        pk=pk,
+    )
+
+    if not lesson.quiz:
+        messages.info(request, "This lesson doesn't have a quiz.")
+        return redirect("core:lesson_read", pk=pk)
+
+    # Check access for students
+    if hasattr(user, "is_student") and user.is_student():
+        roster_ids = lesson.rosters.values_list("id", flat=True)
+        if not RosterMembership.objects.filter(student=user, roster_id__in=roster_ids).exists():
+            return redirect("core:student_lessons")
+
+    quiz = lesson.quiz
+    questions = quiz.quiz_questions.select_related("question").prefetch_related(
+        "question__choices"
+    ).order_by("order")
+
+    context = {
+        "lesson": lesson,
+        "quiz": quiz,
+        "questions": questions,
+    }
+    return render(request, "core/student/lesson_quiz.html", context)
 
 
 @login_required

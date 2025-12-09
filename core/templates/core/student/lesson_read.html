@@ -1,0 +1,251 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}{{ lesson.title }} - Reading{% endblock %}
+
+{% block extra_css %}
+<style>
+  .reader-container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .reading-content {
+    font-size: 1.1rem;
+    line-height: 1.8;
+  }
+  .reading-content p {
+    margin-bottom: 1.5rem;
+  }
+  .gloss-term {
+    border-bottom: 2px dotted #0d6efd;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  .gloss-term:hover {
+    background-color: rgba(13, 110, 253, 0.1);
+  }
+  .mode-switcher .btn {
+    border-radius: 0;
+  }
+  .mode-switcher .btn:first-child {
+    border-radius: 0.375rem 0 0 0.375rem;
+  }
+  .mode-switcher .btn:last-child {
+    border-radius: 0 0.375rem 0.375rem 0;
+  }
+  .card-reader {
+    min-height: 400px;
+  }
+  .card-navigation {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding: 1rem 0;
+    border-top: 1px solid #dee2e6;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="reader-container">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+          <li class="breadcrumb-item"><a href="{% url 'core:student_lessons' %}">Lessons</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'core:lesson_intro' pk=lesson.pk %}">{{ lesson.title|truncatechars:20 }}</a></li>
+          <li class="breadcrumb-item active">Reading</li>
+        </ol>
+      </nav>
+      <h4 class="mb-0">{{ story.title }}</h4>
+    </div>
+
+    {% if allowed_modes|length > 1 and not lesson.lock_mode %}
+    <div class="mode-switcher btn-group" role="group">
+      {% for m in allowed_modes %}
+      <a href="?mode={{ m }}" class="btn btn-{% if mode == m %}primary{% else %}outline-primary{% endif %} btn-sm">
+        {% if m == 'continuous' %}<i class="bi bi-text-paragraph"></i>{% endif %}
+        {% if m == 'cards' %}<i class="bi bi-card-text"></i>{% endif %}
+        {% if m == 'movie' %}<i class="bi bi-film"></i>{% endif %}
+        <span class="d-none d-md-inline ms-1">{{ m|title }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Reading Area -->
+  {% if mode == 'continuous' %}
+  <div class="card shadow-sm">
+    <div class="card-body reading-content">
+      {{ story.text_html|safe }}
+    </div>
+  </div>
+
+  {% elif mode == 'cards' %}
+  <div class="card shadow-sm card-reader" id="cardReader">
+    <div class="card-header bg-light">
+      <div class="d-flex justify-content-between align-items-center">
+        <span class="text-muted">
+          <i class="bi bi-card-text me-2"></i>Card <span id="currentCard">1</span> of {{ segments|length }}
+        </span>
+        <div class="progress flex-grow-1 mx-3" style="height: 6px;">
+          <div class="progress-bar" role="progressbar" id="cardProgress" style="width: {% widthratio 1 segments|length 100 %}%;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body reading-content" id="cardContent">
+      {% for segment in segments %}
+      <div class="segment-card {% if not forloop.first %}d-none{% endif %}" data-index="{{ forloop.counter0 }}">
+        {% if segment.title %}
+        <h5 class="mb-3">{{ segment.title }}</h5>
+        {% endif %}
+        {{ segment.text_html|safe }}
+      </div>
+      {% empty %}
+      <p class="text-muted">No segments defined for this story.</p>
+      {% endfor %}
+    </div>
+    <div class="card-footer bg-white card-navigation">
+      <div class="d-flex justify-content-between align-items-center">
+        <button type="button" class="btn btn-outline-primary" id="prevCard" disabled>
+          <i class="bi bi-chevron-left me-1"></i>Previous
+        </button>
+        <span class="text-muted" id="cardCounter">1 / {{ segments|length }}</span>
+        <button type="button" class="btn btn-primary" id="nextCard">
+          Next<i class="bi bi-chevron-right ms-1"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {% elif mode == 'movie' %}
+  <div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+      <i class="bi bi-film display-1 text-muted"></i>
+      <h4 class="mt-3">Movie Mode</h4>
+      <p class="text-muted">Movie mode with synchronized media coming soon.</p>
+      <a href="?mode=continuous" class="btn btn-primary">
+        <i class="bi bi-text-paragraph me-2"></i>Switch to Continuous Mode
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Footer Actions -->
+  <div class="d-flex justify-content-between align-items-center mt-4">
+    <a href="{% url 'core:lesson_intro' pk=lesson.pk %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back to Intro
+    </a>
+    {% if lesson.quiz %}
+    <a href="{% url 'core:lesson_quiz' pk=lesson.pk %}" class="btn btn-success">
+      <i class="bi bi-check-circle me-2"></i>Take Quiz
+    </a>
+    {% else %}
+    <a href="{% url 'core:student_lessons' %}" class="btn btn-success">
+      <i class="bi bi-check-circle me-2"></i>Finish Lesson
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Glossary Tooltip Container -->
+<div id="glossTooltip" class="position-fixed d-none" style="z-index: 1050;">
+  <div class="card shadow-lg" style="max-width: 300px;">
+    <div class="card-body p-3">
+      <div id="glossContent">Loading...</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Card Mode Navigation
+  const cardContent = document.getElementById('cardContent');
+  if (cardContent) {
+    const cards = cardContent.querySelectorAll('.segment-card');
+    const totalCards = cards.length;
+    let currentIndex = 0;
+
+    const prevBtn = document.getElementById('prevCard');
+    const nextBtn = document.getElementById('nextCard');
+    const currentCardSpan = document.getElementById('currentCard');
+    const cardCounter = document.getElementById('cardCounter');
+    const progressBar = document.getElementById('cardProgress');
+
+    function showCard(index) {
+      cards.forEach((card, i) => {
+        card.classList.toggle('d-none', i !== index);
+      });
+      currentIndex = index;
+      currentCardSpan.textContent = index + 1;
+      cardCounter.textContent = `${index + 1} / ${totalCards}`;
+      progressBar.style.width = `${((index + 1) / totalCards) * 100}%`;
+
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === totalCards - 1;
+
+      if (index === totalCards - 1) {
+        nextBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Done';
+      } else {
+        nextBtn.innerHTML = 'Next<i class="bi bi-chevron-right ms-1"></i>';
+      }
+    }
+
+    prevBtn.addEventListener('click', () => {
+      if (currentIndex > 0) showCard(currentIndex - 1);
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if (currentIndex < totalCards - 1) {
+        showCard(currentIndex + 1);
+      }
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' && currentIndex > 0) {
+        showCard(currentIndex - 1);
+      } else if (e.key === 'ArrowRight' && currentIndex < totalCards - 1) {
+        showCard(currentIndex + 1);
+      }
+    });
+  }
+
+  // Glossary Term Click Handling
+  document.querySelectorAll('.gloss-term').forEach(term => {
+    term.addEventListener('click', function(e) {
+      const termId = this.dataset.termId;
+      const lessonId = {{ lesson.pk }};
+
+      fetch(`/lessons/${lessonId}/term/${termId}/`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      })
+      .then(response => response.text())
+      .then(html => {
+        const tooltip = document.getElementById('glossTooltip');
+        const content = document.getElementById('glossContent');
+        content.innerHTML = html;
+
+        // Position tooltip near the clicked term
+        const rect = this.getBoundingClientRect();
+        tooltip.style.left = `${rect.left}px`;
+        tooltip.style.top = `${rect.bottom + 10}px`;
+        tooltip.classList.remove('d-none');
+      });
+    });
+  });
+
+  // Close tooltip when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.classList.contains('gloss-term') &&
+        !e.target.closest('#glossTooltip')) {
+      document.getElementById('glossTooltip')?.classList.add('d-none');
+    }
+  });
+});
+</script>
+{% endblock %}
