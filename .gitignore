@@ -1,10 +1,33 @@
+# Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+
+# Django
 *.sqlite3
+staticfiles/
+media/
+
+# Environment
 .env
 .env.*
 config/
 venv/
+rgx/venv/
+rgx/config/
+
+# IDE
 .idea/
 .vscode/
-staticfiles/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Nested git (legacy)
+rgx/.git/
+
+# Archives
+*.zip

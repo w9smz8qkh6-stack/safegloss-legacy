@@ -1,0 +1,68 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0">
+        <i class="bi bi-person-plus me-2"></i>{{ title }}
+      </h1>
+      <a href="{% url 'core:roster_edit' roster.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Roster
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-people me-2"></i>Available Students
+        <span class="badge bg-secondary ms-2">{{ available_students.count }}</span>
+      </div>
+      <div class="card-body">
+        {% if available_students %}
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <div class="form-text mb-2">Select students to add to this roster:</div>
+            <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+              {% for student in available_students %}
+              <label class="list-group-item list-group-item-action d-flex align-items-center">
+                <input type="checkbox" name="student_ids" value="{{ student.pk }}" class="form-check-input me-3">
+                <div>
+                  <div>
+                    <i class="bi bi-person me-1"></i>
+                    <strong>{{ student.username }}</strong>
+                    {% if student.get_full_name %}
+                      <span class="text-muted">- {{ student.get_full_name }}</span>
+                    {% endif %}
+                  </div>
+                  {% if student.email %}
+                    <small class="text-muted">{{ student.email }}</small>
+                  {% endif %}
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-person-plus me-2"></i>Add Selected Students
+            </button>
+            <a href="{% url 'core:roster_edit' roster.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-person-x fs-1 d-block mb-2"></i>
+          <p>No students available to add.</p>
+          <p class="small">All students at this site are already in this roster, or there are no students registered at this site.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

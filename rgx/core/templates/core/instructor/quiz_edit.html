@@ -1,0 +1,100 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-0">
+      <i class="bi bi-question-circle me-2"></i>{{ quiz.title }}
+    </h1>
+    <small class="text-muted">{{ quiz.total_points }} points total</small>
+  </div>
+  <div class="btn-group">
+    <a href="{% url 'core:quiz_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back
+    </a>
+    <a href="{% url 'core:quiz_delete' quiz.pk %}" class="btn btn-outline-danger">
+      <i class="bi bi-trash me-2"></i>Delete
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-4 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-gear me-2"></i>Quiz Settings
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label for="id_title" class="form-label">Title</label>
+            {{ form.title }}
+          </div>
+
+          <div class="mb-3">
+            <label for="id_instructions_html" class="form-label">Instructions</label>
+            {{ form.instructions_html }}
+          </div>
+
+          <div class="mb-3">
+            <label for="id_total_points" class="form-label">Total Points</label>
+            {{ form.total_points }}
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-circle me-2"></i>Save Settings
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-ol me-2"></i>Questions</span>
+        <div>
+          <span class="badge bg-secondary me-2">{{ questions.count }} question{{ questions.count|pluralize }}</span>
+          <a href="{% url 'core:quiz_add_question' quiz.pk %}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus-circle me-1"></i>Add Question
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        {% if questions %}
+          <div class="list-group list-group-flush">
+            {% for qq in questions %}
+              <div class="list-group-item d-flex justify-content-between align-items-start">
+                <div>
+                  <span class="badge bg-secondary me-2">{{ forloop.counter }}</span>
+                  <span>{{ qq.question.prompt_html|truncatewords:20|safe }}</span>
+                  <br>
+                  <small class="text-muted">
+                    {{ qq.question.get_question_type_display }} &bull;
+                    {{ qq.points_override|default:qq.question.default_points }} pts
+                  </small>
+                </div>
+                <a href="{% url 'core:quiz_remove_question' quiz.pk qq.pk %}" class="btn btn-sm btn-outline-danger" title="Remove question">
+                  <i class="bi bi-trash"></i>
+                </a>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-4 text-muted">
+            <i class="bi bi-list-ol fs-1 d-block mb-2"></i>
+            <p>No questions in this quiz yet.</p>
+            <a href="{% url 'core:quiz_add_question' quiz.pk %}" class="btn btn-primary btn-sm">
+              <i class="bi bi-plus-circle me-1"></i>Add First Question
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

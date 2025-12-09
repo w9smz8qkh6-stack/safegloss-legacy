@@ -1,0 +1,197 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ student.username }} - {{ roster.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-card {
+    text-align: center;
+  }
+  .stat-card .stat-value {
+    font-size: 1.75rem;
+    font-weight: bold;
+  }
+  .stat-card .stat-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+  }
+  .lesson-card {
+    border-left: 4px solid;
+  }
+  .lesson-card.status-completed { border-color: #198754; }
+  .lesson-card.status-reading_done { border-color: #0dcaf0; }
+  .lesson-card.status-in_progress { border-color: #ffc107; }
+  .lesson-card.status-not_started { border-color: #6c757d; }
+  .term-badge {
+    font-size: 0.75rem;
+    margin: 2px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{% url 'core:roster_list' %}">Rosters</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'core:roster_analytics' roster.pk %}">{{ roster.name }}</a></li>
+        <li class="breadcrumb-item active">{{ student.username }}</li>
+      </ol>
+    </nav>
+    <h1 class="h3 mb-0">
+      <i class="bi bi-person me-2"></i>{{ student.get_full_name|default:student.username }}
+    </h1>
+    {% if student.email %}
+      <small class="text-muted">{{ student.email }}</small>
+    {% endif %}
+  </div>
+  <a href="{% url 'core:roster_analytics' roster.pk %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-2"></i>Back to Analytics
+  </a>
+</div>
+
+<!-- Overview Stats -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="stat-value text-success">{{ completion_pct|floatformat:0 }}%</div>
+        <div class="stat-label">Completion</div>
+        <small class="text-muted">{{ completed_count }}/{{ total_lessons }} lessons</small>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="stat-value text-primary">{% if avg_score %}{{ avg_score|floatformat:0 }}%{% else %}-{% endif %}</div>
+        <div class="stat-label">Avg Quiz Score</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="stat-value text-info">{{ total_reading_time|floatformat:0 }}</div>
+        <div class="stat-label">Total Reading (min)</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="stat-value text-warning">{{ total_gloss_clicks }}</div>
+        <div class="stat-label">Glossary Clicks</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Lesson Progress -->
+  <div class="col-lg-8 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-mortarboard me-2"></i>Lesson Progress
+      </div>
+      <div class="card-body">
+        {% for ld in lesson_details %}
+        <div class="card lesson-card status-{{ ld.status }} mb-3">
+          <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 class="mb-1">{{ ld.lesson.title }}</h6>
+                <div class="d-flex gap-3 text-muted small">
+                  {% if ld.status == 'completed' %}
+                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Completed</span>
+                  {% elif ld.status == 'reading_done' %}
+                    <span class="text-info"><i class="bi bi-book me-1"></i>Reading Done</span>
+                  {% elif ld.status == 'in_progress' %}
+                    <span class="text-warning"><i class="bi bi-hourglass-split me-1"></i>In Progress</span>
+                  {% else %}
+                    <span class="text-secondary"><i class="bi bi-circle me-1"></i>Not Started</span>
+                  {% endif %}
+
+                  {% if ld.reading_duration %}
+                    <span><i class="bi bi-clock me-1"></i>{{ ld.reading_duration|floatformat:1 }} min</span>
+                  {% endif %}
+
+                  {% if ld.gloss_click_count %}
+                    <span><i class="bi bi-book me-1"></i>{{ ld.gloss_click_count }} clicks</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="text-end">
+                {% if ld.submission %}
+                  <span class="badge fs-6 {% if ld.submission.raw_score >= ld.submission.max_score * 0.8 %}bg-success{% elif ld.submission.raw_score >= ld.submission.max_score * 0.6 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                    {{ ld.submission.raw_score|floatformat:0 }}/{{ ld.submission.max_score|floatformat:0 }}
+                  </span>
+                {% elif ld.lesson.quiz %}
+                  <span class="badge bg-secondary">Quiz Pending</span>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if ld.progress %}
+            <div class="mt-2 small text-muted">
+              {% if ld.progress.reading_start %}
+                <span class="me-3">Started: {{ ld.progress.reading_start|date:"M d, Y H:i" }}</span>
+              {% endif %}
+              {% if ld.progress.quiz_end %}
+                <span>Completed: {{ ld.progress.quiz_end|date:"M d, Y H:i" }}</span>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {% if ld.gloss_clicks %}
+            <div class="mt-2">
+              <small class="text-muted">Glossary terms viewed:</small>
+              <div>
+                {% for click in ld.gloss_clicks %}
+                  <span class="badge bg-light text-dark term-badge">{{ click.term.term_text }}</span>
+                {% endfor %}
+                {% if ld.gloss_click_count > 10 %}
+                  <span class="badge bg-secondary term-badge">+{{ ld.gloss_click_count|add:"-10" }} more</span>
+                {% endif %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-4 text-muted">
+          <p>No lessons assigned.</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Glossary Engagement -->
+  <div class="col-lg-4 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-book me-2"></i>Most Clicked Terms
+      </div>
+      <div class="card-body">
+        {% if clicked_terms %}
+        <div class="list-group list-group-flush">
+          {% for term in clicked_terms %}
+          <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+            <span>{{ term.term__term_text }}</span>
+            <span class="badge bg-primary rounded-pill">{{ term.click_count }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-book fs-1 d-block mb-2"></i>
+          <p>No glossary terms clicked yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

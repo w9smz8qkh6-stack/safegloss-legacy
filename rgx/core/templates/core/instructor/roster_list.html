@@ -1,0 +1,67 @@
+{% extends "core/base.html" %}
+
+{% block title %}Rosters{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">
+    <i class="bi bi-people me-2"></i>Rosters
+  </h1>
+  <a href="{% url 'core:roster_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>New Roster
+  </a>
+</div>
+
+{% if rosters %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Name</th>
+        <th>Site</th>
+        <th>Grade Band</th>
+        <th>Students</th>
+        <th>Created</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for roster in rosters %}
+      <tr>
+        <td>
+          <a href="{% url 'core:roster_edit' roster.pk %}" class="text-decoration-none fw-medium">
+            {{ roster.name }}
+          </a>
+        </td>
+        <td>{{ roster.site.name }}</td>
+        <td>{{ roster.grade_band|default:"-" }}</td>
+        <td>
+          <span class="badge bg-info">{{ roster.student_count }} student{{ roster.student_count|pluralize }}</span>
+        </td>
+        <td>{{ roster.created_at|date:"M d, Y" }}</td>
+        <td class="text-end">
+          <div class="btn-group btn-group-sm">
+            <a href="{% url 'core:roster_analytics' roster.pk %}" class="btn btn-outline-success" title="Analytics">
+              <i class="bi bi-graph-up"></i>
+            </a>
+            <a href="{% url 'core:roster_edit' roster.pk %}" class="btn btn-outline-primary" title="Edit">
+              <i class="bi bi-pencil"></i>
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+  <i class="bi bi-people text-muted" style="font-size: 4rem;"></i>
+  <h3 class="mt-3 text-muted">No rosters yet</h3>
+  <p class="text-muted">Create rosters to organize students into groups.</p>
+  <a href="{% url 'core:roster_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>Create Roster
+  </a>
+</div>
+{% endif %}
+{% endblock %}

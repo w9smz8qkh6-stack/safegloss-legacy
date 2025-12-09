@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">
+    <i class="bi bi-plus-circle me-2"></i>{{ title }}
+  </h1>
+  <a href="{% url 'core:quiz_edit' quiz.pk %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-2"></i>Back to Quiz
+  </a>
+</div>
+
+<div class="row">
+  <!-- Add from Item Bank -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-collection me-2"></i>Add from Item Bank
+      </div>
+      <div class="card-body">
+        {% if available_questions %}
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_existing">
+
+          <div class="mb-3">
+            <label class="form-label">Select a Question</label>
+            <div class="list-group" style="max-height: 400px; overflow-y: auto;">
+              {% for question in available_questions %}
+              <label class="list-group-item list-group-item-action d-flex align-items-start">
+                <input type="radio" name="question_id" value="{{ question.pk }}" class="form-check-input me-3 mt-1" required>
+                <div>
+                  <div>{{ question.prompt_html|truncatewords:25|safe }}</div>
+                  <small class="text-muted">
+                    {{ question.get_question_type_display }} &bull; {{ question.default_points }} pts
+                    {% if question.subject %}&bull; {{ question.subject }}{% endif %}
+                  </small>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-2"></i>Add Selected Question
+          </button>
+        </form>
+        {% else %}
+        <div class="text-center py-4 text-muted">
+          <i class="bi bi-collection fs-1 d-block mb-2"></i>
+          <p>No questions available in your item bank.</p>
+          <p class="small">Create a new question using the form on the right.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Create New Question -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-pencil-square me-2"></i>Create New Question
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_new">
+
+          <div class="mb-3">
+            <label for="id_prompt_html" class="form-label">Question Text <span class="text-danger">*</span></label>
+            {{ question_form.prompt_html }}
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_question_type" class="form-label">Question Type</label>
+              {{ question_form.question_type }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_default_points" class="form-label">Points</label>
+              {{ question_form.default_points }}
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_subject" class="form-label">Subject</label>
+              {{ question_form.subject }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_grade_band" class="form-label">Grade Band</label>
+              {{ question_form.grade_band }}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Answer Choices</label>
+            <small class="text-muted d-block mb-2">For multiple choice questions, add choices and mark the correct one(s).</small>
+            {{ choice_formset.management_form }}
+
+            <div id="choice-forms">
+              {% for choice_form in choice_formset %}
+              <div class="card mb-2 choice-form">
+                <div class="card-body py-2">
+                  {{ choice_form.id }}
+                  <div class="row align-items-center">
+                    <div class="col">
+                      {{ choice_form.choice_html }}
+                    </div>
+                    <div class="col-auto">
+                      <div class="form-check">
+                        {{ choice_form.is_correct }}
+                        <label class="form-check-label" for="{{ choice_form.is_correct.id_for_label }}">Correct</label>
+                      </div>
+                    </div>
+                    <div class="col-auto">
+                      {% if choice_form.DELETE %}
+                      <div class="form-check">
+                        {{ choice_form.DELETE }}
+                        <label class="form-check-label text-danger" for="{{ choice_form.DELETE.id_for_label }}">Delete</label>
+                      </div>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-plus-circle me-2"></i>Create & Add Question
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0">
+        <i class="bi bi-mortarboard me-2"></i>{{ title }}
+      </h1>
+      <a href="{% url 'core:instructor_lesson_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Lessons
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label for="id_title" class="form-label">Title <span class="text-danger">*</span></label>
+            {{ form.title }}
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_site" class="form-label">Site</label>
+              {{ form.site }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_story" class="form-label">Story <span class="text-danger">*</span></label>
+              {{ form.story }}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="id_introduction_html" class="form-label">Introduction</label>
+            {{ form.introduction_html }}
+            <div class="form-text">Introduction text shown to students before they start reading.</div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_quiz" class="form-label">Quiz (optional)</label>
+              {{ form.quiz }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_default_mode" class="form-label">Default Reading Mode</label>
+              {{ form.default_mode }}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="id_rosters" class="form-label">Assign to Rosters</label>
+            {{ form.rosters }}
+            <div class="form-text">Hold Ctrl/Cmd to select multiple rosters.</div>
+          </div>
+
+          <div class="mb-4">
+            <div class="form-check">
+              {{ form.is_active }}
+              <label class="form-check-label" for="id_is_active">
+                <strong>Active</strong> - Students can access this lesson
+              </label>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle me-2"></i>Save Lesson
+            </button>
+            <a href="{% url 'core:instructor_lesson_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            {% if lesson %}
+              <a href="{% url 'core:lesson_delete' lesson.pk %}" class="btn btn-outline-danger ms-auto">
+                <i class="bi bi-trash me-2"></i>Delete
+              </a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

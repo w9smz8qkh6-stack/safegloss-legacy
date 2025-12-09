@@ -1,0 +1,112 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<!-- Quill Editor CSS -->
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<style>
+  .ql-editor {
+    min-height: 300px;
+    font-size: 1rem;
+  }
+  .ql-container {
+    font-family: inherit;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0">
+        <i class="bi bi-journal-plus me-2"></i>{{ title }}
+      </h1>
+      <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Stories
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <form method="post" id="storyForm">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label for="id_title" class="form-label">Title <span class="text-danger">*</span></label>
+            {{ form.title }}
+            {% if form.title.errors %}
+              <div class="invalid-feedback d-block">{{ form.title.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_source_type" class="form-label">Source Type</label>
+              {{ form.source_type }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_reading_level_label" class="form-label">Reading Level</label>
+              {{ form.reading_level_label }}
+              <div class="form-text">e.g., Grade 6-7, B1, Lexile 780L</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Story Content <span class="text-danger">*</span></label>
+            <div id="storyEditor" class="bg-white"></div>
+            <textarea name="text_html" id="id_text_html" class="d-none">{{ form.text_html.value|default:'' }}</textarea>
+            {% if form.text_html.errors %}
+              <div class="invalid-feedback d-block">{{ form.text_html.errors.0 }}</div>
+            {% endif %}
+            <div class="form-text">Use the toolbar to format your story text.</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle me-2"></i>Save Story
+            </button>
+            <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Quill Editor JS -->
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Toolbar options
+  const toolbarOptions = [
+    [{ 'header': [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['link'],
+    ['clean']
+  ];
+
+  // Initialize story content editor
+  const storyEditor = new Quill('#storyEditor', {
+    theme: 'snow',
+    modules: { toolbar: toolbarOptions },
+    placeholder: 'Enter your story content here...'
+  });
+
+  // Load existing content (for edit mode)
+  const storyTextarea = document.getElementById('id_text_html');
+  if (storyTextarea.value) {
+    storyEditor.root.innerHTML = storyTextarea.value;
+  }
+
+  // Sync to textarea on form submit
+  document.getElementById('storyForm').addEventListener('submit', function() {
+    storyTextarea.value = storyEditor.root.innerHTML;
+  });
+});
+</script>
+{% endblock %}

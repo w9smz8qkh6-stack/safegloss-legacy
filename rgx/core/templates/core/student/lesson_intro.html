@@ -1,0 +1,135 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ lesson.title }} - Safegloss{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <nav aria-label="breadcrumb" class="mb-4">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'core:student_lessons' %}">My Lessons</a></li>
+        <li class="breadcrumb-item active">{{ lesson.title }}</li>
+      </ol>
+    </nav>
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-primary text-white">
+        <h3 class="card-title mb-0">
+          <i class="bi bi-journal-text me-2"></i>{{ lesson.title }}
+        </h3>
+      </div>
+      <div class="card-body">
+        {% if lesson.site %}
+        <p class="text-muted mb-3">
+          <i class="bi bi-building me-1"></i>{{ lesson.site.name }}
+        </p>
+        {% endif %}
+
+        {% if lesson.introduction_html %}
+        <div class="mb-4">
+          <h5>Introduction</h5>
+          <div class="text-muted">
+            {{ lesson.introduction_html|safe }}
+          </div>
+        </div>
+        {% endif %}
+
+        <hr>
+
+        <div class="row g-3 mb-4">
+          {% if lesson.story %}
+          <div class="col-12 col-md-6">
+            <div class="d-flex align-items-center">
+              <div class="bg-primary bg-opacity-10 rounded p-3 me-3">
+                <i class="bi bi-book text-primary fs-4"></i>
+              </div>
+              <div>
+                <small class="text-muted d-block">Reading</small>
+                <strong>{{ lesson.story.title }}</strong>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if lesson.story.reading_level_label %}
+          <div class="col-12 col-md-6">
+            <div class="d-flex align-items-center">
+              <div class="bg-info bg-opacity-10 rounded p-3 me-3">
+                <i class="bi bi-bar-chart text-info fs-4"></i>
+              </div>
+              <div>
+                <small class="text-muted d-block">Reading Level</small>
+                <strong>{{ lesson.story.reading_level_label }}</strong>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if lesson.story.reading_level_metrics.word_count %}
+          <div class="col-12 col-md-6">
+            <div class="d-flex align-items-center">
+              <div class="bg-secondary bg-opacity-10 rounded p-3 me-3">
+                <i class="bi bi-file-text text-secondary fs-4"></i>
+              </div>
+              <div>
+                <small class="text-muted d-block">Word Count</small>
+                <strong>{{ lesson.story.reading_level_metrics.word_count }} words</strong>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if lesson.quiz %}
+          <div class="col-12 col-md-6">
+            <div class="d-flex align-items-center">
+              <div class="bg-warning bg-opacity-10 rounded p-3 me-3">
+                <i class="bi bi-question-circle text-warning fs-4"></i>
+              </div>
+              <div>
+                <small class="text-muted d-block">Assessment</small>
+                <strong>{{ lesson.quiz.title }}</strong>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        {% if allowed_modes|length > 1 %}
+        <div class="mb-4">
+          <h5>Reading Modes Available</h5>
+          <div class="d-flex gap-2 flex-wrap">
+            {% for m in allowed_modes %}
+            <span class="badge bg-light text-dark border px-3 py-2">
+              {% if m == 'continuous' %}<i class="bi bi-text-paragraph me-1"></i>Continuous{% endif %}
+              {% if m == 'cards' %}<i class="bi bi-card-text me-1"></i>Cards{% endif %}
+              {% if m == 'movie' %}<i class="bi bi-film me-1"></i>Movie{% endif %}
+            </span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if progress %}
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle me-2"></i>
+          You started this lesson on {{ progress.reading_start|date:"M d, Y" }}.
+          {% if progress.reading_end %}
+          Reading completed.
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-white">
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="{% url 'core:student_lessons' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Lessons
+          </a>
+          <a href="{% url 'core:lesson_read' pk=lesson.pk %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-book me-2"></i>Start Reading
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
