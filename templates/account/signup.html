@@ -1,14 +1,14 @@
 {% extends "account/base.html" %}
 {% load django_bootstrap5 %}
 
-{% block title %}Sign Up - Reading Experiments{% endblock %}
+{% block title %}Sign Up - Safegloss{% endblock %}
 
 {% block content %}
 <div class="card auth-card">
   <div class="auth-header text-white">
     <i class="bi bi-person-plus"></i>
     <h3 class="mt-2 mb-0">Create Account</h3>
-    <p class="mb-0 opacity-75">Join Reading Experiments</p>
+    <p class="mb-0 opacity-75">Join Safegloss</p>
   </div>
   <div class="card-body p-4">
     <form method="post" action="{% url 'account_signup' %}">
