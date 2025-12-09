@@ -1,0 +1,57 @@
+{% extends "account/base.html" %}
+{% load django_bootstrap5 %}
+
+{% block title %}Sign Up - Reading Experiments{% endblock %}
+
+{% block content %}
+<div class="card auth-card">
+  <div class="auth-header text-white">
+    <i class="bi bi-person-plus"></i>
+    <h3 class="mt-2 mb-0">Create Account</h3>
+    <p class="mb-0 opacity-75">Join Reading Experiments</p>
+  </div>
+  <div class="card-body p-4">
+    <form method="post" action="{% url 'account_signup' %}">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label for="id_username" class="form-label">
+          <i class="bi bi-person me-1"></i>Username
+        </label>
+        <input type="text" name="username" id="id_username" class="form-control form-control-lg"
+               placeholder="Choose a username" required autofocus>
+      </div>
+      <div class="mb-3">
+        <label for="id_email" class="form-label">
+          <i class="bi bi-envelope me-1"></i>Email
+        </label>
+        <input type="email" name="email" id="id_email" class="form-control form-control-lg"
+               placeholder="Enter your email" required>
+      </div>
+      <div class="mb-3">
+        <label for="id_password1" class="form-label">
+          <i class="bi bi-lock me-1"></i>Password
+        </label>
+        <input type="password" name="password1" id="id_password1" class="form-control form-control-lg"
+               placeholder="Create a password" required>
+      </div>
+      <div class="mb-4">
+        <label for="id_password2" class="form-label">
+          <i class="bi bi-lock-fill me-1"></i>Confirm Password
+        </label>
+        <input type="password" name="password2" id="id_password2" class="form-control form-control-lg"
+               placeholder="Confirm your password" required>
+      </div>
+      {% if redirect_field_value %}
+        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+      {% endif %}
+      <button type="submit" class="btn btn-primary btn-lg w-100">
+        <i class="bi bi-person-plus me-2"></i>Create Account
+      </button>
+    </form>
+  </div>
+  <div class="card-footer bg-light text-center py-3">
+    <span class="text-muted">Already have an account?</span>
+    <a href="{% url 'account_login' %}" class="ms-1">Sign in</a>
+  </div>
+</div>
+{% endblock %}
