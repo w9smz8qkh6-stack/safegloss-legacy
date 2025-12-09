@@ -1,0 +1,244 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1">
+      <i class="bi bi-journal-text me-2"></i>{{ story.title }}
+    </h1>
+    <div class="text-muted">
+      {% if story.reading_level_label %}
+        <span class="badge bg-info me-2">{{ story.reading_level_label }}</span>
+      {% endif %}
+      <span class="badge bg-secondary">{{ story.get_source_type_display }}</span>
+    </div>
+  </div>
+  <div class="btn-group">
+    <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left me-2"></i>Back
+    </a>
+    <a href="{% url 'core:story_delete' story.pk %}" class="btn btn-outline-danger">
+      <i class="bi bi-trash me-2"></i>Delete
+    </a>
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'details' %}active{% endif %}" href="?tab=details">
+      <i class="bi bi-info-circle me-1"></i>Details
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'content' %}active{% endif %}" href="?tab=content">
+      <i class="bi bi-file-text me-1"></i>Content
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'segments' %}active{% endif %}" href="?tab=segments">
+      <i class="bi bi-list-ol me-1"></i>Segments
+      <span class="badge bg-secondary ms-1">{{ story.segments.count }}</span>
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'glossary' %}active{% endif %}" href="?tab=glossary">
+      <i class="bi bi-book me-1"></i>Glossary
+      <span class="badge bg-secondary ms-1">{{ terms.count }}</span>
+    </a>
+  </li>
+</ul>
+
+<!-- Tab Content -->
+{% if tab == 'details' %}
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="?tab=details">
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label for="id_title" class="form-label">Title <span class="text-danger">*</span></label>
+        {{ form.title }}
+      </div>
+
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="id_source_type" class="form-label">Source Type</label>
+          {{ form.source_type }}
+        </div>
+        <div class="col-md-6">
+          <label for="id_reading_level_label" class="form-label">Reading Level</label>
+          {{ form.reading_level_label }}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-circle me-2"></i>Save Details
+      </button>
+    </form>
+  </div>
+</div>
+
+{% elif tab == 'content' %}
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="?tab=details">
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label for="id_text_html" class="form-label">Story Content</label>
+        {{ form.text_html }}
+        <div class="form-text">Full story content. Use HTML for formatting.</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-circle me-2"></i>Save Content
+      </button>
+    </form>
+  </div>
+</div>
+
+{% elif tab == 'segments' %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-ol me-2"></i>Story Segments</span>
+    <span class="text-muted">{{ story.segments.count }} segment{{ story.segments.count|pluralize }}</span>
+  </div>
+  <div class="card-body">
+    <form method="post" action="?tab=segments">
+      {% csrf_token %}
+      {{ formset.management_form }}
+
+      <div id="segment-formset">
+        {% for segment_form in formset %}
+        <div class="card mb-3 segment-form">
+          <div class="card-header d-flex justify-content-between align-items-center py-2">
+            <span class="fw-medium">Segment {{ forloop.counter }}</span>
+            {% if segment_form.instance.pk %}
+              <div class="form-check">
+                {{ segment_form.DELETE }}
+                <label class="form-check-label text-danger" for="{{ segment_form.DELETE.id_for_label }}">Delete</label>
+              </div>
+            {% endif %}
+          </div>
+          <div class="card-body">
+            {{ segment_form.id }}
+            <div class="row mb-2">
+              <div class="col-md-2">
+                <label class="form-label">Order</label>
+                {{ segment_form.index }}
+              </div>
+              <div class="col-md-10">
+                <label class="form-label">Title (optional)</label>
+                {{ segment_form.title }}
+              </div>
+            </div>
+            <div class="mb-0">
+              <label class="form-label">Content</label>
+              {{ segment_form.text_html }}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-circle me-2"></i>Save Segments
+      </button>
+    </form>
+  </div>
+</div>
+
+{% elif tab == 'glossary' %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-book me-2"></i>Glossary Terms</span>
+    <a href="{% url 'core:term_create' story.pk %}" class="btn btn-sm btn-primary">
+      <i class="bi bi-plus-circle me-1"></i>Add Term
+    </a>
+  </div>
+  <div class="card-body">
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <small class="text-muted">
+          <strong>Language:</strong> {{ glossary.language_code|upper }} &rarr; {{ glossary.native_language_code|upper }}
+        </small>
+      </div>
+    </div>
+
+    {% if terms %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Term</th>
+            <th>Definition</th>
+            <th>Translation</th>
+            <th>Difficulty</th>
+            <th>Active</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for term in terms %}
+          <tr>
+            <td>
+              <strong>{{ term.term_text }}</strong>
+              {% if term.part_of_speech %}
+                <br><small class="text-muted">{{ term.part_of_speech }}</small>
+              {% endif %}
+            </td>
+            <td>
+              <small>{{ term.definition_html|truncatewords:15|safe }}</small>
+            </td>
+            <td>{{ term.translation|default:"-" }}</td>
+            <td>
+              {% if term.difficulty_rating %}
+                {% for i in "12345" %}
+                  {% if forloop.counter <= term.difficulty_rating %}
+                    <i class="bi bi-star-fill text-warning"></i>
+                  {% else %}
+                    <i class="bi bi-star text-muted"></i>
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if term.is_selected_for_glossary %}
+                <span class="badge bg-success">Yes</span>
+              {% else %}
+                <span class="badge bg-secondary">No</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm">
+                <a href="{% url 'core:term_edit' story.pk term.pk %}" class="btn btn-outline-primary">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{% url 'core:term_delete' story.pk term.pk %}" class="btn btn-outline-danger">
+                  <i class="bi bi-trash"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+      <i class="bi bi-book fs-1 d-block mb-2"></i>
+      <p>No glossary terms yet.</p>
+      <a href="{% url 'core:term_create' story.pk %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>Add First Term
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

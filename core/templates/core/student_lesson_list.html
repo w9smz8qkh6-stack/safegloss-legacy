@@ -1,0 +1,50 @@
+{% extends "core/base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}My Lessons{% endblock %}
+
+{% block content %}
+<h1 class="mb-3">My Lessons</h1>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-12 col-md-3">
+    {{ filter_form.status|as_crispy_field }}
+  </div>
+  <div class="col-12 col-md-5">
+    {{ filter_form.search|as_crispy_field }}
+  </div>
+  <div class="col-12 col-md-2">
+    <button class="btn btn-primary w-100">Filter</button>
+  </div>
+</form>
+
+{% if lessons %}
+  {% for lesson in lessons %}
+    <div class="lesson-card">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <div>
+          <div class="lesson-card-title">{{ lesson.title }}</div>
+          <div class="lesson-card-meta">
+            Site: {{ lesson.site.name }} &bullet;
+            Modes:
+            {% for m in lesson.allowed_modes %}
+              <span class="badge bg-light text-dark">{{ m }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        <div>
+          <a href="{% url 'core:lesson_read' lesson.id %}" class="btn btn-sm btn-primary">Open</a>
+        </div>
+      </div>
+      <div class="mt-2">
+        <div class="progress" style="height: 6px;">
+          <div class="progress-bar" role="progressbar" style="width: 60%;"></div>
+        </div>
+        <small class="text-muted">Status: In Progress</small>
+      </div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>No lessons assigned yet.</p>
+{% endif %}
+{% endblock %}

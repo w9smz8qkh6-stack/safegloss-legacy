@@ -1,0 +1,79 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0">
+        <i class="bi bi-people me-2"></i>{{ title }}
+      </h1>
+      <a href="{% url 'core:roster_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Rosters
+      </a>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label for="id_name" class="form-label">Name <span class="text-danger">*</span></label>
+            {{ form.name }}
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_site" class="form-label">Site <span class="text-danger">*</span></label>
+              {{ form.site }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_grade_band" class="form-label">Grade Band</label>
+              {{ form.grade_band }}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle me-2"></i>Save Roster
+            </button>
+            <a href="{% url 'core:roster_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if roster and memberships %}
+    <div class="card mt-4">
+      <div class="card-header">
+        <i class="bi bi-person-lines-fill me-2"></i>Students in Roster
+      </div>
+      <div class="card-body p-0">
+        <div class="list-group list-group-flush">
+          {% for membership in memberships %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <i class="bi bi-person me-2"></i>
+                {{ membership.student.username }}
+                {% if membership.student.email %}
+                  <small class="text-muted">({{ membership.student.email }})</small>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% elif roster %}
+    <div class="card mt-4">
+      <div class="card-body text-center text-muted py-4">
+        <i class="bi bi-person-plus fs-1 d-block mb-2"></i>
+        <p>No students in this roster yet.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

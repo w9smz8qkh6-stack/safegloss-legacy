@@ -1,0 +1,47 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ lesson.title }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h4 mb-0">{{ lesson.title }}</h1>
+    <div class="text-muted small">Reading mode</div>
+  </div>
+  <div class="btn-group" role="group">
+    {% for m in allowed_modes %}
+      <a
+        href="?mode={{ m }}"
+        class="btn btn-sm {% if mode == m %}btn-primary{% else %}btn-outline-primary{% endif %}"
+      >
+        {{ m|title }}
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% if mode == "continuous" %}
+  <article class="card">
+    <div class="card-body">
+      {{ story.text_html|safe }}
+    </div>
+  </article>
+{% elif mode == "cards" %}
+  <div id="segment-cards">
+    {% for segment in segments %}
+      <article class="card mb-3">
+        <div class="card-header">
+          Segment {{ forloop.counter }}{% if segment.title %}: {{ segment.title }}{% endif %}
+        </div>
+        <div class="card-body">
+          {{ segment.text_html|safe }}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% elif mode == "movie" %}
+  <div class="alert alert-info">
+    Movie mode player will go here (synchronized text + media).
+  </div>
+{% endif %}
+{% endblock %}

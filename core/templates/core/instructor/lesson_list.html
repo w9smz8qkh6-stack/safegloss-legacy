@@ -1,0 +1,95 @@
+{% extends "core/base.html" %}
+
+{% block title %}Lessons{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1 class="h3 mb-0">
+    <i class="bi bi-mortarboard me-2"></i>Lessons
+  </h1>
+  <a href="{% url 'core:lesson_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>New Lesson
+  </a>
+</div>
+
+{% if lessons %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>Title</th>
+        <th>Site</th>
+        <th>Story</th>
+        <th>Quiz</th>
+        <th>Rosters</th>
+        <th>Status</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lesson in lessons %}
+      <tr>
+        <td>
+          <a href="{% url 'core:lesson_edit' lesson.pk %}" class="text-decoration-none fw-medium">
+            {{ lesson.title }}
+          </a>
+        </td>
+        <td>{{ lesson.site.name|default:"-" }}</td>
+        <td>
+          {% if lesson.story %}
+            <a href="{% url 'core:story_edit' lesson.story.pk %}" class="text-decoration-none">
+              {{ lesson.story.title|truncatechars:30 }}
+            </a>
+          {% else %}
+            <span class="text-muted">-</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if lesson.quiz %}
+            <a href="{% url 'core:quiz_edit' lesson.quiz.pk %}" class="text-decoration-none">
+              {{ lesson.quiz.title|truncatechars:20 }}
+            </a>
+          {% else %}
+            <span class="text-muted">-</span>
+          {% endif %}
+        </td>
+        <td>
+          {% for roster in lesson.rosters.all %}
+            <span class="badge bg-light text-dark">{{ roster.name }}</span>
+          {% empty %}
+            <span class="text-muted">-</span>
+          {% endfor %}
+        </td>
+        <td>
+          {% if lesson.is_active %}
+            <span class="badge bg-success">Active</span>
+          {% else %}
+            <span class="badge bg-secondary">Inactive</span>
+          {% endif %}
+        </td>
+        <td class="text-end">
+          <div class="btn-group btn-group-sm">
+            <a href="{% url 'core:lesson_edit' lesson.pk %}" class="btn btn-outline-primary" title="Edit">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <a href="{% url 'core:lesson_delete' lesson.pk %}" class="btn btn-outline-danger" title="Delete">
+              <i class="bi bi-trash"></i>
+            </a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center py-5">
+  <i class="bi bi-mortarboard text-muted" style="font-size: 4rem;"></i>
+  <h3 class="mt-3 text-muted">No lessons yet</h3>
+  <p class="text-muted">Create your first lesson to assign stories and quizzes to students.</p>
+  <a href="{% url 'core:lesson_create' %}" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-2"></i>Create Lesson
+  </a>
+</div>
+{% endif %}
+{% endblock %}
