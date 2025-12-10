@@ -77,4 +77,9 @@ urlpatterns = [
     path("instructor/stories/<int:pk>/adjust-lexile/", views.story_adjust_lexile, name="story_adjust_lexile"),
     path("instructor/stories/<int:pk>/adjust-lexile/save/", views.story_adjust_save, name="story_adjust_save"),
     path("instructor/lexile-analyze/", views.lexile_analyze, name="lexile_analyze"),
+
+    # AI Glossary Generation
+    path("instructor/stories/<int:pk>/glossary/generate/", views.glossary_generate, name="glossary_generate"),
+    path("instructor/stories/<int:pk>/glossary/generate/save/", views.glossary_generate_save, name="glossary_generate_save"),
+    path("api/stories/<int:pk>/glossary/generate/", views.glossary_generate_api, name="glossary_generate_api"),
 ]

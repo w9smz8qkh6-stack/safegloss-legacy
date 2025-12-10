@@ -613,3 +613,208 @@ def get_story_terms(story):
         return glossary.terms.filter(is_selected_for_glossary=True)
     except Exception:
         return []
+
+
+# =============================================================================
+# AI GLOSSARY GENERATION
+# =============================================================================
+
+def generate_glossary_terms(
+    text: str,
+    target_lexile: int = None,
+    num_terms: int = 10,
+    native_language: str = None,
+    model: str = "gpt-4o"
+) -> dict:
+    """
+    Use AI to identify challenging vocabulary and generate glossary terms.
+
+    Args:
+        text: The story text to analyze
+        target_lexile: Lexile level of the text (for context)
+        num_terms: Maximum number of terms to suggest
+        native_language: L1 for translations (e.g., "Vietnamese", "Spanish")
+        model: OpenAI model to use
+
+    Returns:
+        dict with success status and list of suggested terms
+    """
+    client = get_openai_client()
+
+    # Strip HTML for analysis
+    plain_text = strip_html(text) if '<' in text else text
+
+    # Get reading level context
+    if target_lexile:
+        level_context = f"This text is at approximately {target_lexile}L Lexile level."
+        guidelines = get_lexile_guidelines(target_lexile)
+        audience = guidelines['grade_description']
+    else:
+        analysis = estimate_lexile(plain_text)
+        target_lexile = analysis.get('lexile', 700)
+        level_context = f"Estimated reading level: {target_lexile}L"
+        audience = "language learners"
+
+    translation_instruction = ""
+    if native_language:
+        translation_instruction = f"""
+- translation: Translation in {native_language}"""
+
+    prompt = f"""Analyze this text and identify the {num_terms} most important vocabulary terms for a glossary.
+
+{level_context}
+Target audience: {audience}
+
+SELECTION CRITERIA:
+1. Academic vocabulary and domain-specific terms
+2. Words that are crucial for comprehension
+3. Multi-syllable words that may be unfamiliar
+4. Words with meanings specific to this context
+5. Phrasal verbs or idiomatic expressions
+
+EXCLUDE:
+- Very common high-frequency words (the, is, and, etc.)
+- Proper nouns (unless they need explanation)
+- Words already defined in context
+
+For each term, provide:
+- term: The exact word or phrase as it appears in the text
+- definition: A clear, learner-friendly definition (appropriate for {audience})
+- part_of_speech: noun, verb, adjective, adverb, etc.
+- example_sentence: A simple example sentence using the word{translation_instruction}
+- difficulty: A rating from 1-5 (1=easy, 5=very difficult)
+
+TEXT TO ANALYZE:
+{plain_text[:3000]}
+
+Return your response as a JSON array of term objects. Only return the JSON array, no other text."""
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert ESL/EFL vocabulary instructor who identifies key vocabulary for language learners. You provide clear, learner-appropriate definitions and helpful context."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"},
+        )
+
+        import json
+        response_text = response.choices[0].message.content.strip()
+
+        # Parse JSON response
+        try:
+            data = json.loads(response_text)
+            # Handle both {terms: [...]} and direct array format
+            if isinstance(data, dict) and 'terms' in data:
+                terms = data['terms']
+            elif isinstance(data, list):
+                terms = data
+            else:
+                # Try to find an array in the response
+                for key, value in data.items():
+                    if isinstance(value, list):
+                        terms = value
+                        break
+                else:
+                    terms = []
+        except json.JSONDecodeError:
+            # Try to extract JSON array from response
+            import re
+            match = re.search(r'\[[\s\S]*\]', response_text)
+            if match:
+                terms = json.loads(match.group())
+            else:
+                terms = []
+
+        return {
+            "success": True,
+            "terms": terms,
+            "text_lexile": target_lexile,
+            "count": len(terms)
+        }
+
+    except Exception as e:
+        logger.error(f"Glossary generation failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "terms": []
+        }
+
+
+def suggest_additional_terms(
+    text: str,
+    existing_terms: list,
+    num_suggestions: int = 5,
+    model: str = "gpt-4o"
+) -> dict:
+    """
+    Suggest additional glossary terms not already in the glossary.
+
+    Args:
+        text: The story text
+        existing_terms: List of term strings already in glossary
+        num_suggestions: Number of additional terms to suggest
+
+    Returns:
+        dict with suggested terms
+    """
+    client = get_openai_client()
+
+    plain_text = strip_html(text) if '<' in text else text
+    existing_list = ", ".join(existing_terms) if existing_terms else "none"
+
+    prompt = f"""Analyze this text and suggest {num_suggestions} additional vocabulary terms for a glossary.
+
+ALREADY IN GLOSSARY (do not suggest these):
+{existing_list}
+
+Suggest terms that:
+1. Are NOT in the existing list above
+2. Would help comprehension
+3. Are challenging for language learners
+
+TEXT:
+{plain_text[:2000]}
+
+Return a JSON array with term objects containing: term, definition, part_of_speech, difficulty (1-5)"""
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a vocabulary expert. Return only a JSON array of term objects."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"},
+        )
+
+        import json
+        data = json.loads(response.choices[0].message.content.strip())
+        terms = data.get('terms', data) if isinstance(data, dict) else data
+
+        return {
+            "success": True,
+            "terms": terms if isinstance(terms, list) else [],
+            "count": len(terms) if isinstance(terms, list) else 0
+        }
+
+    except Exception as e:
+        logger.error(f"Additional term suggestion failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "terms": []
+        }

@@ -10,7 +10,8 @@ from functools import wraps
 from .forms import (
     LessonFilterForm, StoryForm, StorySegmentFormSet, GlossaryForm, TermForm,
     LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm,
-    JoinRosterForm, StoryGenerationForm, LexileAnalysisForm, LexileAdjustmentForm
+    JoinRosterForm, StoryGenerationForm, LexileAnalysisForm, LexileAdjustmentForm,
+    GlossaryGenerationForm
 )
 from django.db.models import Avg, Sum, F
 from .models import (
@@ -23,7 +24,8 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from .utils import (
     markup_glossary_terms, get_story_terms, estimate_lexile,
-    generate_story_sync, regenerate_for_lexile, LEXILE_GRADE_BANDS
+    generate_story_sync, regenerate_for_lexile, LEXILE_GRADE_BANDS,
+    generate_glossary_terms
 )
 
 
@@ -1951,3 +1953,162 @@ def story_adjust_save(request, pk):
         messages.success(request, f"Story updated to {adjusted['actual_lexile']}L!")
         del request.session["adjusted_story"]
         return redirect("core:story_edit", pk=story.pk)
+
+
+# =============================================================================
+# AI GLOSSARY GENERATION
+# =============================================================================
+
+@login_required
+@instructor_required
+def glossary_generate(request, pk):
+    """Generate glossary terms for a story using AI."""
+    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    result = None
+
+    # Get or create glossary for story
+    glossary, created = Glossary.objects.get_or_create(
+        story=story,
+        defaults={
+            "name": f"Glossary for {story.title}",
+            "language_code": "en",
+            "native_language_code": "vi",
+        }
+    )
+
+    # Get existing terms
+    existing_terms = list(glossary.terms.values_list("term_text", flat=True))
+
+    # Get story reading level
+    analysis = estimate_lexile(story.text_html)
+    story_lexile = analysis.get("lexile", 700)
+
+    if request.method == "POST":
+        form = GlossaryGenerationForm(request.POST)
+        if form.is_valid():
+            try:
+                result = generate_glossary_terms(
+                    text=story.text_html,
+                    target_lexile=story_lexile,
+                    num_terms=form.cleaned_data["num_terms"],
+                    native_language=form.cleaned_data.get("native_language") or None,
+                )
+
+                if result["success"]:
+                    # Store in session for saving
+                    request.session["generated_terms"] = {
+                        "story_pk": story.pk,
+                        "terms": result["terms"],
+                        "native_language": form.cleaned_data.get("native_language", ""),
+                    }
+                else:
+                    messages.error(request, f"Generation failed: {result.get('error', 'Unknown error')}")
+
+            except ValueError as e:
+                messages.error(request, str(e))
+            except Exception as e:
+                messages.error(request, f"An error occurred: {str(e)}")
+    else:
+        form = GlossaryGenerationForm()
+
+    return render(request, "core/instructor/glossary_generate.html", {
+        "form": form,
+        "story": story,
+        "glossary": glossary,
+        "existing_terms": existing_terms,
+        "story_lexile": story_lexile,
+        "result": result,
+    })
+
+
+@login_required
+@instructor_required
+@require_POST
+def glossary_generate_save(request, pk):
+    """Save AI-generated glossary terms to the story's glossary."""
+    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    generated = request.session.get("generated_terms")
+
+    if not generated or generated.get("story_pk") != story.pk:
+        messages.error(request, "No generated terms found. Please generate terms first.")
+        return redirect("core:glossary_generate", pk=pk)
+
+    # Get or create glossary
+    glossary, _ = Glossary.objects.get_or_create(
+        story=story,
+        defaults={
+            "name": f"Glossary for {story.title}",
+            "language_code": "en",
+            "native_language_code": generated.get("native_language", "")[:2].lower() or "vi",
+        }
+    )
+
+    # Get selected term indices from form
+    selected_indices = request.POST.getlist("selected_terms")
+    terms_to_add = generated["terms"]
+
+    if selected_indices:
+        # Only add selected terms
+        selected_set = set(int(i) for i in selected_indices)
+        terms_to_add = [t for i, t in enumerate(terms_to_add) if i in selected_set]
+
+    # Create Term objects
+    created_count = 0
+    for term_data in terms_to_add:
+        term_text = term_data.get("term", "").strip()
+        if not term_text:
+            continue
+
+        # Check if term already exists
+        if glossary.terms.filter(term_text__iexact=term_text).exists():
+            continue
+
+        Term.objects.create(
+            glossary=glossary,
+            term_text=term_text,
+            definition_html=term_data.get("definition", ""),
+            part_of_speech=term_data.get("part_of_speech", ""),
+            translation=term_data.get("translation", ""),
+            translation_lang_code=generated.get("native_language", "")[:2].lower(),
+            difficulty_rating=term_data.get("difficulty"),
+            is_ai_suggested=True,
+            is_selected_for_glossary=True,
+        )
+        created_count += 1
+
+    # Clear session
+    del request.session["generated_terms"]
+
+    messages.success(request, f"Added {created_count} new terms to glossary!")
+    return redirect("core:story_edit", pk=story.pk)
+
+
+@login_required
+@instructor_required
+def glossary_generate_api(request, pk):
+    """API endpoint for generating glossary terms (AJAX)."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+
+    try:
+        data = json.loads(request.body)
+        num_terms = data.get("num_terms", 10)
+        native_language = data.get("native_language")
+    except json.JSONDecodeError:
+        num_terms = 10
+        native_language = None
+
+    # Get story reading level
+    analysis = estimate_lexile(story.text_html)
+    story_lexile = analysis.get("lexile", 700)
+
+    result = generate_glossary_terms(
+        text=story.text_html,
+        target_lexile=story_lexile,
+        num_terms=num_terms,
+        native_language=native_language,
+    )
+
+    return JsonResponse(result)

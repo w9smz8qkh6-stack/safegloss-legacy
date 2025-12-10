@@ -306,3 +306,46 @@ class LexileAdjustmentForm(forms.Form):
         }),
         help_text="Target Lexile level"
     )
+
+
+class GlossaryGenerationForm(forms.Form):
+    """Form for AI-powered glossary term generation."""
+
+    LANGUAGE_CHOICES = [
+        ("", "No translations"),
+        ("Vietnamese", "Vietnamese"),
+        ("Spanish", "Spanish"),
+        ("Chinese", "Chinese (Simplified)"),
+        ("Korean", "Korean"),
+        ("Arabic", "Arabic"),
+        ("French", "French"),
+        ("Portuguese", "Portuguese"),
+        ("Japanese", "Japanese"),
+        ("Russian", "Russian"),
+        ("Hindi", "Hindi"),
+    ]
+
+    num_terms = forms.IntegerField(
+        min_value=3,
+        max_value=25,
+        initial=10,
+        widget=forms.NumberInput(attrs={
+            "class": "form-control",
+            "style": "width: 100px;"
+        }),
+        help_text="Number of terms to suggest (3-25)"
+    )
+
+    native_language = forms.ChoiceField(
+        choices=LANGUAGE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Include translations in this language"
+    )
+
+    include_existing = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="Include terms already in glossary for comparison"
+    )
