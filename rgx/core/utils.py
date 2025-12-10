@@ -818,3 +818,242 @@ Return a JSON array with term objects containing: term, definition, part_of_spee
             "error": str(e),
             "terms": []
         }
+
+
+# =============================================================================
+# AI QUIZ GENERATION
+# =============================================================================
+
+def generate_quiz_questions(
+    text: str,
+    num_questions: int = 5,
+    question_types: list = None,
+    target_lexile: int = None,
+    focus_area: str = None,
+    model: str = "gpt-4o"
+) -> dict:
+    """
+    Generate comprehension quiz questions based on story text.
+
+    Args:
+        text: The story text to generate questions from
+        num_questions: Number of questions to generate
+        question_types: List of types to include (mcq_single, true_false, short_answer)
+        target_lexile: Reading level for question difficulty
+        focus_area: Optional focus (main_idea, details, vocabulary, inference)
+        model: OpenAI model to use
+
+    Returns:
+        dict with success status and list of generated questions
+    """
+    client = get_openai_client()
+
+    # Default question types
+    if not question_types:
+        question_types = ["mcq_single", "true_false", "short_answer"]
+
+    # Strip HTML for analysis
+    plain_text = strip_html(text) if '<' in text else text
+
+    # Get reading level context
+    if target_lexile:
+        guidelines = get_lexile_guidelines(target_lexile)
+        level_context = f"Questions should be appropriate for {guidelines['grade_description']} readers ({target_lexile}L)."
+    else:
+        analysis = estimate_lexile(plain_text)
+        target_lexile = analysis.get('lexile', 700)
+        guidelines = get_lexile_guidelines(target_lexile)
+        level_context = f"Estimated text level: {target_lexile}L. Questions for {guidelines['grade_description']} readers."
+
+    # Build question type instructions
+    type_instructions = []
+    if "mcq_single" in question_types:
+        type_instructions.append("""
+MULTIPLE CHOICE (mcq_single):
+- 4 answer choices (A, B, C, D)
+- One clearly correct answer
+- Plausible distractors based on the text
+- Format: {"type": "mcq_single", "prompt": "...", "choices": [{"label": "A", "text": "...", "is_correct": true/false}, ...]}""")
+
+    if "true_false" in question_types:
+        type_instructions.append("""
+TRUE/FALSE (true_false):
+- Statement that is clearly true or false based on the text
+- Avoid ambiguous statements
+- Format: {"type": "true_false", "prompt": "...", "choices": [{"label": "True", "text": "True", "is_correct": true/false}, {"label": "False", "text": "False", "is_correct": true/false}]}""")
+
+    if "short_answer" in question_types:
+        type_instructions.append("""
+SHORT ANSWER (short_answer):
+- Open-ended question requiring 1-3 sentence response
+- Include expected_answer for grading reference
+- Format: {"type": "short_answer", "prompt": "...", "expected_answer": "..."}""")
+
+    focus_instruction = ""
+    if focus_area:
+        focus_map = {
+            "main_idea": "Focus on questions about the main idea, central theme, and overall message.",
+            "details": "Focus on questions about specific details, facts, and supporting information.",
+            "vocabulary": "Focus on questions about word meanings, context clues, and vocabulary usage.",
+            "inference": "Focus on questions requiring inference, drawing conclusions, and reading between the lines.",
+            "sequence": "Focus on questions about the order of events, cause and effect, and chronology.",
+        }
+        focus_instruction = f"\nFOCUS AREA: {focus_map.get(focus_area, focus_area)}"
+
+    prompt = f"""Generate {num_questions} reading comprehension questions for the following text.
+
+{level_context}
+{focus_instruction}
+
+QUESTION TYPES TO INCLUDE:
+{chr(10).join(type_instructions)}
+
+GUIDELINES:
+1. Questions should test genuine comprehension, not just word recognition
+2. Include a mix of literal and inferential questions
+3. Ensure questions can be answered from the text alone
+4. Make questions progressively harder if generating multiple
+5. For MCQ, make distractors plausible but clearly wrong based on text
+
+TEXT:
+{plain_text[:4000]}
+
+Return a JSON object with a "questions" array containing the generated questions.
+Each question should have: type, prompt, points (default 1), and either choices array or expected_answer."""
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert reading assessment designer who creates comprehension questions that effectively measure reading understanding. You create questions appropriate for the reading level of the text."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.5,
+            response_format={"type": "json_object"},
+        )
+
+        import json
+        response_text = response.choices[0].message.content.strip()
+
+        # Parse JSON response
+        try:
+            data = json.loads(response_text)
+            questions = data.get('questions', data) if isinstance(data, dict) else data
+            if not isinstance(questions, list):
+                for key, value in data.items():
+                    if isinstance(value, list):
+                        questions = value
+                        break
+                else:
+                    questions = []
+        except json.JSONDecodeError:
+            questions = []
+
+        return {
+            "success": True,
+            "questions": questions,
+            "count": len(questions),
+            "text_lexile": target_lexile,
+        }
+
+    except Exception as e:
+        logger.error(f"Quiz generation failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "questions": []
+        }
+
+
+def generate_vocabulary_quiz(
+    terms: list,
+    quiz_type: str = "definition_match",
+    num_questions: int = None,
+    model: str = "gpt-4o"
+) -> dict:
+    """
+    Generate a vocabulary quiz from glossary terms.
+
+    Args:
+        terms: List of term dicts with term_text and definition_html
+        quiz_type: Type of vocabulary quiz (definition_match, fill_blank, context_clue)
+        num_questions: Number of questions (defaults to len(terms))
+
+    Returns:
+        dict with generated vocabulary questions
+    """
+    client = get_openai_client()
+
+    if not terms:
+        return {"success": False, "error": "No terms provided", "questions": []}
+
+    num_questions = num_questions or len(terms)
+    term_list = "\n".join([
+        f"- {t.get('term_text', t.get('term', ''))}: {t.get('definition_html', t.get('definition', ''))}"
+        for t in terms[:20]  # Limit to 20 terms
+    ])
+
+    quiz_type_instructions = {
+        "definition_match": """Create multiple choice questions where students match terms to their definitions.
+Format: {"type": "mcq_single", "prompt": "What does [TERM] mean?", "choices": [...], "term": "..."}""",
+
+        "fill_blank": """Create fill-in-the-blank sentences where students choose the correct vocabulary word.
+Format: {"type": "mcq_single", "prompt": "Complete the sentence: _____ means...", "choices": [...], "term": "..."}""",
+
+        "context_clue": """Create questions where students identify the meaning of a term from context.
+Format: {"type": "mcq_single", "prompt": "In the sentence '...', what does [TERM] mean?", "choices": [...], "term": "..."}"""
+    }
+
+    prompt = f"""Generate {num_questions} vocabulary quiz questions from these terms:
+
+{term_list}
+
+QUIZ TYPE: {quiz_type}
+{quiz_type_instructions.get(quiz_type, quiz_type_instructions['definition_match'])}
+
+GUIDELINES:
+1. Each question tests one vocabulary term
+2. Include 4 choices with one correct answer
+3. Distractors should be plausible but clearly different meanings
+4. Questions should be clear and unambiguous
+
+Return a JSON object with a "questions" array."""
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a vocabulary assessment expert who creates effective questions to test word knowledge."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.4,
+            response_format={"type": "json_object"},
+        )
+
+        import json
+        data = json.loads(response.choices[0].message.content.strip())
+        questions = data.get('questions', [])
+
+        return {
+            "success": True,
+            "questions": questions,
+            "count": len(questions),
+            "quiz_type": quiz_type,
+        }
+
+    except Exception as e:
+        logger.error(f"Vocabulary quiz generation failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "questions": []
+        }

@@ -82,4 +82,9 @@ urlpatterns = [
     path("instructor/stories/<int:pk>/glossary/generate/", views.glossary_generate, name="glossary_generate"),
     path("instructor/stories/<int:pk>/glossary/generate/save/", views.glossary_generate_save, name="glossary_generate_save"),
     path("api/stories/<int:pk>/glossary/generate/", views.glossary_generate_api, name="glossary_generate_api"),
+
+    # AI Quiz Generation
+    path("instructor/stories/<int:story_pk>/quiz/generate/", views.quiz_generate, name="quiz_generate"),
+    path("instructor/stories/<int:story_pk>/quiz/generate/save/", views.quiz_generate_save, name="quiz_generate_save"),
+    path("api/stories/<int:story_pk>/quiz/generate/", views.quiz_generate_api, name="quiz_generate_api"),
 ]

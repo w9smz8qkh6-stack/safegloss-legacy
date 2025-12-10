@@ -11,7 +11,7 @@ from .forms import (
     LessonFilterForm, StoryForm, StorySegmentFormSet, GlossaryForm, TermForm,
     LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm,
     JoinRosterForm, StoryGenerationForm, LexileAnalysisForm, LexileAdjustmentForm,
-    GlossaryGenerationForm
+    GlossaryGenerationForm, QuizGenerationForm
 )
 from django.db.models import Avg, Sum, F
 from .models import (
@@ -25,7 +25,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .utils import (
     markup_glossary_terms, get_story_terms, estimate_lexile,
     generate_story_sync, regenerate_for_lexile, LEXILE_GRADE_BANDS,
-    generate_glossary_terms
+    generate_glossary_terms, generate_quiz_questions, generate_vocabulary_quiz
 )
 
 
@@ -2109,6 +2109,196 @@ def glossary_generate_api(request, pk):
         target_lexile=story_lexile,
         num_terms=num_terms,
         native_language=native_language,
+    )
+
+    return JsonResponse(result)
+
+
+# =============================================================================
+# AI QUIZ GENERATION
+# =============================================================================
+
+@login_required
+@instructor_required
+def quiz_generate(request, story_pk):
+    """Generate quiz questions for a story using AI."""
+    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    result = None
+
+    # Get story reading level
+    analysis = estimate_lexile(story.text_html)
+    story_lexile = analysis.get("lexile", 700)
+
+    # Get glossary terms if available
+    glossary_terms = []
+    try:
+        glossary = story.glossary
+        glossary_terms = list(glossary.terms.filter(is_selected_for_glossary=True).values(
+            "term_text", "definition_html"
+        ))
+    except Glossary.DoesNotExist:
+        pass
+
+    if request.method == "POST":
+        form = QuizGenerationForm(request.POST)
+        if form.is_valid():
+            try:
+                # Generate comprehension questions
+                result = generate_quiz_questions(
+                    text=story.text_html,
+                    num_questions=form.cleaned_data["num_questions"],
+                    question_types=form.cleaned_data["question_types"],
+                    target_lexile=story_lexile,
+                    focus_area=form.cleaned_data.get("focus_area") or None,
+                )
+
+                # Optionally add vocabulary questions
+                if form.cleaned_data.get("include_vocabulary") and glossary_terms:
+                    vocab_result = generate_vocabulary_quiz(
+                        terms=glossary_terms,
+                        num_questions=min(3, len(glossary_terms)),
+                    )
+                    if vocab_result["success"]:
+                        result["questions"].extend(vocab_result["questions"])
+                        result["count"] = len(result["questions"])
+
+                if result["success"]:
+                    # Store for potential saving
+                    request.session["generated_quiz"] = {
+                        "story_pk": story.pk,
+                        "questions": result["questions"],
+                        "story_lexile": story_lexile,
+                    }
+                else:
+                    messages.error(request, f"Generation failed: {result.get('error', 'Unknown error')}")
+
+            except ValueError as e:
+                messages.error(request, str(e))
+            except Exception as e:
+                messages.error(request, f"An error occurred: {str(e)}")
+    else:
+        form = QuizGenerationForm()
+
+    return render(request, "core/instructor/quiz_generate.html", {
+        "form": form,
+        "story": story,
+        "story_lexile": story_lexile,
+        "glossary_terms_count": len(glossary_terms),
+        "result": result,
+    })
+
+
+@login_required
+@instructor_required
+@require_POST
+def quiz_generate_save(request, story_pk):
+    """Save AI-generated quiz questions as a new quiz."""
+    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    generated = request.session.get("generated_quiz")
+
+    if not generated or generated.get("story_pk") != story.pk:
+        messages.error(request, "No generated quiz found. Please generate questions first.")
+        return redirect("core:quiz_generate", story_pk=story_pk)
+
+    # Get quiz title from form
+    quiz_title = request.POST.get("quiz_title", f"Quiz: {story.title}")
+
+    # Get selected question indices
+    selected_indices = request.POST.getlist("selected_questions")
+    questions_to_add = generated["questions"]
+
+    if selected_indices:
+        selected_set = set(int(i) for i in selected_indices)
+        questions_to_add = [q for i, q in enumerate(questions_to_add) if i in selected_set]
+
+    if not questions_to_add:
+        messages.error(request, "No questions selected.")
+        return redirect("core:quiz_generate", story_pk=story_pk)
+
+    # Create Quiz
+    quiz = Quiz.objects.create(
+        owner=request.user,
+        title=quiz_title,
+        instructions_html=f"<p>Answer the following questions about the story: <strong>{story.title}</strong></p>",
+        metadata={"source": "ai_generated", "story_pk": story.pk, "lexile": generated.get("story_lexile")},
+    )
+
+    # Create ItemBankQuestion for each question and link to quiz
+    total_points = 0
+    for order, q_data in enumerate(questions_to_add):
+        q_type = q_data.get("type", "mcq_single")
+        points = q_data.get("points", 1)
+
+        # Create ItemBankQuestion
+        question = ItemBankQuestion.objects.create(
+            owner=request.user,
+            prompt_html=q_data.get("prompt", ""),
+            question_type=q_type,
+            default_points=points,
+            metadata={"ai_generated": True, "expected_answer": q_data.get("expected_answer", "")},
+            status="active",
+        )
+
+        # Create choices if applicable
+        choices = q_data.get("choices", [])
+        for choice_order, choice in enumerate(choices):
+            ItemBankChoice.objects.create(
+                question=question,
+                label=choice.get("label", chr(65 + choice_order)),  # A, B, C, D
+                text_html=choice.get("text", ""),
+                is_correct=choice.get("is_correct", False),
+                order=choice_order,
+            )
+
+        # Link to quiz
+        QuizQuestion.objects.create(
+            quiz=quiz,
+            question=question,
+            order=order,
+            points=points,
+        )
+        total_points += points
+
+    # Update quiz total points
+    quiz.total_points = total_points
+    quiz.save()
+
+    # Clear session
+    del request.session["generated_quiz"]
+
+    messages.success(request, f"Quiz created with {len(questions_to_add)} questions!")
+    return redirect("core:quiz_edit", pk=quiz.pk)
+
+
+@login_required
+@instructor_required
+def quiz_generate_api(request, story_pk):
+    """API endpoint for generating quiz questions (AJAX)."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+
+    try:
+        data = json.loads(request.body)
+        num_questions = data.get("num_questions", 5)
+        question_types = data.get("question_types", ["mcq_single", "true_false"])
+        focus_area = data.get("focus_area")
+    except json.JSONDecodeError:
+        num_questions = 5
+        question_types = ["mcq_single", "true_false"]
+        focus_area = None
+
+    # Get story reading level
+    analysis = estimate_lexile(story.text_html)
+    story_lexile = analysis.get("lexile", 700)
+
+    result = generate_quiz_questions(
+        text=story.text_html,
+        num_questions=num_questions,
+        question_types=question_types,
+        target_lexile=story_lexile,
+        focus_area=focus_area,
     )
 
     return JsonResponse(result)

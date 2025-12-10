@@ -349,3 +349,54 @@ class GlossaryGenerationForm(forms.Form):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
         help_text="Include terms already in glossary for comparison"
     )
+
+
+class QuizGenerationForm(forms.Form):
+    """Form for AI-powered quiz question generation."""
+
+    QUESTION_TYPE_CHOICES = [
+        ("mcq_single", "Multiple Choice"),
+        ("true_false", "True/False"),
+        ("short_answer", "Short Answer"),
+    ]
+
+    FOCUS_AREA_CHOICES = [
+        ("", "Mixed (Recommended)"),
+        ("main_idea", "Main Idea & Theme"),
+        ("details", "Supporting Details"),
+        ("vocabulary", "Vocabulary in Context"),
+        ("inference", "Inference & Analysis"),
+        ("sequence", "Sequence & Cause/Effect"),
+    ]
+
+    num_questions = forms.IntegerField(
+        min_value=1,
+        max_value=15,
+        initial=5,
+        widget=forms.NumberInput(attrs={
+            "class": "form-control",
+            "style": "width: 100px;"
+        }),
+        help_text="Number of questions to generate (1-15)"
+    )
+
+    question_types = forms.MultipleChoiceField(
+        choices=QUESTION_TYPE_CHOICES,
+        initial=["mcq_single", "true_false"],
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "form-check-input"}),
+        help_text="Types of questions to include"
+    )
+
+    focus_area = forms.ChoiceField(
+        choices=FOCUS_AREA_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Focus on a specific comprehension skill"
+    )
+
+    include_vocabulary = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        help_text="Include vocabulary questions from glossary terms"
+    )

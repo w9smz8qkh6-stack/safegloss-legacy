@@ -32,13 +32,23 @@
       <span class="badge bg-secondary">{{ story.get_source_type_display }}</span>
     </div>
   </div>
-  <div class="btn-group">
-    <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left me-2"></i>Back
-    </a>
-    <a href="{% url 'core:story_delete' story.pk %}" class="btn btn-outline-danger">
-      <i class="bi bi-trash me-2"></i>Delete
-    </a>
+  <div class="d-flex gap-2">
+    <div class="btn-group">
+      <a href="{% url 'core:quiz_generate' story_pk=story.pk %}" class="btn btn-outline-primary">
+        <i class="bi bi-stars me-2"></i>Generate Quiz
+      </a>
+      <a href="{% url 'core:story_adjust_lexile' pk=story.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-sliders me-2"></i>Adjust Level
+      </a>
+    </div>
+    <div class="btn-group">
+      <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back
+      </a>
+      <a href="{% url 'core:story_delete' story.pk %}" class="btn btn-outline-danger">
+        <i class="bi bi-trash me-2"></i>Delete
+      </a>
+    </div>
   </div>
 </div>
 
