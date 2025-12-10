@@ -138,7 +138,7 @@
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('{% static "core/sw.js" %}')
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then(function(registration) {
         console.log('ServiceWorker registered:', registration.scope);
       })
@@ -153,10 +153,30 @@ let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  // Show install banner if desired
   const banner = document.querySelector('.pwa-install-banner');
   if (banner) banner.classList.add('show');
 });
+
+// Offline Status Indicator
+function updateOnlineStatus() {
+  const indicator = document.getElementById('offline-indicator');
+  if (!navigator.onLine) {
+    if (!indicator) {
+      const div = document.createElement('div');
+      div.id = 'offline-indicator';
+      div.className = 'offline-indicator';
+      div.innerHTML = '<i class="bi bi-cloud-slash me-2"></i>You are offline';
+      document.body.appendChild(div);
+      setTimeout(() => div.classList.add('show'), 10);
+    }
+  } else if (indicator) {
+    indicator.classList.remove('show');
+    setTimeout(() => indicator.remove(), 300);
+  }
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 </script>
 
 {% block extra_js %}{% endblock %}

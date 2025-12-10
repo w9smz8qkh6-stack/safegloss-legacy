@@ -1,26 +1,41 @@
 <div class="gloss-detail">
   <div class="d-flex justify-content-between align-items-start mb-2">
-    <h6 class="mb-0 text-primary">{{ term.term_text }}</h6>
-    {% if term.part_of_speech %}
-    <span class="badge bg-secondary">{{ term.part_of_speech }}</span>
+    <div>
+      <span class="term-word">{{ term.term_text }}</span>
+      {% if term.ipa_pronunciation %}
+      <span class="term-ipa ms-2">/{{ term.ipa_pronunciation }}/</span>
+      {% endif %}
+    </div>
+    {% if term.difficulty_level %}
+    <span class="badge difficulty-badge bg-{% if term.difficulty_level == 1 %}success{% elif term.difficulty_level == 2 %}info{% elif term.difficulty_level == 3 %}warning{% else %}danger{% endif %}">
+      {% if term.difficulty_level == 1 %}Easy{% elif term.difficulty_level == 2 %}Medium{% elif term.difficulty_level == 3 %}Hard{% else %}Advanced{% endif %}
+    </span>
     {% endif %}
   </div>
 
-  {% if term.ipa %}
-  <p class="text-muted small mb-2">/{{ term.ipa }}/</p>
-  {% endif %}
-
-  {% if term.definition_html %}
-  <div class="mb-2">
-    <small class="text-muted">Definition:</small>
-    <p class="mb-1">{{ term.definition_html|safe }}</p>
+  {% if term.translation %}
+  <div class="term-translation">
+    <i class="bi bi-translate me-1"></i>{{ term.translation }}
   </div>
   {% endif %}
 
-  {% if term.translation %}
-  <div class="border-top pt-2">
-    <small class="text-muted">Translation ({{ term.translation_lang_code|default:"L1" }}):</small>
-    <p class="mb-0 fw-bold">{{ term.translation }}</p>
+  {% if term.definition %}
+  <div class="term-definition">
+    {{ term.definition }}
+  </div>
+  {% endif %}
+
+  {% if term.example_sentence %}
+  <div class="term-example">
+    <i class="bi bi-chat-quote me-1"></i>"{{ term.example_sentence }}"
+  </div>
+  {% endif %}
+
+  {% if term.part_of_speech %}
+  <div class="mt-2">
+    <span class="badge bg-light text-dark">
+      <i class="bi bi-tag me-1"></i>{{ term.part_of_speech }}
+    </span>
   </div>
   {% endif %}
 </div>

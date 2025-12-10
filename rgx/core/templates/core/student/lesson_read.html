@@ -43,6 +43,18 @@
     padding: 1rem 0;
     border-top: 1px solid #dee2e6;
   }
+  /* Segment wrapper for tracking */
+  .segment-wrapper {
+    padding: 1rem 0;
+    border-left: 3px solid transparent;
+    padding-left: 0;
+    transition: all 0.3s ease;
+  }
+  .segment-wrapper.in-view {
+    border-left-color: #0d6efd;
+    padding-left: 1rem;
+    background: rgba(13, 110, 253, 0.02);
+  }
 </style>
 {% endblock %}
 
@@ -52,7 +64,7 @@
 
 <div class="reader-container">
   <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-1">
@@ -64,25 +76,44 @@
       <h4 class="mb-0">{{ story.title }}</h4>
     </div>
 
-    {% if allowed_modes|length > 1 and not lesson.lock_mode %}
-    <div class="mode-switcher btn-group" role="group">
-      {% for m in allowed_modes %}
-      <a href="?mode={{ m }}" class="btn btn-{% if mode == m %}primary{% else %}outline-primary{% endif %} btn-sm">
-        {% if m == 'continuous' %}<i class="bi bi-text-paragraph"></i>{% endif %}
-        {% if m == 'cards' %}<i class="bi bi-card-text"></i>{% endif %}
-        {% if m == 'movie' %}<i class="bi bi-film"></i>{% endif %}
-        <span class="d-none d-md-inline ms-1">{{ m|title }}</span>
-      </a>
-      {% endfor %}
+    <div class="d-flex gap-2 align-items-center">
+      <!-- Cache for Offline Button -->
+      <button type="button" class="btn btn-outline-secondary btn-sm btn-cache" id="cacheBtn" title="Save for offline reading">
+        <i class="bi bi-cloud-download me-1"></i>
+        <span class="d-none d-md-inline">Offline</span>
+        <span class="cache-status not-cached" id="cacheStatus"></span>
+      </button>
+
+      {% if allowed_modes|length > 1 and not lesson.lock_mode %}
+      <div class="mode-switcher btn-group" role="group" aria-label="Reading mode">
+        {% for m in allowed_modes %}
+        <a href="?mode={{ m }}" class="btn btn-{% if mode == m %}primary{% else %}outline-primary{% endif %} btn-sm"
+           aria-current="{% if mode == m %}page{% endif %}">
+          {% if m == 'continuous' %}<i class="bi bi-text-paragraph"></i>{% endif %}
+          {% if m == 'cards' %}<i class="bi bi-card-text"></i>{% endif %}
+          {% if m == 'movie' %}<i class="bi bi-film"></i>{% endif %}
+          <span class="d-none d-md-inline ms-1">{{ m|title }}</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
 
   <!-- Reading Area -->
   {% if mode == 'continuous' %}
   <div class="card shadow-sm">
-    <div class="card-body reading-content">
+    <div class="card-body reading-content" id="continuousReader">
+      {% for segment in segments %}
+      <div class="segment-wrapper" data-segment-id="{{ segment.pk }}" data-segment-index="{{ forloop.counter0 }}">
+        {% if segment.title %}
+        <h5 class="mb-3">{{ segment.title }}</h5>
+        {% endif %}
+        {{ segment.text_html|safe }}
+      </div>
+      {% empty %}
       {{ story_html|safe }}
+      {% endfor %}
     </div>
   </div>
 
@@ -94,13 +125,13 @@
           <i class="bi bi-card-text me-2"></i>Card <span id="currentCard">1</span> of {{ segments|length }}
         </span>
         <div class="progress flex-grow-1 mx-3" style="height: 6px;">
-          <div class="progress-bar" role="progressbar" id="cardProgress" style="width: {% widthratio 1 segments|length 100 %}%;"></div>
+          <div class="progress-bar" role="progressbar" id="cardProgress" style="width: {% widthratio 1 segments|length 100 %}%;" aria-valuenow="1" aria-valuemin="1" aria-valuemax="{{ segments|length }}"></div>
         </div>
       </div>
     </div>
     <div class="card-body reading-content" id="cardContent">
       {% for segment in segments %}
-      <div class="segment-card {% if not forloop.first %}d-none{% endif %}" data-index="{{ forloop.counter0 }}">
+      <div class="segment-card {% if not forloop.first %}d-none{% endif %}" data-index="{{ forloop.counter0 }}" data-segment-id="{{ segment.pk }}">
         {% if segment.title %}
         <h5 class="mb-3">{{ segment.title }}</h5>
         {% endif %}
@@ -112,11 +143,11 @@
     </div>
     <div class="card-footer bg-white card-navigation">
       <div class="d-flex justify-content-between align-items-center">
-        <button type="button" class="btn btn-outline-primary" id="prevCard" disabled>
+        <button type="button" class="btn btn-outline-primary" id="prevCard" disabled aria-label="Previous card">
           <i class="bi bi-chevron-left me-1"></i>Previous
         </button>
         <span class="text-muted" id="cardCounter">1 / {{ segments|length }}</span>
-        <button type="button" class="btn btn-primary" id="nextCard">
+        <button type="button" class="btn btn-primary" id="nextCard" aria-label="Next card">
           Next<i class="bi bi-chevron-right ms-1"></i>
         </button>
       </div>
@@ -124,14 +155,55 @@
   </div>
 
   {% elif mode == 'movie' %}
-  <div class="card shadow-sm">
-    <div class="card-body text-center py-5">
-      <i class="bi bi-film display-1 text-muted"></i>
-      <h4 class="mt-3">Movie Mode</h4>
-      <p class="text-muted">Movie mode with synchronized media coming soon.</p>
-      <a href="?mode=continuous" class="btn btn-primary">
-        <i class="bi bi-text-paragraph me-2"></i>Switch to Continuous Mode
-      </a>
+  <div class="movie-mode-container" id="movieReader">
+    <div class="card shadow-sm" style="min-height: 50vh;">
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <div class="movie-segment text-center p-4" id="movieSegment">
+          <div class="segment-text reading-content" id="movieText">
+            <!-- Content loaded dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Movie Controls -->
+    <div class="card mt-3 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <button type="button" class="btn btn-outline-primary" id="moviePrev" disabled>
+            <i class="bi bi-skip-backward-fill"></i>
+          </button>
+          <button type="button" class="btn btn-primary btn-lg flex-grow-0" id="moviePlayPause">
+            <i class="bi bi-play-fill" id="playPauseIcon"></i>
+          </button>
+          <button type="button" class="btn btn-outline-primary" id="movieNext">
+            <i class="bi bi-skip-forward-fill"></i>
+          </button>
+          <div class="flex-grow-1">
+            <div class="progress" style="height: 8px; cursor: pointer;" id="movieProgressBar">
+              <div class="progress-bar" id="movieProgress" style="width: 0%;"></div>
+            </div>
+          </div>
+          <span class="text-muted small" id="movieCounter">1 / {{ segments|length }}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-2">
+            <label for="speedControl" class="form-label mb-0 small text-muted">Speed:</label>
+            <select id="speedControl" class="form-select form-select-sm" style="width: auto;">
+              <option value="0.5">0.5x</option>
+              <option value="0.75">0.75x</option>
+              <option value="1" selected>1x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2x</option>
+            </select>
+          </div>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="autoAdvance" checked>
+            <label class="form-check-label small" for="autoAdvance">Auto-advance</label>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   {% endif %}
@@ -154,10 +226,45 @@
 </div>
 
 <!-- Glossary Tooltip Container -->
-<div id="glossTooltip" class="position-fixed d-none" style="z-index: 1050;">
-  <div class="card shadow-lg" style="max-width: 300px;">
-    <div class="card-body p-3">
-      <div id="glossContent">Loading...</div>
+<div id="glossTooltip" class="gloss-tooltip">
+  <div class="card">
+    <div class="card-body">
+      <div id="glossContent">
+        <div class="d-flex justify-content-center">
+          <div class="spinner-border spinner-border-sm text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Keyboard Shortcuts Help -->
+<div class="keyboard-help d-none d-lg-block">
+  <button type="button" class="keyboard-help-btn" data-bs-toggle="modal" data-bs-target="#keyboardModal" title="Keyboard shortcuts">
+    <i class="bi bi-keyboard"></i>
+  </button>
+</div>
+
+<!-- Keyboard Shortcuts Modal -->
+<div class="modal fade keyboard-shortcuts-modal" id="keyboardModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Keyboard Shortcuts</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Navigate cards</td></tr>
+            <tr><td><kbd>Space</kbd></td><td>Play/Pause (movie)</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close glossary</td></tr>
+            <tr><td><kbd>?</kbd></td><td>Show shortcuts</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -166,7 +273,139 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Card Mode Navigation
+  const LESSON_ID = {{ lesson.pk }};
+  const CSRF_TOKEN = '{{ csrf_token }}';
+
+  // Segment data for tracking
+  const segments = [
+    {% for segment in segments %}
+    { id: {{ segment.pk }}, index: {{ forloop.counter0 }}, title: "{{ segment.title|escapejs }}" },
+    {% endfor %}
+  ];
+
+  // ==========================================================================
+  // SEGMENT VIEW TRACKING
+  // ==========================================================================
+
+  const segmentViewState = {};
+  let currentSegmentId = null;
+  let hesitationTimer = null;
+  const HESITATION_THRESHOLD = 3000; // 3 seconds
+
+  function logSegmentView(segmentId, segmentIndex, data = {}) {
+    if (!segmentId) return;
+
+    fetch('/api/segment-view/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': CSRF_TOKEN,
+      },
+      body: JSON.stringify({
+        lesson_id: LESSON_ID,
+        segment_id: segmentId,
+        segment_index: segmentIndex,
+        ...data
+      }),
+      credentials: 'same-origin',
+    }).catch(err => console.log('Segment tracking error:', err));
+  }
+
+  function startViewingSegment(segmentId, segmentIndex) {
+    if (currentSegmentId === segmentId) return;
+
+    // End previous segment view
+    if (currentSegmentId) {
+      logSegmentView(currentSegmentId, segmentViewState[currentSegmentId]?.index || 0, { view_end: true });
+    }
+
+    currentSegmentId = segmentId;
+    segmentViewState[segmentId] = {
+      index: segmentIndex,
+      startTime: Date.now(),
+      maxScroll: 0,
+    };
+
+    // Start new segment view
+    logSegmentView(segmentId, segmentIndex);
+
+    // Reset hesitation timer
+    resetHesitationTimer(segmentId, segmentIndex);
+  }
+
+  function resetHesitationTimer(segmentId, segmentIndex) {
+    if (hesitationTimer) clearTimeout(hesitationTimer);
+    hesitationTimer = setTimeout(() => {
+      logSegmentView(segmentId, segmentIndex, { hesitation: true });
+      resetHesitationTimer(segmentId, segmentIndex);
+    }, HESITATION_THRESHOLD);
+  }
+
+  // Track scroll activity to reset hesitation timer
+  document.addEventListener('scroll', () => {
+    if (currentSegmentId && segmentViewState[currentSegmentId]) {
+      resetHesitationTimer(currentSegmentId, segmentViewState[currentSegmentId].index);
+    }
+  }, { passive: true });
+
+  // End tracking when leaving page
+  window.addEventListener('beforeunload', () => {
+    if (currentSegmentId) {
+      logSegmentView(currentSegmentId, segmentViewState[currentSegmentId]?.index || 0, { view_end: true });
+    }
+  });
+
+  // ==========================================================================
+  // CONTINUOUS MODE - Intersection Observer for segment tracking
+  // ==========================================================================
+
+  const continuousReader = document.getElementById('continuousReader');
+  if (continuousReader) {
+    const segmentWrappers = continuousReader.querySelectorAll('.segment-wrapper');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const wrapper = entry.target;
+        const segmentId = parseInt(wrapper.dataset.segmentId);
+        const segmentIndex = parseInt(wrapper.dataset.segmentIndex);
+
+        if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+          wrapper.classList.add('in-view');
+          startViewingSegment(segmentId, segmentIndex);
+
+          // Update scroll depth
+          const rect = wrapper.getBoundingClientRect();
+          const visibleHeight = Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0);
+          const scrollDepth = (visibleHeight / rect.height) * 100;
+
+          if (segmentViewState[segmentId]) {
+            segmentViewState[segmentId].maxScroll = Math.max(
+              segmentViewState[segmentId].maxScroll || 0,
+              scrollDepth
+            );
+          }
+        } else {
+          wrapper.classList.remove('in-view');
+        }
+      });
+    }, {
+      threshold: [0.25, 0.5, 0.75, 1.0],
+      rootMargin: '-10% 0px -10% 0px'
+    });
+
+    segmentWrappers.forEach(wrapper => observer.observe(wrapper));
+
+    // Start with first segment if visible
+    if (segmentWrappers.length > 0) {
+      const first = segmentWrappers[0];
+      startViewingSegment(parseInt(first.dataset.segmentId), 0);
+    }
+  }
+
+  // ==========================================================================
+  // CARD MODE NAVIGATION
+  // ==========================================================================
+
   const cardContent = document.getElementById('cardContent');
   if (cardContent) {
     const cards = cardContent.querySelectorAll('.segment-card');
@@ -180,6 +419,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const progressBar = document.getElementById('cardProgress');
 
     function showCard(index) {
+      // End tracking for previous card
+      const prevCard = cards[currentIndex];
+      if (prevCard) {
+        const prevSegmentId = parseInt(prevCard.dataset.segmentId);
+        logSegmentView(prevSegmentId, currentIndex, {
+          view_end: true,
+          scroll_depth_percent: 100 // Cards are always fully visible
+        });
+      }
+
       cards.forEach((card, i) => {
         card.classList.toggle('d-none', i !== index);
       });
@@ -189,12 +438,20 @@ document.addEventListener('DOMContentLoaded', function() {
       progressBar.style.width = `${((index + 1) / totalCards) * 100}%`;
 
       prevBtn.disabled = index === 0;
-      nextBtn.disabled = index === totalCards - 1;
 
       if (index === totalCards - 1) {
         nextBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Done';
+        nextBtn.disabled = false;
       } else {
         nextBtn.innerHTML = 'Next<i class="bi bi-chevron-right ms-1"></i>';
+        nextBtn.disabled = false;
+      }
+
+      // Start tracking new card
+      const newCard = cards[index];
+      if (newCard) {
+        const segmentId = parseInt(newCard.dataset.segmentId);
+        startViewingSegment(segmentId, index);
       }
     }
 
@@ -208,56 +465,263 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    // Keyboard navigation
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowLeft' && currentIndex > 0) {
-        showCard(currentIndex - 1);
-      } else if (e.key === 'ArrowRight' && currentIndex < totalCards - 1) {
-        showCard(currentIndex + 1);
+    // Start tracking first card
+    if (cards.length > 0) {
+      const firstCard = cards[0];
+      const segmentId = parseInt(firstCard.dataset.segmentId);
+      startViewingSegment(segmentId, 0);
+    }
+  }
+
+  // ==========================================================================
+  // MOVIE MODE
+  // ==========================================================================
+
+  const movieReader = document.getElementById('movieReader');
+  if (movieReader && segments.length > 0) {
+    const movieText = document.getElementById('movieText');
+    const movieProgress = document.getElementById('movieProgress');
+    const movieCounter = document.getElementById('movieCounter');
+    const playPauseBtn = document.getElementById('moviePlayPause');
+    const playPauseIcon = document.getElementById('playPauseIcon');
+    const prevBtn = document.getElementById('moviePrev');
+    const nextBtn = document.getElementById('movieNext');
+    const speedControl = document.getElementById('speedControl');
+    const autoAdvance = document.getElementById('autoAdvance');
+    const progressBar = document.getElementById('movieProgressBar');
+
+    let currentMovieIndex = 0;
+    let isPlaying = false;
+    let advanceTimer = null;
+    let speed = 1;
+
+    // Preload segment content
+    const segmentContents = [];
+    document.querySelectorAll('.segment-card, .segment-wrapper').forEach((el, i) => {
+      segmentContents[i] = el.innerHTML;
+    });
+
+    // If no segment content from cards/continuous, load from story_html
+    if (segmentContents.length === 0 && segments.length === 0) {
+      segmentContents[0] = '{{ story_html|escapejs }}';
+    }
+
+    function calculateReadTime(html) {
+      const text = html.replace(/<[^>]+>/g, '');
+      const wordCount = text.split(/\s+/).length;
+      const wordsPerMinute = 180; // Average reading speed
+      return (wordCount / wordsPerMinute) * 60 * 1000; // milliseconds
+    }
+
+    function showMovieSegment(index) {
+      if (index < 0 || index >= segments.length) return;
+
+      // End tracking previous
+      if (currentMovieIndex !== index && segments[currentMovieIndex]) {
+        logSegmentView(segments[currentMovieIndex].id, currentMovieIndex, { view_end: true });
       }
+
+      currentMovieIndex = index;
+
+      // Animate transition
+      movieText.style.opacity = '0';
+      movieText.style.transform = 'translateY(20px)';
+
+      setTimeout(() => {
+        movieText.innerHTML = segmentContents[index] || `<p>Segment ${index + 1}</p>`;
+        movieText.style.opacity = '1';
+        movieText.style.transform = 'translateY(0)';
+
+        // Reattach glossary handlers
+        attachGlossaryHandlers();
+      }, 200);
+
+      // Update UI
+      movieCounter.textContent = `${index + 1} / ${segments.length}`;
+      movieProgress.style.width = `${((index + 1) / segments.length) * 100}%`;
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === segments.length - 1;
+
+      // Start tracking
+      if (segments[index]) {
+        startViewingSegment(segments[index].id, index);
+      }
+
+      // Schedule auto-advance if playing
+      if (isPlaying && autoAdvance.checked) {
+        scheduleAdvance();
+      }
+    }
+
+    function scheduleAdvance() {
+      if (advanceTimer) clearTimeout(advanceTimer);
+      const readTime = calculateReadTime(segmentContents[currentMovieIndex] || '') / speed;
+      advanceTimer = setTimeout(() => {
+        if (isPlaying && currentMovieIndex < segments.length - 1) {
+          showMovieSegment(currentMovieIndex + 1);
+        } else {
+          pauseMovie();
+        }
+      }, Math.max(readTime, 2000)); // Minimum 2 seconds
+    }
+
+    function playMovie() {
+      isPlaying = true;
+      playPauseIcon.className = 'bi bi-pause-fill';
+      scheduleAdvance();
+    }
+
+    function pauseMovie() {
+      isPlaying = false;
+      playPauseIcon.className = 'bi bi-play-fill';
+      if (advanceTimer) clearTimeout(advanceTimer);
+    }
+
+    playPauseBtn.addEventListener('click', () => {
+      if (isPlaying) pauseMovie();
+      else playMovie();
+    });
+
+    prevBtn.addEventListener('click', () => showMovieSegment(currentMovieIndex - 1));
+    nextBtn.addEventListener('click', () => showMovieSegment(currentMovieIndex + 1));
+
+    speedControl.addEventListener('change', (e) => {
+      speed = parseFloat(e.target.value);
+      if (isPlaying) scheduleAdvance();
+    });
+
+    progressBar.addEventListener('click', (e) => {
+      const rect = progressBar.getBoundingClientRect();
+      const percent = (e.clientX - rect.left) / rect.width;
+      const index = Math.floor(percent * segments.length);
+      showMovieSegment(Math.max(0, Math.min(index, segments.length - 1)));
+    });
+
+    // Initialize
+    showMovieSegment(0);
+  }
+
+  // ==========================================================================
+  // GLOSSARY TERM HANDLING
+  // ==========================================================================
+
+  const glossTooltip = document.getElementById('glossTooltip');
+  const glossContent = document.getElementById('glossContent');
+  let activeGlossTerm = null;
+
+  function attachGlossaryHandlers() {
+    document.querySelectorAll('.gloss-term').forEach(term => {
+      if (term.dataset.handlerAttached) return;
+      term.dataset.handlerAttached = 'true';
+
+      term.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const termId = this.dataset.termId;
+
+        // Log gloss click for segment tracking
+        if (currentSegmentId) {
+          logSegmentView(currentSegmentId, segmentViewState[currentSegmentId]?.index || 0, { gloss_click: true });
+        }
+
+        // Show loading state
+        glossContent.innerHTML = `
+          <div class="d-flex justify-content-center py-2">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        `;
+
+        // Position and show tooltip
+        const rect = this.getBoundingClientRect();
+        let left = rect.left;
+        let top = rect.bottom + 10;
+
+        // Adjust if too far right
+        if (left + 320 > window.innerWidth) {
+          left = window.innerWidth - 330;
+        }
+        // Adjust if too far down
+        if (top + 200 > window.innerHeight) {
+          top = rect.top - 10;
+          glossTooltip.style.transform = 'translateY(-100%)';
+        } else {
+          glossTooltip.style.transform = 'translateY(0)';
+        }
+
+        glossTooltip.style.left = `${Math.max(10, left)}px`;
+        glossTooltip.style.top = `${top}px`;
+        glossTooltip.classList.add('show');
+        activeGlossTerm = this;
+
+        // Fetch term details
+        fetch(`/lessons/${LESSON_ID}/term/${termId}/`, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(response => response.text())
+        .then(html => {
+          glossContent.innerHTML = html;
+        })
+        .catch(() => {
+          glossContent.innerHTML = '<p class="text-danger mb-0">Failed to load term.</p>';
+        });
+      });
     });
   }
 
-  // Glossary Term Click Handling
-  document.querySelectorAll('.gloss-term').forEach(term => {
-    term.addEventListener('click', function(e) {
-      const termId = this.dataset.termId;
-      const lessonId = {{ lesson.pk }};
-
-      fetch(`/lessons/${lessonId}/term/${termId}/`, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-      })
-      .then(response => response.text())
-      .then(html => {
-        const tooltip = document.getElementById('glossTooltip');
-        const content = document.getElementById('glossContent');
-        content.innerHTML = html;
-
-        // Position tooltip near the clicked term
-        const rect = this.getBoundingClientRect();
-        tooltip.style.left = `${rect.left}px`;
-        tooltip.style.top = `${rect.bottom + 10}px`;
-        tooltip.classList.remove('d-none');
-      });
-    });
-  });
-
   // Close tooltip when clicking outside
   document.addEventListener('click', function(e) {
-    if (!e.target.classList.contains('gloss-term') &&
-        !e.target.closest('#glossTooltip')) {
-      document.getElementById('glossTooltip')?.classList.add('d-none');
+    if (!e.target.classList.contains('gloss-term') && !e.target.closest('#glossTooltip')) {
+      glossTooltip.classList.remove('show');
+      activeGlossTerm = null;
     }
   });
 
-  // Reading Progress Bar (for continuous mode)
-  const progressBar = document.getElementById('reading-progress');
-  if (progressBar) {
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && glossTooltip.classList.contains('show')) {
+      glossTooltip.classList.remove('show');
+      activeGlossTerm = null;
+    }
+  });
+
+  // Initial attachment
+  attachGlossaryHandlers();
+
+  // ==========================================================================
+  // KEYBOARD NAVIGATION
+  // ==========================================================================
+
+  document.addEventListener('keydown', function(e) {
+    // Don't capture if typing in input
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    if (e.key === 'ArrowLeft') {
+      document.getElementById('prevCard')?.click();
+      document.getElementById('moviePrev')?.click();
+    } else if (e.key === 'ArrowRight') {
+      document.getElementById('nextCard')?.click();
+      document.getElementById('movieNext')?.click();
+    } else if (e.key === ' ' && movieReader) {
+      e.preventDefault();
+      document.getElementById('moviePlayPause')?.click();
+    } else if (e.key === '?') {
+      const modal = new bootstrap.Modal(document.getElementById('keyboardModal'));
+      modal.show();
+    }
+  });
+
+  // ==========================================================================
+  // READING PROGRESS BAR (continuous mode)
+  // ==========================================================================
+
+  const progressBarEl = document.getElementById('reading-progress');
+  if (progressBarEl && continuousReader) {
     function updateProgress() {
       const scrollTop = window.scrollY;
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       const progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      progressBar.style.width = Math.min(100, Math.max(0, progress)) + '%';
+      progressBarEl.style.width = Math.min(100, Math.max(0, progress)) + '%';
     }
 
     let ticking = false;
@@ -269,9 +733,70 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         ticking = true;
       }
-    });
+    }, { passive: true });
     updateProgress();
   }
+
+  // ==========================================================================
+  // OFFLINE CACHING
+  // ==========================================================================
+
+  const cacheBtn = document.getElementById('cacheBtn');
+  const cacheStatus = document.getElementById('cacheStatus');
+
+  async function checkCacheStatus() {
+    if (!('caches' in window)) return;
+    const cache = await caches.open('safegloss-lessons');
+    const cached = await cache.match(`/api/lesson/${LESSON_ID}/cache-data/`);
+    if (cached) {
+      cacheStatus.classList.remove('not-cached');
+      cacheStatus.classList.add('cached');
+      cacheBtn.title = 'Saved for offline';
+    }
+  }
+
+  cacheBtn.addEventListener('click', async function() {
+    if (!('caches' in window)) {
+      alert('Offline caching is not supported in this browser.');
+      return;
+    }
+
+    cacheBtn.disabled = true;
+    cacheBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+      // Fetch lesson data
+      const response = await fetch(`/api/lesson/${LESSON_ID}/cache-data/`);
+      if (!response.ok) throw new Error('Failed to fetch');
+
+      // Store in cache
+      const cache = await caches.open('safegloss-lessons');
+      await cache.put(`/api/lesson/${LESSON_ID}/cache-data/`, response.clone());
+
+      // Also cache the reading page
+      await cache.add(`/lessons/${LESSON_ID}/read/`);
+
+      cacheStatus.classList.remove('not-cached');
+      cacheStatus.classList.add('cached');
+      cacheBtn.title = 'Saved for offline';
+
+      // Show success
+      cacheBtn.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+      setTimeout(() => {
+        cacheBtn.innerHTML = '<i class="bi bi-cloud-check me-1"></i><span class="d-none d-md-inline">Saved</span>';
+        cacheBtn.disabled = false;
+      }, 1500);
+    } catch (err) {
+      console.error('Cache error:', err);
+      cacheBtn.innerHTML = '<i class="bi bi-exclamation-triangle text-danger"></i>';
+      setTimeout(() => {
+        cacheBtn.innerHTML = '<i class="bi bi-cloud-download me-1"></i><span class="d-none d-md-inline">Offline</span>';
+        cacheBtn.disabled = false;
+      }, 1500);
+    }
+  });
+
+  checkCacheStatus();
 });
 </script>
 {% endblock %}

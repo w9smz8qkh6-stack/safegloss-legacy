@@ -1579,3 +1579,152 @@ def term_delete(request, story_pk, term_pk):
         "term": term,
         "story": story,
     })
+
+
+# =============================================================================
+# PWA & API VIEWS
+# =============================================================================
+
+def service_worker(request):
+    """Serve service worker from root URL for full site scope."""
+    from django.conf import settings
+    import os
+
+    sw_path = os.path.join(settings.BASE_DIR, "core", "static", "core", "sw.js")
+    with open(sw_path, "r") as f:
+        sw_content = f.read()
+
+    response = HttpResponse(sw_content, content_type="application/javascript")
+    response["Service-Worker-Allowed"] = "/"
+    return response
+
+
+@login_required
+@require_POST
+def log_segment_view(request):
+    """API endpoint to log segment view data for analytics."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    lesson_id = data.get("lesson_id")
+    segment_id = data.get("segment_id")
+    segment_index = data.get("segment_index", 0)
+
+    if not lesson_id or not segment_id:
+        return JsonResponse({"error": "Missing lesson_id or segment_id"}, status=400)
+
+    # Get or create the segment view log
+    lesson = get_object_or_404(Lesson, pk=lesson_id)
+    segment = get_object_or_404(StorySegment, pk=segment_id)
+
+    # Check if this is an update to an existing view or a new view
+    view_log, created = SegmentViewLog.objects.get_or_create(
+        student=request.user,
+        lesson=lesson,
+        segment=segment,
+        segment_index=segment_index,
+        view_end__isnull=True,  # Only get incomplete views
+        defaults={
+            "view_start": timezone.now(),
+        }
+    )
+
+    # Update the view log with new data
+    if data.get("view_end"):
+        view_log.view_end = timezone.now()
+        if view_log.view_start:
+            view_log.duration_seconds = (view_log.view_end - view_log.view_start).total_seconds()
+
+    if "scroll_depth_percent" in data:
+        view_log.scroll_depth_percent = max(view_log.scroll_depth_percent, data["scroll_depth_percent"])
+
+    if data.get("revisit"):
+        view_log.revisit_count += 1
+
+    if data.get("hesitation"):
+        view_log.hesitation_count += 1
+
+    if data.get("gloss_click"):
+        view_log.gloss_clicks += 1
+
+    if data.get("copy_event"):
+        view_log.copy_events += 1
+
+    view_log.save()
+
+    return JsonResponse({
+        "status": "ok",
+        "view_log_id": view_log.pk,
+        "created": created,
+    })
+
+
+@login_required
+def lesson_cache_data(request, pk):
+    """Return lesson data as JSON for offline caching."""
+    lesson = get_object_or_404(
+        Lesson.objects.select_related("story", "story__glossary", "quiz"),
+        pk=pk
+    )
+
+    # Check access
+    if request.user.is_student():
+        roster_ids = lesson.rosters.values_list("id", flat=True)
+        if not RosterMembership.objects.filter(student=request.user, roster_id__in=roster_ids).exists():
+            return JsonResponse({"error": "Access denied"}, status=403)
+
+    story = lesson.story
+    segments = list(story.segments.order_by("order").values(
+        "id", "order", "title", "text_html"
+    ))
+
+    # Get glossary terms
+    terms = []
+    if hasattr(story, "glossary"):
+        terms = list(story.glossary.terms.values(
+            "id", "term_text", "definition", "translation", "ipa_pronunciation",
+            "difficulty_level", "example_sentence"
+        ))
+
+    # Get quiz data if exists
+    quiz_data = None
+    if lesson.quiz:
+        quiz = lesson.quiz
+        questions = []
+        for qq in quiz.questions.select_related("question").prefetch_related("question__choices"):
+            q = qq.question
+            choices = list(q.choices.values("id", "text_html", "order"))
+            questions.append({
+                "id": q.id,
+                "prompt_html": q.prompt_html,
+                "question_type": q.question_type,
+                "choices": choices,
+                "points": qq.points_override or q.default_points,
+            })
+        quiz_data = {
+            "id": quiz.id,
+            "title": quiz.title,
+            "description": quiz.description,
+            "time_limit_seconds": quiz.time_limit_seconds,
+            "questions": questions,
+        }
+
+    return JsonResponse({
+        "lesson": {
+            "id": lesson.id,
+            "title": lesson.title,
+            "description": lesson.description,
+            "default_mode": lesson.default_mode,
+            "allowed_modes": lesson.allowed_modes,
+        },
+        "story": {
+            "id": story.id,
+            "title": story.title,
+            "segments": segments,
+        },
+        "terms": terms,
+        "quiz": quiz_data,
+        "cached_at": timezone.now().isoformat(),
+    })

@@ -7,6 +7,7 @@ urlpatterns = [
     # Home
     path("", views.home_redirect, name="home"),
     path("offline/", views.offline, name="offline"),
+    path("sw.js", views.service_worker, name="service_worker"),
 
     # Student views
     path("join/", views.join_roster, name="join_roster"),
@@ -64,4 +65,8 @@ urlpatterns = [
     path("instructor/rosters/<int:roster_pk>/students/<int:student_pk>/", views.student_detail, name="student_detail"),
     path("instructor/analytics/compare/", views.roster_comparison, name="roster_comparison"),
     path("instructor/export/full/", views.export_full_data, name="export_full_data"),
+
+    # API endpoints for tracking
+    path("api/segment-view/", views.log_segment_view, name="log_segment_view"),
+    path("api/lesson/<int:pk>/cache-data/", views.lesson_cache_data, name="lesson_cache_data"),
 ]
