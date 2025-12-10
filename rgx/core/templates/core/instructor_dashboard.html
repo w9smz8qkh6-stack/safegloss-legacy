@@ -30,6 +30,17 @@
           <i class="bi bi-plus-circle me-2"></i>New Roster
         </a>
       </div>
+      <div class="card-footer bg-light">
+        <small class="text-muted d-block mb-2">Analytics & Export</small>
+        <div class="d-grid gap-2">
+          <a href="{% url 'core:roster_comparison' %}" class="btn btn-sm btn-outline-success">
+            <i class="bi bi-bar-chart-line me-2"></i>Compare Rosters
+          </a>
+          <a href="{% url 'core:export_full_data' %}" class="btn btn-sm btn-outline-info">
+            <i class="bi bi-download me-2"></i>Export All Data
+          </a>
+        </div>
+      </div>
     </div>
   </div>
 

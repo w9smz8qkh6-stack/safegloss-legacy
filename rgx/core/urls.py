@@ -6,8 +6,10 @@ app_name = "core"
 urlpatterns = [
     # Home
     path("", views.home_redirect, name="home"),
+    path("offline/", views.offline, name="offline"),
 
     # Student views
+    path("join/", views.join_roster, name="join_roster"),
     path("lessons/", views.student_lessons, name="student_lessons"),
     path("lessons/<int:pk>/", views.lesson_intro, name="lesson_intro"),
     path("lessons/<int:pk>/read/", views.lesson_read, name="lesson_read"),
@@ -58,5 +60,8 @@ urlpatterns = [
 
     # Analytics
     path("instructor/rosters/<int:pk>/analytics/", views.roster_analytics, name="roster_analytics"),
+    path("instructor/rosters/<int:pk>/analytics/data/", views.roster_analytics_data, name="roster_analytics_data"),
     path("instructor/rosters/<int:roster_pk>/students/<int:student_pk>/", views.student_detail, name="student_detail"),
+    path("instructor/analytics/compare/", views.roster_comparison, name="roster_comparison"),
+    path("instructor/export/full/", views.export_full_data, name="export_full_data"),
 ]

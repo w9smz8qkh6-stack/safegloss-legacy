@@ -9,14 +9,18 @@ from functools import wraps
 
 from .forms import (
     LessonFilterForm, StoryForm, StorySegmentFormSet, GlossaryForm, TermForm,
-    LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm
+    LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm,
+    JoinRosterForm
 )
 from django.db.models import Avg, Sum, F
 from .models import (
     Lesson, LessonProgress, RosterMembership, Term, GlossClickLog, User, ReadingEvent,
     Story, StorySegment, Glossary, Quiz, QuizQuestion, QuizSubmission, QuizSubmissionAnswer,
-    ItemBankQuestion, ItemBankChoice, Roster, Site
+    ItemBankQuestion, ItemBankChoice, Roster, Site, SegmentViewLog
 )
+import json
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 from .utils import markup_glossary_terms, get_story_terms
 
 
@@ -41,9 +45,37 @@ def home_redirect(request):
     return redirect("account_login")
 
 
+def offline(request):
+    """Offline page for PWA."""
+    return render(request, "core/offline.html")
+
+
 # =============================================================================
 # STUDENT VIEWS
 # =============================================================================
+
+@login_required
+def join_roster(request):
+    """Allow students to join a roster via invite code."""
+    if request.method == "POST":
+        form = JoinRosterForm(request.POST)
+        if form.is_valid():
+            roster = form.roster
+            # Check if already a member
+            if RosterMembership.objects.filter(roster=roster, student=request.user).exists():
+                messages.info(request, f"You're already a member of {roster.name}.")
+            else:
+                RosterMembership.objects.create(roster=roster, student=request.user)
+                # Associate user with roster's site if not already
+                if not request.user.site:
+                    request.user.site = roster.site
+                    request.user.save()
+                messages.success(request, f"You've joined {roster.name}!")
+            return redirect("core:student_lessons")
+    else:
+        form = JoinRosterForm()
+
+    return render(request, "core/join_roster.html", {"form": form})
 
 @login_required
 def student_lessons(request):
@@ -837,7 +869,7 @@ def export_quiz_results(request, pk):
     ).select_related("student").order_by("-submitted_at")
 
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename="quiz_results_{lesson.slug or lesson.pk}.csv"'
+    response["Content-Disposition"] = f'attachment; filename="quiz_results_{lesson.pk}.csv"'
 
     writer = csv.writer(response)
     writer.writerow([
@@ -942,7 +974,7 @@ def export_lesson_progress(request, pk):
     ).select_related("student").order_by("student__username")
 
     response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = f'attachment; filename="lesson_progress_{lesson.slug or lesson.pk}.csv"'
+    response["Content-Disposition"] = f'attachment; filename="lesson_progress_{lesson.pk}.csv"'
 
     writer = csv.writer(response)
     writer.writerow([
@@ -1195,6 +1227,286 @@ def student_detail(request, roster_pk, student_pk):
         "total_gloss_clicks": total_gloss_clicks,
     }
     return render(request, "core/instructor/student_detail.html", context)
+
+
+# =============================================================================
+# ANALYTICS API VIEWS
+# =============================================================================
+
+@login_required
+@instructor_required
+def roster_analytics_data(request, pk):
+    """JSON API for roster analytics charts."""
+    from django.db.models.functions import TruncDate
+    from collections import defaultdict
+    import json
+
+    roster = get_object_or_404(Roster, pk=pk, site=request.user.site)
+    student_ids = list(roster.memberships.values_list("student_id", flat=True))
+    lessons = Lesson.objects.filter(rosters=roster, is_active=True)
+
+    # Progress over time (completions by date)
+    progress_by_date = LessonProgress.objects.filter(
+        student_id__in=student_ids,
+        lesson__in=lessons,
+        quiz_end__isnull=False
+    ).annotate(
+        completed_date=TruncDate("quiz_end")
+    ).values("completed_date").annotate(
+        count=Count("id")
+    ).order_by("completed_date")
+
+    # Also include reading completions for lessons without quizzes
+    reading_only = LessonProgress.objects.filter(
+        student_id__in=student_ids,
+        lesson__in=lessons,
+        lesson__quiz__isnull=True,
+        reading_end__isnull=False
+    ).annotate(
+        completed_date=TruncDate("reading_end")
+    ).values("completed_date").annotate(
+        count=Count("id")
+    ).order_by("completed_date")
+
+    # Merge completions by date
+    date_counts = defaultdict(int)
+    for item in progress_by_date:
+        if item["completed_date"]:
+            date_counts[item["completed_date"].isoformat()] += item["count"]
+    for item in reading_only:
+        if item["completed_date"]:
+            date_counts[item["completed_date"].isoformat()] += item["count"]
+
+    # Sort and create cumulative data
+    sorted_dates = sorted(date_counts.keys())
+    cumulative = 0
+    completion_timeline = []
+    for date in sorted_dates:
+        cumulative += date_counts[date]
+        completion_timeline.append({"date": date, "completions": cumulative})
+
+    # Score distribution
+    scores = LessonProgress.objects.filter(
+        student_id__in=student_ids,
+        lesson__in=lessons,
+        comprehension_score__isnull=False
+    ).values_list("comprehension_score", flat=True)
+
+    score_buckets = {"0-20": 0, "21-40": 0, "41-60": 0, "61-80": 0, "81-100": 0}
+    for score in scores:
+        if score <= 20:
+            score_buckets["0-20"] += 1
+        elif score <= 40:
+            score_buckets["21-40"] += 1
+        elif score <= 60:
+            score_buckets["41-60"] += 1
+        elif score <= 80:
+            score_buckets["61-80"] += 1
+        else:
+            score_buckets["81-100"] += 1
+
+    # Reading time distribution
+    reading_times = LessonProgress.objects.filter(
+        student_id__in=student_ids,
+        lesson__in=lessons,
+        reading_duration_seconds__isnull=False
+    ).values_list("reading_duration_seconds", flat=True)
+
+    time_buckets = {"0-2min": 0, "2-5min": 0, "5-10min": 0, "10-20min": 0, "20+min": 0}
+    for seconds in reading_times:
+        minutes = seconds / 60
+        if minutes <= 2:
+            time_buckets["0-2min"] += 1
+        elif minutes <= 5:
+            time_buckets["2-5min"] += 1
+        elif minutes <= 10:
+            time_buckets["5-10min"] += 1
+        elif minutes <= 20:
+            time_buckets["10-20min"] += 1
+        else:
+            time_buckets["20+min"] += 1
+
+    return JsonResponse({
+        "completion_timeline": completion_timeline,
+        "score_distribution": score_buckets,
+        "reading_time_distribution": time_buckets,
+    })
+
+
+@login_required
+@instructor_required
+def roster_comparison(request):
+    """Compare multiple rosters side by side."""
+    rosters = Roster.objects.filter(site=request.user.site).order_by("name")
+
+    comparison_data = []
+    for roster in rosters:
+        student_ids = list(roster.memberships.values_list("student_id", flat=True))
+        lessons = Lesson.objects.filter(rosters=roster, is_active=True)
+        total_assignments = len(student_ids) * lessons.count()
+
+        # Count completions
+        completed = LessonProgress.objects.filter(
+            student_id__in=student_ids,
+            lesson__in=lessons,
+            quiz_end__isnull=False
+        ).count()
+
+        # Also count reading-only completions
+        completed += LessonProgress.objects.filter(
+            student_id__in=student_ids,
+            lesson__in=lessons,
+            lesson__quiz__isnull=True,
+            reading_end__isnull=False
+        ).count()
+
+        # Average score
+        scores = LessonProgress.objects.filter(
+            student_id__in=student_ids,
+            lesson__in=lessons,
+            comprehension_score__isnull=False
+        ).values_list("comprehension_score", flat=True)
+        avg_score = sum(scores) / len(scores) if scores else None
+
+        # Average reading time
+        reading = LessonProgress.objects.filter(
+            student_id__in=student_ids,
+            lesson__in=lessons,
+            reading_duration_seconds__isnull=False
+        ).aggregate(avg=Avg("reading_duration_seconds"))
+        avg_reading = reading["avg"] / 60 if reading["avg"] else None
+
+        # Glossary engagement
+        gloss_clicks = GlossClickLog.objects.filter(
+            student_id__in=student_ids,
+            lesson__in=lessons
+        ).count()
+        avg_clicks = gloss_clicks / len(student_ids) if student_ids else 0
+
+        comparison_data.append({
+            "roster": roster,
+            "student_count": len(student_ids),
+            "lesson_count": lessons.count(),
+            "total_assignments": total_assignments,
+            "completed": completed,
+            "completion_pct": (completed / total_assignments * 100) if total_assignments else 0,
+            "avg_score": avg_score,
+            "avg_reading_time": avg_reading,
+            "avg_gloss_clicks": avg_clicks,
+        })
+
+    return render(request, "core/instructor/roster_comparison.html", {
+        "comparison_data": comparison_data,
+    })
+
+
+@login_required
+@instructor_required
+def export_full_data(request):
+    """Export all research data as a ZIP file with multiple CSVs."""
+    import zipfile
+    from io import BytesIO
+
+    site = request.user.site
+
+    # Create ZIP file in memory
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1. Students CSV
+        students_csv = BytesIO()
+        writer = csv.writer(students_csv)
+        writer.writerow(["student_id", "username", "email", "first_name", "last_name", "site"])
+        for student in User.objects.filter(site=site, role="student"):
+            writer.writerow([student.pk, student.username, student.email, student.first_name, student.last_name, site.name])
+        zf.writestr("students.csv", students_csv.getvalue().decode("utf-8"))
+
+        # 2. Rosters CSV
+        rosters_csv = BytesIO()
+        writer = csv.writer(rosters_csv)
+        writer.writerow(["roster_id", "name", "grade_band", "created_at"])
+        for roster in Roster.objects.filter(site=site):
+            writer.writerow([roster.pk, roster.name, roster.grade_band or "", roster.created_at.isoformat()])
+        zf.writestr("rosters.csv", rosters_csv.getvalue().decode("utf-8"))
+
+        # 3. Roster Memberships CSV
+        memberships_csv = BytesIO()
+        writer = csv.writer(memberships_csv)
+        writer.writerow(["roster_id", "student_id", "joined_at"])
+        for m in RosterMembership.objects.filter(roster__site=site):
+            writer.writerow([m.roster_id, m.student_id, m.joined_at.isoformat()])
+        zf.writestr("roster_memberships.csv", memberships_csv.getvalue().decode("utf-8"))
+
+        # 4. Lessons CSV
+        lessons_csv = BytesIO()
+        writer = csv.writer(lessons_csv)
+        writer.writerow(["lesson_id", "title", "story_id", "quiz_id", "is_active", "created_at"])
+        for lesson in Lesson.objects.filter(site=site):
+            writer.writerow([lesson.pk, lesson.title, lesson.story_id or "", lesson.quiz_id or "", lesson.is_active, lesson.created_at.isoformat()])
+        zf.writestr("lessons.csv", lessons_csv.getvalue().decode("utf-8"))
+
+        # 5. Lesson Progress CSV (main data)
+        progress_csv = BytesIO()
+        writer = csv.writer(progress_csv)
+        writer.writerow([
+            "progress_id", "student_id", "lesson_id", "reading_start", "reading_end",
+            "reading_duration_seconds", "quiz_start", "quiz_end", "comprehension_score"
+        ])
+        for p in LessonProgress.objects.filter(lesson__site=site).select_related("student", "lesson"):
+            writer.writerow([
+                p.pk, p.student_id, p.lesson_id,
+                p.reading_start.isoformat() if p.reading_start else "",
+                p.reading_end.isoformat() if p.reading_end else "",
+                p.reading_duration_seconds or "",
+                p.quiz_start.isoformat() if p.quiz_start else "",
+                p.quiz_end.isoformat() if p.quiz_end else "",
+                p.comprehension_score or ""
+            ])
+        zf.writestr("lesson_progress.csv", progress_csv.getvalue().decode("utf-8"))
+
+        # 6. Quiz Submissions CSV
+        submissions_csv = BytesIO()
+        writer = csv.writer(submissions_csv)
+        writer.writerow(["submission_id", "student_id", "lesson_id", "raw_score", "max_score", "submitted_at"])
+        for sub in QuizSubmission.objects.filter(lesson__site=site):
+            writer.writerow([sub.pk, sub.student_id, sub.lesson_id, sub.raw_score, sub.max_score, sub.submitted_at.isoformat()])
+        zf.writestr("quiz_submissions.csv", submissions_csv.getvalue().decode("utf-8"))
+
+        # 7. Quiz Answers CSV
+        answers_csv = BytesIO()
+        writer = csv.writer(answers_csv)
+        writer.writerow(["submission_id", "question_id", "selected_choice_id", "is_correct"])
+        for ans in QuizSubmissionAnswer.objects.filter(submission__lesson__site=site):
+            writer.writerow([ans.submission_id, ans.question_id, ans.selected_choice_id, ans.is_correct])
+        zf.writestr("quiz_answers.csv", answers_csv.getvalue().decode("utf-8"))
+
+        # 8. Glossary Clicks CSV
+        clicks_csv = BytesIO()
+        writer = csv.writer(clicks_csv)
+        writer.writerow(["click_id", "student_id", "lesson_id", "term_id", "term_text", "clicked_at"])
+        for click in GlossClickLog.objects.filter(lesson__site=site).select_related("term"):
+            writer.writerow([
+                click.pk, click.student_id, click.lesson_id, click.term_id,
+                click.term.term_text if click.term else "", click.clicked_at.isoformat()
+            ])
+        zf.writestr("glossary_clicks.csv", clicks_csv.getvalue().decode("utf-8"))
+
+        # 9. Reading Events CSV (if exists)
+        if ReadingEvent._meta.db_table:
+            events_csv = BytesIO()
+            writer = csv.writer(events_csv)
+            writer.writerow(["event_id", "student_id", "lesson_id", "event_type", "segment_index", "timestamp", "data"])
+            for event in ReadingEvent.objects.filter(lesson__site=site):
+                writer.writerow([
+                    event.pk, event.student_id, event.lesson_id, event.event_type,
+                    event.segment_index or "", event.timestamp.isoformat(),
+                    event.data if hasattr(event, "data") else ""
+                ])
+            zf.writestr("reading_events.csv", events_csv.getvalue().decode("utf-8"))
+
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="safegloss_export_{site.name}_{timezone.now().strftime("%Y%m%d")}.zip"'
+    return response
 
 
 # =============================================================================

@@ -117,6 +117,49 @@
   </div>
 </div>
 
+<!-- Charts Row -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-graph-up-arrow me-2"></i>Completion Timeline
+      </div>
+      <div class="card-body">
+        <canvas id="completionChart" height="200"></canvas>
+        <p class="text-muted small text-center mt-2 mb-0" id="completionEmpty" style="display: none;">
+          No completion data yet
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-bar-chart me-2"></i>Score Distribution
+      </div>
+      <div class="card-body">
+        <canvas id="scoreChart" height="200"></canvas>
+        <p class="text-muted small text-center mt-2 mb-0" id="scoreEmpty" style="display: none;">
+          No quiz scores yet
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-clock me-2"></i>Reading Time Distribution
+      </div>
+      <div class="card-body">
+        <canvas id="readingChart" height="200"></canvas>
+        <p class="text-muted small text-center mt-2 mb-0" id="readingEmpty" style="display: none;">
+          No reading data yet
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row">
   <!-- Lesson Performance -->
   <div class="col-lg-6 mb-4">
@@ -232,4 +275,101 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  fetch('{% url "core:roster_analytics_data" roster.pk %}')
+    .then(response => response.json())
+    .then(data => {
+      // Completion Timeline Chart
+      const completionCtx = document.getElementById('completionChart').getContext('2d');
+      if (data.completion_timeline.length > 0) {
+        new Chart(completionCtx, {
+          type: 'line',
+          data: {
+            labels: data.completion_timeline.map(d => d.date),
+            datasets: [{
+              label: 'Cumulative Completions',
+              data: data.completion_timeline.map(d => d.completions),
+              borderColor: '#198754',
+              backgroundColor: 'rgba(25, 135, 84, 0.1)',
+              fill: true,
+              tension: 0.3
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { display: true, title: { display: false } },
+              y: { beginAtZero: true, title: { display: false } }
+            }
+          }
+        });
+      } else {
+        document.getElementById('completionChart').style.display = 'none';
+        document.getElementById('completionEmpty').style.display = 'block';
+      }
+
+      // Score Distribution Chart
+      const scoreCtx = document.getElementById('scoreChart').getContext('2d');
+      const scoreData = Object.values(data.score_distribution);
+      if (scoreData.some(v => v > 0)) {
+        new Chart(scoreCtx, {
+          type: 'bar',
+          data: {
+            labels: Object.keys(data.score_distribution),
+            datasets: [{
+              label: 'Students',
+              data: scoreData,
+              backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#20c997', '#198754'],
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+          }
+        });
+      } else {
+        document.getElementById('scoreChart').style.display = 'none';
+        document.getElementById('scoreEmpty').style.display = 'block';
+      }
+
+      // Reading Time Distribution Chart
+      const readingCtx = document.getElementById('readingChart').getContext('2d');
+      const readingData = Object.values(data.reading_time_distribution);
+      if (readingData.some(v => v > 0)) {
+        new Chart(readingCtx, {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(data.reading_time_distribution),
+            datasets: [{
+              data: readingData,
+              backgroundColor: ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545']
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8 } }
+            }
+          }
+        });
+      } else {
+        document.getElementById('readingChart').style.display = 'none';
+        document.getElementById('readingEmpty').style.display = 'block';
+      }
+    })
+    .catch(err => console.error('Error loading chart data:', err));
+});
+</script>
 {% endblock %}

@@ -158,9 +158,34 @@ ItemBankChoiceFormSet = inlineformset_factory(
 class RosterForm(forms.ModelForm):
     class Meta:
         model = Roster
-        fields = ["name", "site", "grade_band"]
+        fields = ["name", "site", "grade_band", "invite_enabled"]
         widgets = {
             "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter roster name"}),
             "site": forms.Select(attrs={"class": "form-select"}),
             "grade_band": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g., Grade 6-7"}),
+            "invite_enabled": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
+
+
+class JoinRosterForm(forms.Form):
+    """Form for students to join a roster via invite code."""
+    invite_code = forms.CharField(
+        max_length=8,
+        min_length=6,
+        widget=forms.TextInput(attrs={
+            "class": "form-control form-control-lg text-center text-uppercase",
+            "placeholder": "XXXXXX",
+            "autocomplete": "off",
+            "style": "letter-spacing: 0.3em; font-family: monospace;",
+        }),
+        help_text="Enter the 6-character code provided by your instructor."
+    )
+
+    def clean_invite_code(self):
+        code = self.cleaned_data['invite_code'].upper().strip()
+        try:
+            roster = Roster.objects.get(invite_code=code, invite_enabled=True)
+            self.roster = roster
+        except Roster.DoesNotExist:
+            raise forms.ValidationError("Invalid or expired invite code.")
+        return code

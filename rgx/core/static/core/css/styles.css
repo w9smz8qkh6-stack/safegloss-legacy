@@ -1,3 +1,7 @@
+/* =============================================================================
+   CORE STYLES
+   ============================================================================= */
+
 body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -22,4 +26,286 @@ body {
 
 .glossary-term-popover {
   font-size: 0.9rem;
+}
+
+/* =============================================================================
+   MOBILE OPTIMIZATION
+   ============================================================================= */
+
+/* Better touch targets */
+@media (max-width: 768px) {
+  /* Larger touch targets */
+  .btn, .nav-link, .list-group-item-action {
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+  }
+
+  /* Full-width buttons on mobile */
+  .btn-group-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .btn-group-mobile .btn {
+    width: 100%;
+  }
+
+  /* Reduce padding on mobile */
+  .container-fluid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  /* Card adjustments */
+  .card-body {
+    padding: 1rem;
+  }
+
+  /* Hide less important elements on mobile */
+  .d-mobile-none {
+    display: none !important;
+  }
+
+  /* Stack tables on mobile */
+  .table-responsive-stack {
+    display: block;
+  }
+  .table-responsive-stack thead {
+    display: none;
+  }
+  .table-responsive-stack tr {
+    display: block;
+    margin-bottom: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+  }
+  .table-responsive-stack td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border: none;
+  }
+  .table-responsive-stack td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #6c757d;
+  }
+}
+
+/* =============================================================================
+   READING VIEW - MOBILE OPTIMIZED
+   ============================================================================= */
+
+.reading-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.reading-content {
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: #212529;
+}
+
+@media (max-width: 576px) {
+  .reading-content {
+    font-size: 1rem;
+    line-height: 1.7;
+  }
+}
+
+/* Glossary term highlight */
+.gloss-term {
+  background: linear-gradient(180deg, transparent 60%, rgba(255, 193, 7, 0.3) 60%);
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 2px;
+  transition: background 0.2s ease;
+}
+
+.gloss-term:hover, .gloss-term:focus {
+  background: rgba(255, 193, 7, 0.5);
+  outline: none;
+}
+
+/* Segment cards for card mode */
+.segment-card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  transition: transform 0.2s ease;
+}
+
+@media (max-width: 576px) {
+  .segment-card {
+    padding: 1rem;
+    border-radius: 0.75rem;
+  }
+}
+
+/* Reading progress bar */
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0%;
+  height: 4px;
+  background: linear-gradient(90deg, #0d6efd, #6610f2);
+  z-index: 1100;
+  transition: width 0.1s ease;
+}
+
+/* Bottom navigation for reading */
+.reading-nav-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid #dee2e6;
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
+
+@media (min-width: 769px) {
+  .reading-nav-bottom {
+    display: none;
+  }
+}
+
+/* Safe area for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .reading-nav-bottom {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* =============================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ============================================================================= */
+
+/* Focus indicators */
+:focus-visible {
+  outline: 3px solid #0d6efd;
+  outline-offset: 2px;
+}
+
+/* Skip to content link */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 0;
+  background: #0d6efd;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  z-index: 9999;
+  transition: top 0.3s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+  outline: none;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .gloss-term {
+    border-bottom: 2px solid #000;
+    background: none;
+  }
+  .btn-outline-primary, .btn-outline-secondary {
+    border-width: 2px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Better form accessibility */
+.form-label {
+  font-weight: 500;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Error states */
+.is-invalid {
+  border-color: #dc3545;
+}
+
+.is-invalid:focus {
+  box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+}
+
+/* =============================================================================
+   PWA INSTALL BANNER
+   ============================================================================= */
+
+.pwa-install-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #0d6efd, #6610f2);
+  color: white;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1050;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.pwa-install-banner.show {
+  transform: translateY(0);
+}
+
+.pwa-install-banner .btn-install {
+  background: white;
+  color: #0d6efd;
+  border: none;
+  font-weight: 600;
+}
+
+/* =============================================================================
+   DARK MODE SUPPORT (FUTURE)
+   ============================================================================= */
+
+@media (prefers-color-scheme: dark) {
+  /* Placeholder for dark mode styles */
+  /* Can be enabled by adding a toggle */
 }

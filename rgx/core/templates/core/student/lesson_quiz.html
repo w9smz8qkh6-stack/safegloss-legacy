@@ -1,4 +1,5 @@
 {% extends "core/base.html" %}
+{% load static %}
 
 {% block title %}{{ quiz.title }} - Quiz{% endblock %}
 
@@ -66,7 +67,7 @@
   </div>
   {% endif %}
 
-  <form method="post" id="quizForm">
+  <form method="post" id="quizForm" class="quiz-form">
     {% csrf_token %}
 
     {% for qq in questions %}
@@ -136,6 +137,8 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Offline Quiz Support -->
+<script src="{% static 'core/js/offline-quiz.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   // Handle choice selection visual feedback

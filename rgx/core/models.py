@@ -38,10 +38,29 @@ class Roster(models.Model):
     site = models.ForeignKey(Site, on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     grade_band = models.CharField(max_length=50, blank=True)
+    invite_code = models.CharField(max_length=8, unique=True, blank=True, null=True)
+    invite_enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f"{self.name} ({self.site.code})"
+
+    def save(self, *args, **kwargs):
+        if not self.invite_code:
+            self.invite_code = self.generate_invite_code()
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def generate_invite_code():
+        import secrets
+        import string
+        chars = string.ascii_uppercase + string.digits
+        # Remove confusing characters
+        chars = chars.replace('O', '').replace('0', '').replace('I', '').replace('1', '').replace('L', '')
+        while True:
+            code = ''.join(secrets.choice(chars) for _ in range(6))
+            if not Roster.objects.filter(invite_code=code).exists():
+                return code
 
 
 class RosterMembership(models.Model):
@@ -344,3 +363,41 @@ class ReadingEvent(models.Model):
     event_type = models.CharField(max_length=20, choices=EVENT_TYPES)
     event_payload = models.JSONField(blank=True, default=dict)
     created_at = models.DateTimeField(default=timezone.now)
+
+
+class SegmentViewLog(models.Model):
+    """Tracks time spent viewing each segment for granular analytics."""
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name="segment_views")
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name="segment_views")
+    segment = models.ForeignKey(StorySegment, on_delete=models.CASCADE, related_name="view_logs")
+    segment_index = models.PositiveIntegerField()
+
+    # Timing data
+    view_start = models.DateTimeField()
+    view_end = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
+
+    # Reading behavior indicators
+    scroll_depth_percent = models.FloatField(default=0)  # How far they scrolled in segment
+    revisit_count = models.PositiveIntegerField(default=0)  # Times they came back to this segment
+    hesitation_count = models.PositiveIntegerField(default=0)  # Pauses > 3 seconds
+
+    # Interaction data
+    gloss_clicks = models.PositiveIntegerField(default=0)  # Glossary terms clicked in segment
+    copy_events = models.PositiveIntegerField(default=0)  # Text copied
+
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['view_start']
+
+    @property
+    def reading_speed_wpm(self):
+        """Estimate words per minute based on segment content and time spent."""
+        if self.duration_seconds and self.duration_seconds > 0 and self.segment:
+            # Rough word count from HTML
+            import re
+            text = re.sub(r'<[^>]+>', '', self.segment.text_html)
+            word_count = len(text.split())
+            return (word_count / self.duration_seconds) * 60
+        return None
