@@ -1,6 +1,522 @@
 """Utility functions for the core app."""
 import re
+import math
+import logging
 from html.parser import HTMLParser
+from typing import Optional
+
+import textstat
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# LEXILE ESTIMATION
+# =============================================================================
+
+# Lexile grade band reference (approximate)
+LEXILE_GRADE_BANDS = {
+    "K-1": (0, 300),
+    "1": (190, 530),
+    "2": (420, 650),
+    "3": (520, 820),
+    "4": (740, 940),
+    "5": (830, 1010),
+    "6": (925, 1070),
+    "7": (970, 1120),
+    "8": (1010, 1185),
+    "9": (1050, 1260),
+    "10": (1080, 1335),
+    "11-12": (1185, 1385),
+    "College": (1300, 1600),
+}
+
+
+def strip_html(html_text: str) -> str:
+    """Remove HTML tags and decode entities for text analysis."""
+    if not html_text:
+        return ""
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', ' ', html_text)
+    # Decode common HTML entities
+    text = text.replace('&nbsp;', ' ')
+    text = text.replace('&amp;', '&')
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&quot;', '"')
+    # Normalize whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def estimate_lexile(text: str) -> dict:
+    """
+    Estimate Lexile level using textstat metrics as proxies.
+
+    Lexile is based on:
+    - Mean sentence length (syntactic complexity)
+    - Word frequency (semantic difficulty)
+
+    Since we don't have the proprietary Lexile corpus, we approximate using:
+    - Flesch-Kincaid Grade Level (correlated with Lexile)
+    - Dale-Chall (uses word frequency list)
+    - Sentence statistics
+
+    Returns dict with estimated Lexile and supporting metrics.
+    """
+    if not text or len(text.split()) < 10:
+        return {
+            "lexile": None,
+            "lexile_label": "Insufficient text",
+            "grade_level": None,
+            "metrics": {}
+        }
+
+    # Ensure we're working with plain text
+    plain_text = strip_html(text) if '<' in text else text
+
+    # Get core metrics
+    sentence_count = textstat.sentence_count(plain_text)
+    word_count = textstat.lexicon_count(plain_text, removepunct=True)
+    syllable_count = textstat.syllable_count(plain_text)
+
+    if sentence_count == 0 or word_count == 0:
+        return {
+            "lexile": None,
+            "lexile_label": "Unable to analyze",
+            "grade_level": None,
+            "metrics": {}
+        }
+
+    # Calculate derived metrics
+    avg_sentence_length = word_count / sentence_count
+    avg_syllables_per_word = syllable_count / word_count
+
+    # Get various readability scores
+    flesch_kincaid_grade = textstat.flesch_kincaid_grade(plain_text)
+    dale_chall = textstat.dale_chall_readability_score(plain_text)
+    smog = textstat.smog_index(plain_text)
+    ari = textstat.automated_readability_index(plain_text)
+    coleman_liau = textstat.coleman_liau_index(plain_text)
+
+    # Get difficult word percentage (proxy for word frequency)
+    difficult_words = textstat.difficult_words(plain_text)
+    difficult_word_pct = (difficult_words / word_count * 100) if word_count > 0 else 0
+
+    # Estimate Lexile using grade-to-Lexile conversion
+    # Average multiple grade-level estimates for robustness
+    grade_estimates = [
+        flesch_kincaid_grade,
+        dale_chall,  # Dale-Chall is already grade-adjusted
+        smog,
+        ari,
+        coleman_liau
+    ]
+    # Filter out invalid values
+    valid_grades = [g for g in grade_estimates if g is not None and 0 <= g <= 20]
+
+    if valid_grades:
+        avg_grade = sum(valid_grades) / len(valid_grades)
+    else:
+        avg_grade = flesch_kincaid_grade or 5
+
+    # Convert grade level to approximate Lexile
+    # Formula derived from grade band correlations:
+    # Lexile ≈ 200 + (grade * 100) with adjustments for difficulty
+    base_lexile = 200 + (avg_grade * 100)
+
+    # Adjust based on sentence complexity and word difficulty
+    sentence_adjustment = (avg_sentence_length - 15) * 5  # Baseline ~15 words/sentence
+    word_adjustment = (difficult_word_pct - 10) * 8  # Baseline ~10% difficult words
+
+    estimated_lexile = int(base_lexile + sentence_adjustment + word_adjustment)
+
+    # Clamp to valid Lexile range
+    estimated_lexile = max(0, min(2000, estimated_lexile))
+
+    # Determine grade band label
+    lexile_label = get_lexile_label(estimated_lexile)
+
+    return {
+        "lexile": estimated_lexile,
+        "lexile_label": lexile_label,
+        "grade_level": round(avg_grade, 1),
+        "metrics": {
+            "word_count": word_count,
+            "sentence_count": sentence_count,
+            "avg_sentence_length": round(avg_sentence_length, 1),
+            "avg_syllables_per_word": round(avg_syllables_per_word, 2),
+            "difficult_word_pct": round(difficult_word_pct, 1),
+            "flesch_kincaid_grade": round(flesch_kincaid_grade, 1) if flesch_kincaid_grade else None,
+            "dale_chall": round(dale_chall, 1) if dale_chall else None,
+            "smog_index": round(smog, 1) if smog else None,
+            "flesch_reading_ease": round(textstat.flesch_reading_ease(plain_text), 1),
+        }
+    }
+
+
+def get_lexile_label(lexile: int) -> str:
+    """Get a human-readable grade band label for a Lexile score."""
+    for grade, (low, high) in LEXILE_GRADE_BANDS.items():
+        if low <= lexile <= high:
+            return f"Grade {grade} ({lexile}L)"
+    if lexile < 200:
+        return f"Beginning Reader ({lexile}L)"
+    if lexile > 1400:
+        return f"Advanced ({lexile}L)"
+    return f"{lexile}L"
+
+
+def lexile_to_grade_band(lexile: int) -> str:
+    """Convert Lexile score to grade band string."""
+    for grade, (low, high) in LEXILE_GRADE_BANDS.items():
+        if low <= lexile <= high:
+            return grade
+    if lexile < 200:
+        return "K"
+    return "College+"
+
+
+# =============================================================================
+# AI STORY GENERATION
+# =============================================================================
+
+def get_openai_client():
+    """Get OpenAI client if configured."""
+    api_key = getattr(settings, 'OPENAI_API_KEY', '')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not configured in settings")
+
+    from openai import OpenAI
+    return OpenAI(api_key=api_key)
+
+
+def get_lexile_guidelines(target_lexile: int) -> dict:
+    """
+    Get writing guidelines for a target Lexile level.
+
+    Returns parameters that influence text complexity:
+    - Sentence length targets
+    - Vocabulary complexity hints
+    - Structural guidance
+    """
+    if target_lexile < 400:  # K-2
+        return {
+            "grade_description": "early elementary (K-2)",
+            "sentence_length": "5-10 words",
+            "vocabulary": "simple, high-frequency words; avoid abstract concepts",
+            "structure": "short paragraphs, simple sentence structures, subject-verb-object patterns",
+            "content": "concrete topics, familiar situations, repetition for reinforcement"
+        }
+    elif target_lexile < 700:  # 2-4
+        return {
+            "grade_description": "elementary (grades 2-4)",
+            "sentence_length": "8-15 words",
+            "vocabulary": "common words with some grade-level vocabulary; define new terms in context",
+            "structure": "clear paragraphs, mostly simple sentences with some compound sentences",
+            "content": "relatable topics, clear cause-effect relationships"
+        }
+    elif target_lexile < 1000:  # 4-7
+        return {
+            "grade_description": "middle school (grades 4-7)",
+            "sentence_length": "12-18 words",
+            "vocabulary": "grade-appropriate vocabulary; can include some academic terms with context clues",
+            "structure": "varied sentence structures, compound and complex sentences, clear transitions",
+            "content": "can include more abstract concepts, multiple perspectives"
+        }
+    elif target_lexile < 1200:  # 7-10
+        return {
+            "grade_description": "high school (grades 7-10)",
+            "sentence_length": "15-22 words",
+            "vocabulary": "academic vocabulary, domain-specific terms, nuanced word choices",
+            "structure": "sophisticated sentence variety, subordinate clauses, rhetorical devices",
+            "content": "complex themes, analysis and inference required"
+        }
+    else:  # 10+
+        return {
+            "grade_description": "advanced high school/college (grades 11+)",
+            "sentence_length": "18-30 words",
+            "vocabulary": "advanced academic vocabulary, discipline-specific terminology",
+            "structure": "complex syntax, embedded clauses, varied rhetorical strategies",
+            "content": "sophisticated themes, multiple layers of meaning, requires synthesis"
+        }
+
+
+def generate_story_prompt(
+    topic: str,
+    target_lexile: int,
+    word_count: int = 300,
+    genre: str = "narrative",
+    target_language: str = "English",
+    additional_instructions: str = ""
+) -> str:
+    """
+    Build the prompt for story generation with Lexile targeting.
+    """
+    guidelines = get_lexile_guidelines(target_lexile)
+
+    prompt = f"""You are an expert educational content writer creating reading material for language learners.
+
+TASK: Write a {genre} text about "{topic}" calibrated to approximately {target_lexile}L Lexile level.
+
+TARGET AUDIENCE: {guidelines['grade_description']} readers (approximately {target_lexile}L Lexile)
+
+LEXILE CALIBRATION REQUIREMENTS:
+- Sentence length: Average {guidelines['sentence_length']} per sentence
+- Vocabulary: {guidelines['vocabulary']}
+- Structure: {guidelines['structure']}
+- Content approach: {guidelines['content']}
+
+SPECIFICATIONS:
+- Length: Approximately {word_count} words
+- Language: {target_language}
+- Format: Return ONLY the story text, formatted with HTML paragraphs (<p> tags)
+- Do NOT include titles, headers, or meta-commentary
+
+WRITING GUIDELINES FOR LEXILE {target_lexile}L:
+1. Count your sentences and ensure they average the target length
+2. Choose vocabulary appropriate for the reading level
+3. Use clear topic sentences and logical flow
+4. Include context clues for any challenging vocabulary
+5. Create engaging content while maintaining readability constraints
+
+{f"ADDITIONAL INSTRUCTIONS: {additional_instructions}" if additional_instructions else ""}
+
+Write the text now:"""
+
+    return prompt
+
+
+async def generate_story_async(
+    topic: str,
+    target_lexile: int,
+    word_count: int = 300,
+    genre: str = "narrative",
+    target_language: str = "English",
+    additional_instructions: str = "",
+    model: str = "gpt-4o"
+) -> dict:
+    """
+    Generate a story using OpenAI with Lexile targeting.
+
+    Returns dict with generated text and metadata.
+    """
+    client = get_openai_client()
+
+    prompt = generate_story_prompt(
+        topic=topic,
+        target_lexile=target_lexile,
+        word_count=word_count,
+        genre=genre,
+        target_language=target_language,
+        additional_instructions=additional_instructions
+    )
+
+    try:
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educational content writer specializing in creating reading materials calibrated to specific Lexile levels. You understand the relationship between sentence length, word frequency, and text complexity."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.7,
+            max_tokens=word_count * 3,  # Allow for variation
+        )
+
+        generated_text = response.choices[0].message.content.strip()
+
+        # Analyze the generated text
+        analysis = estimate_lexile(generated_text)
+
+        return {
+            "success": True,
+            "text_html": generated_text,
+            "target_lexile": target_lexile,
+            "actual_lexile": analysis["lexile"],
+            "lexile_label": analysis["lexile_label"],
+            "metrics": analysis["metrics"],
+            "generation_params": {
+                "topic": topic,
+                "target_lexile": target_lexile,
+                "word_count": word_count,
+                "genre": genre,
+                "model": model,
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Story generation failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "text_html": None
+        }
+
+
+def generate_story_sync(
+    topic: str,
+    target_lexile: int,
+    word_count: int = 300,
+    genre: str = "narrative",
+    target_language: str = "English",
+    additional_instructions: str = "",
+    model: str = "gpt-4o"
+) -> dict:
+    """
+    Synchronous version of story generation for use in Django views.
+    """
+    client = get_openai_client()
+
+    prompt = generate_story_prompt(
+        topic=topic,
+        target_lexile=target_lexile,
+        word_count=word_count,
+        genre=genre,
+        target_language=target_language,
+        additional_instructions=additional_instructions
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert educational content writer specializing in creating reading materials calibrated to specific Lexile levels. You understand the relationship between sentence length, word frequency, and text complexity."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.7,
+            max_tokens=word_count * 3,
+        )
+
+        generated_text = response.choices[0].message.content.strip()
+
+        # Ensure proper HTML wrapping
+        if not generated_text.startswith('<p>'):
+            paragraphs = generated_text.split('\n\n')
+            generated_text = ''.join(f'<p>{p.strip()}</p>' for p in paragraphs if p.strip())
+
+        # Analyze the generated text
+        analysis = estimate_lexile(generated_text)
+
+        return {
+            "success": True,
+            "text_html": generated_text,
+            "target_lexile": target_lexile,
+            "actual_lexile": analysis["lexile"],
+            "lexile_label": analysis["lexile_label"],
+            "grade_level": analysis["grade_level"],
+            "metrics": analysis["metrics"],
+            "generation_params": {
+                "topic": topic,
+                "target_lexile": target_lexile,
+                "word_count": word_count,
+                "genre": genre,
+                "model": model,
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Story generation failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "text_html": None
+        }
+
+
+def regenerate_for_lexile(
+    text: str,
+    target_lexile: int,
+    current_lexile: int,
+    model: str = "gpt-4o"
+) -> dict:
+    """
+    Adjust existing text to better match target Lexile level.
+    """
+    client = get_openai_client()
+
+    direction = "simpler" if target_lexile < current_lexile else "more complex"
+    difference = abs(target_lexile - current_lexile)
+
+    guidelines = get_lexile_guidelines(target_lexile)
+
+    prompt = f"""Rewrite the following text to be {direction}, targeting approximately {target_lexile}L Lexile level.
+
+Current Lexile: ~{current_lexile}L
+Target Lexile: {target_lexile}L
+Difference: {difference}L ({direction})
+
+ADJUSTMENT GUIDELINES:
+- Target sentence length: {guidelines['sentence_length']}
+- Vocabulary level: {guidelines['vocabulary']}
+- Structure: {guidelines['structure']}
+
+{"SIMPLIFICATION STRATEGIES:" if target_lexile < current_lexile else "COMPLEXITY STRATEGIES:"}
+{"- Break long sentences into shorter ones" if target_lexile < current_lexile else "- Combine simple sentences with conjunctions and subordinate clauses"}
+{"- Replace difficult words with simpler synonyms" if target_lexile < current_lexile else "- Use more precise, academic vocabulary"}
+{"- Add context and explanations" if target_lexile < current_lexile else "- Remove redundant explanations"}
+{"- Use more concrete examples" if target_lexile < current_lexile else "- Add nuance and abstract concepts"}
+
+ORIGINAL TEXT:
+{text}
+
+REWRITTEN TEXT (maintain the same meaning and key information, format with <p> tags):"""
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at adapting text complexity while preserving meaning. You understand Lexile measures and how sentence length and word frequency affect readability."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.5,  # Lower temp for more faithful rewrites
+        )
+
+        rewritten_text = response.choices[0].message.content.strip()
+
+        # Ensure proper HTML wrapping
+        if not rewritten_text.startswith('<p>'):
+            paragraphs = rewritten_text.split('\n\n')
+            rewritten_text = ''.join(f'<p>{p.strip()}</p>' for p in paragraphs if p.strip())
+
+        analysis = estimate_lexile(rewritten_text)
+
+        return {
+            "success": True,
+            "text_html": rewritten_text,
+            "target_lexile": target_lexile,
+            "actual_lexile": analysis["lexile"],
+            "lexile_label": analysis["lexile_label"],
+            "grade_level": analysis["grade_level"],
+            "metrics": analysis["metrics"],
+            "adjustment": direction,
+        }
+
+    except Exception as e:
+        logger.error(f"Text regeneration failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "text_html": None
+        }
 
 
 class TextExtractor(HTMLParser):

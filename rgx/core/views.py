@@ -10,7 +10,7 @@ from functools import wraps
 from .forms import (
     LessonFilterForm, StoryForm, StorySegmentFormSet, GlossaryForm, TermForm,
     LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm,
-    JoinRosterForm
+    JoinRosterForm, StoryGenerationForm, LexileAnalysisForm, LexileAdjustmentForm
 )
 from django.db.models import Avg, Sum, F
 from .models import (
@@ -21,7 +21,10 @@ from .models import (
 import json
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
-from .utils import markup_glossary_terms, get_story_terms
+from .utils import (
+    markup_glossary_terms, get_story_terms, estimate_lexile,
+    generate_story_sync, regenerate_for_lexile, LEXILE_GRADE_BANDS
+)
 
 
 def instructor_required(view_func):
@@ -1728,3 +1731,223 @@ def lesson_cache_data(request, pk):
         "quiz": quiz_data,
         "cached_at": timezone.now().isoformat(),
     })
+
+
+# =============================================================================
+# AI STORY GENERATION VIEWS
+# =============================================================================
+
+@login_required
+@instructor_required
+def story_generate(request):
+    """AI-powered story generation with Lexile targeting."""
+    result = None
+    analysis = None
+
+    if request.method == "POST":
+        form = StoryGenerationForm(request.POST)
+        if form.is_valid():
+            try:
+                result = generate_story_sync(
+                    topic=form.cleaned_data["topic"],
+                    target_lexile=form.cleaned_data["target_lexile"],
+                    word_count=form.cleaned_data["word_count"],
+                    genre=form.cleaned_data["genre"],
+                    additional_instructions=form.cleaned_data.get("additional_instructions", ""),
+                )
+
+                if result["success"]:
+                    # Store result in session for potential saving
+                    request.session["generated_story"] = {
+                        "text_html": result["text_html"],
+                        "topic": form.cleaned_data["topic"],
+                        "target_lexile": form.cleaned_data["target_lexile"],
+                        "actual_lexile": result["actual_lexile"],
+                        "metrics": result["metrics"],
+                        "generation_params": result["generation_params"],
+                    }
+                else:
+                    messages.error(request, f"Generation failed: {result.get('error', 'Unknown error')}")
+
+            except ValueError as e:
+                messages.error(request, str(e))
+            except Exception as e:
+                messages.error(request, f"An error occurred: {str(e)}")
+    else:
+        form = StoryGenerationForm()
+
+    return render(request, "core/instructor/story_generate.html", {
+        "form": form,
+        "result": result,
+        "lexile_grade_bands": LEXILE_GRADE_BANDS,
+    })
+
+
+@login_required
+@instructor_required
+@require_POST
+def story_generate_save(request):
+    """Save a generated story to the database."""
+    generated = request.session.get("generated_story")
+
+    if not generated:
+        messages.error(request, "No generated story found. Please generate a story first.")
+        return redirect("core:story_generate")
+
+    title = request.POST.get("title", generated.get("topic", "Untitled Story"))
+
+    # Create the story
+    story = Story.objects.create(
+        instructor=request.user,
+        title=title,
+        text_html=generated["text_html"],
+        source_type=Story.SOURCE_AI,
+        source_metadata=generated.get("generation_params", {}),
+        reading_level_label=f"{generated.get('actual_lexile', '?')}L",
+        reading_level_metrics=generated.get("metrics", {}),
+    )
+
+    # Clear session
+    del request.session["generated_story"]
+
+    messages.success(request, f"Story '{title}' saved successfully!")
+    return redirect("core:story_edit", pk=story.pk)
+
+
+@login_required
+@instructor_required
+def lexile_analyze(request):
+    """Analyze text for Lexile level and readability metrics."""
+    analysis = None
+
+    if request.method == "POST":
+        form = LexileAnalysisForm(request.POST)
+        if form.is_valid():
+            text = form.cleaned_data["text"]
+            analysis = estimate_lexile(text)
+    else:
+        form = LexileAnalysisForm()
+
+    return render(request, "core/instructor/lexile_analyze.html", {
+        "form": form,
+        "analysis": analysis,
+        "lexile_grade_bands": LEXILE_GRADE_BANDS,
+    })
+
+
+@login_required
+@instructor_required
+def lexile_analyze_api(request):
+    """API endpoint for analyzing text Lexile level (AJAX)."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        text = data.get("text", "")
+    except json.JSONDecodeError:
+        text = request.POST.get("text", "")
+
+    if not text or len(text.strip()) < 50:
+        return JsonResponse({
+            "error": "Text too short for analysis (minimum 50 characters)"
+        }, status=400)
+
+    analysis = estimate_lexile(text)
+    return JsonResponse(analysis)
+
+
+@login_required
+@instructor_required
+def story_adjust_lexile(request, pk):
+    """Adjust an existing story to a different Lexile level."""
+    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    result = None
+
+    # Get current analysis
+    current_analysis = estimate_lexile(story.text_html)
+
+    if request.method == "POST":
+        form = LexileAdjustmentForm(request.POST)
+        if form.is_valid():
+            try:
+                result = regenerate_for_lexile(
+                    text=form.cleaned_data["text"],
+                    target_lexile=form.cleaned_data["target_lexile"],
+                    current_lexile=form.cleaned_data["current_lexile"],
+                )
+
+                if result["success"]:
+                    # Store for potential saving
+                    request.session["adjusted_story"] = {
+                        "story_pk": story.pk,
+                        "text_html": result["text_html"],
+                        "target_lexile": form.cleaned_data["target_lexile"],
+                        "actual_lexile": result["actual_lexile"],
+                        "metrics": result["metrics"],
+                    }
+                else:
+                    messages.error(request, f"Adjustment failed: {result.get('error', 'Unknown error')}")
+
+            except ValueError as e:
+                messages.error(request, str(e))
+            except Exception as e:
+                messages.error(request, f"An error occurred: {str(e)}")
+    else:
+        form = LexileAdjustmentForm(initial={
+            "text": story.text_html,
+            "current_lexile": current_analysis.get("lexile", 700),
+            "target_lexile": current_analysis.get("lexile", 700),
+        })
+
+    return render(request, "core/instructor/story_adjust_lexile.html", {
+        "form": form,
+        "story": story,
+        "current_analysis": current_analysis,
+        "result": result,
+        "lexile_grade_bands": LEXILE_GRADE_BANDS,
+    })
+
+
+@login_required
+@instructor_required
+@require_POST
+def story_adjust_save(request, pk):
+    """Save adjusted story text."""
+    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    adjusted = request.session.get("adjusted_story")
+
+    if not adjusted or adjusted.get("story_pk") != story.pk:
+        messages.error(request, "No adjusted text found. Please adjust the story first.")
+        return redirect("core:story_adjust_lexile", pk=pk)
+
+    save_as = request.POST.get("save_as", "update")
+
+    if save_as == "new":
+        # Create a new story
+        new_story = Story.objects.create(
+            instructor=request.user,
+            title=f"{story.title} (Adjusted to {adjusted['actual_lexile']}L)",
+            text_html=adjusted["text_html"],
+            source_type=Story.SOURCE_AI,
+            source_metadata={
+                "original_story_id": story.pk,
+                "adjustment": "lexile_adjusted",
+                "target_lexile": adjusted["target_lexile"],
+            },
+            reading_level_label=f"{adjusted['actual_lexile']}L",
+            reading_level_metrics=adjusted.get("metrics", {}),
+        )
+        messages.success(request, f"New story created at {adjusted['actual_lexile']}L!")
+        del request.session["adjusted_story"]
+        return redirect("core:story_edit", pk=new_story.pk)
+    else:
+        # Update existing story
+        story.text_html = adjusted["text_html"]
+        story.reading_level_label = f"{adjusted['actual_lexile']}L"
+        story.reading_level_metrics = adjusted.get("metrics", {})
+        story.save()
+
+        messages.success(request, f"Story updated to {adjusted['actual_lexile']}L!")
+        del request.session["adjusted_story"]
+        return redirect("core:story_edit", pk=story.pk)

@@ -1,0 +1,283 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Generate Story with AI{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-3 col-lg-2">
+      {% include "core/instructor/_sidebar.html" %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="col-md-9 col-lg-10">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h4 class="mb-1">
+            <i class="bi bi-stars me-2"></i>Generate Story with AI
+          </h4>
+          <p class="text-muted mb-0">Create reading content calibrated to specific Lexile levels</p>
+        </div>
+        <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Back to Stories
+        </a>
+      </div>
+
+      <div class="row">
+        <!-- Generation Form -->
+        <div class="col-lg-5">
+          <div class="card shadow-sm">
+            <div class="card-header">
+              <h5 class="mb-0"><i class="bi bi-sliders me-2"></i>Generation Settings</h5>
+            </div>
+            <div class="card-body">
+              <form method="post" id="generateForm">
+                {% csrf_token %}
+
+                <div class="mb-3">
+                  <label for="id_topic" class="form-label">Topic <span class="text-danger">*</span></label>
+                  {{ form.topic }}
+                  <div class="form-text">{{ form.topic.help_text }}</div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Target Reading Level <span class="text-danger">*</span></label>
+                  <div class="row g-2">
+                    <div class="col-7">
+                      {{ form.lexile_preset }}
+                      <div class="form-text">Quick select</div>
+                    </div>
+                    <div class="col-5">
+                      {{ form.target_lexile }}
+                      <div class="form-text">Lexile score</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Lexile Scale Visual -->
+                <div class="mb-3">
+                  <div class="lexile-scale p-3 bg-light rounded">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                      <span>Beginning</span>
+                      <span>Elementary</span>
+                      <span>Middle</span>
+                      <span>High School</span>
+                      <span>College</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                      <div class="progress-bar bg-success" style="width: 20%"></div>
+                      <div class="progress-bar bg-info" style="width: 20%"></div>
+                      <div class="progress-bar bg-primary" style="width: 20%"></div>
+                      <div class="progress-bar bg-warning" style="width: 20%"></div>
+                      <div class="progress-bar bg-danger" style="width: 20%"></div>
+                    </div>
+                    <div class="d-flex justify-content-between small mt-1">
+                      <span>200L</span>
+                      <span>500L</span>
+                      <span>800L</span>
+                      <span>1100L</span>
+                      <span>1400L+</span>
+                    </div>
+                    <div class="text-center mt-2">
+                      <span class="badge bg-primary" id="lexileIndicator">Target: 700L</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                  <div class="col-6">
+                    <label for="id_word_count" class="form-label">Word Count</label>
+                    {{ form.word_count }}
+                  </div>
+                  <div class="col-6">
+                    <label for="id_genre" class="form-label">Genre</label>
+                    {{ form.genre }}
+                  </div>
+                </div>
+
+                <div class="mb-3">
+                  <label for="id_additional_instructions" class="form-label">Additional Instructions</label>
+                  {{ form.additional_instructions }}
+                  <div class="form-text">{{ form.additional_instructions.help_text }}</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100" id="generateBtn">
+                  <i class="bi bi-stars me-2"></i>Generate Story
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Lexile Info Card -->
+          <div class="card shadow-sm mt-3">
+            <div class="card-header">
+              <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>About Lexile Levels</h6>
+            </div>
+            <div class="card-body small">
+              <p>Lexile measures are based on:</p>
+              <ul class="mb-2">
+                <li><strong>Sentence Length</strong> (syntactic complexity)</li>
+                <li><strong>Word Frequency</strong> (semantic difficulty)</li>
+              </ul>
+              <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                  <tr><th>Grade</th><th>Lexile Range</th></tr>
+                </thead>
+                <tbody>
+                  {% for grade, range in lexile_grade_bands.items %}
+                  <tr><td>{{ grade }}</td><td>{{ range.0 }}L - {{ range.1 }}L</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="col-lg-7">
+          {% if result and result.success %}
+          <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Generated Story</h5>
+              <div>
+                <span class="badge bg-{% if result.actual_lexile %}primary{% else %}secondary{% endif %} me-2">
+                  {% if result.actual_lexile %}{{ result.actual_lexile }}L{% else %}?{% endif %}
+                </span>
+                <span class="badge bg-light text-dark">
+                  {{ result.metrics.word_count|default:"?" }} words
+                </span>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- Lexile Comparison -->
+              <div class="alert {% if result.actual_lexile and result.target_lexile %}{% if result.actual_lexile >= result.target_lexile|add:"-100" and result.actual_lexile <= result.target_lexile|add:"100" %}alert-success{% else %}alert-warning{% endif %}{% else %}alert-secondary{% endif %} mb-3">
+                <div class="row text-center">
+                  <div class="col-4">
+                    <small class="text-muted d-block">Target</small>
+                    <strong>{{ result.target_lexile }}L</strong>
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted d-block">Actual</small>
+                    <strong>{{ result.actual_lexile|default:"?" }}L</strong>
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted d-block">Difference</small>
+                    <strong>
+                      {% if result.actual_lexile and result.target_lexile %}
+                        {% widthratio result.actual_lexile 1 1 as actual %}
+                        {% widthratio result.target_lexile 1 1 as target %}
+                        {{ result.actual_lexile|add:result.target_lexile|add:result.target_lexile|add:"-"|add:result.target_lexile|add:"-"|add:result.actual_lexile }}
+                      {% else %}
+                        ?
+                      {% endif %}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Metrics -->
+              {% if result.metrics %}
+              <div class="row g-2 mb-3">
+                <div class="col-4">
+                  <div class="text-center p-2 bg-light rounded">
+                    <small class="text-muted d-block">Avg Sentence</small>
+                    <strong>{{ result.metrics.avg_sentence_length|default:"?" }} words</strong>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="text-center p-2 bg-light rounded">
+                    <small class="text-muted d-block">Difficult Words</small>
+                    <strong>{{ result.metrics.difficult_word_pct|default:"?" }}%</strong>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="text-center p-2 bg-light rounded">
+                    <small class="text-muted d-block">Grade Level</small>
+                    <strong>{{ result.grade_level|default:"?" }}</strong>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <!-- Generated Text -->
+              <div class="border rounded p-3 mb-3 reading-content" style="max-height: 400px; overflow-y: auto;">
+                {{ result.text_html|safe }}
+              </div>
+
+              <!-- Save Form -->
+              <form method="post" action="{% url 'core:story_generate_save' %}">
+                {% csrf_token %}
+                <div class="input-group">
+                  <span class="input-group-text"><i class="bi bi-bookmark"></i></span>
+                  <input type="text" name="title" class="form-control" placeholder="Story title" value="{{ form.topic.value|default:'' }}">
+                  <button type="submit" class="btn btn-success">
+                    <i class="bi bi-save me-1"></i>Save Story
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+          {% elif result and not result.success %}
+          <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Generation Failed:</strong> {{ result.error }}
+          </div>
+          {% else %}
+          <div class="card shadow-sm bg-light">
+            <div class="card-body text-center py-5">
+              <i class="bi bi-file-earmark-text display-1 text-muted mb-3"></i>
+              <h5 class="text-muted">Generated story will appear here</h5>
+              <p class="text-muted mb-0">Fill in the form and click "Generate Story" to create content</p>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const presetSelect = document.getElementById('lexile-preset-select');
+  const lexileInput = document.getElementById('target-lexile-input');
+  const lexileIndicator = document.getElementById('lexileIndicator');
+  const generateBtn = document.getElementById('generateBtn');
+  const generateForm = document.getElementById('generateForm');
+
+  // Sync preset to input
+  presetSelect.addEventListener('change', function() {
+    lexileInput.value = this.value;
+    updateIndicator();
+  });
+
+  // Update indicator when input changes
+  lexileInput.addEventListener('input', updateIndicator);
+
+  function updateIndicator() {
+    const value = parseInt(lexileInput.value) || 700;
+    lexileIndicator.textContent = `Target: ${value}L`;
+
+    // Update color based on level
+    lexileIndicator.className = 'badge';
+    if (value < 400) lexileIndicator.classList.add('bg-success');
+    else if (value < 700) lexileIndicator.classList.add('bg-info');
+    else if (value < 1000) lexileIndicator.classList.add('bg-primary');
+    else if (value < 1200) lexileIndicator.classList.add('bg-warning');
+    else lexileIndicator.classList.add('bg-danger');
+  }
+
+  // Show loading state on submit
+  generateForm.addEventListener('submit', function() {
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+  });
+
+  updateIndicator();
+});
+</script>
+{% endblock %}

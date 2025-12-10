@@ -189,3 +189,120 @@ class JoinRosterForm(forms.Form):
         except Roster.DoesNotExist:
             raise forms.ValidationError("Invalid or expired invite code.")
         return code
+
+
+class StoryGenerationForm(forms.Form):
+    """Form for AI-powered story generation with Lexile targeting."""
+
+    GENRE_CHOICES = [
+        ("narrative", "Narrative / Story"),
+        ("informational", "Informational / Expository"),
+        ("descriptive", "Descriptive"),
+        ("persuasive", "Persuasive / Opinion"),
+        ("procedural", "Procedural / How-To"),
+    ]
+
+    LEXILE_PRESETS = [
+        (300, "Grade K-1 (200-400L)"),
+        (500, "Grade 2-3 (420-650L)"),
+        (700, "Grade 4-5 (740-940L)"),
+        (900, "Grade 6-7 (925-1070L)"),
+        (1050, "Grade 8-9 (1010-1185L)"),
+        (1200, "Grade 10-11 (1080-1335L)"),
+        (1400, "College (1300-1600L)"),
+    ]
+
+    topic = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "e.g., A day at the beach, How volcanoes form, The water cycle"
+        }),
+        help_text="What should the story be about?"
+    )
+
+    target_lexile = forms.IntegerField(
+        min_value=100,
+        max_value=1800,
+        initial=700,
+        widget=forms.NumberInput(attrs={
+            "class": "form-control",
+            "id": "target-lexile-input"
+        }),
+        help_text="Target Lexile score (100-1800)"
+    )
+
+    lexile_preset = forms.ChoiceField(
+        choices=LEXILE_PRESETS,
+        required=False,
+        widget=forms.Select(attrs={
+            "class": "form-select",
+            "id": "lexile-preset-select"
+        }),
+        help_text="Quick select by grade level"
+    )
+
+    word_count = forms.IntegerField(
+        min_value=100,
+        max_value=2000,
+        initial=300,
+        widget=forms.NumberInput(attrs={
+            "class": "form-control"
+        }),
+        help_text="Approximate word count (100-2000)"
+    )
+
+    genre = forms.ChoiceField(
+        choices=GENRE_CHOICES,
+        initial="narrative",
+        widget=forms.Select(attrs={"class": "form-select"})
+    )
+
+    additional_instructions = forms.CharField(
+        required=False,
+        max_length=500,
+        widget=forms.Textarea(attrs={
+            "class": "form-control",
+            "rows": 3,
+            "placeholder": "Optional: specific vocabulary to include, cultural context, themes to emphasize..."
+        }),
+        help_text="Additional instructions for the AI (optional)"
+    )
+
+
+class LexileAnalysisForm(forms.Form):
+    """Form for analyzing existing text for Lexile level."""
+
+    text = forms.CharField(
+        widget=forms.Textarea(attrs={
+            "class": "form-control",
+            "rows": 10,
+            "placeholder": "Paste text here to analyze its reading level..."
+        }),
+        help_text="Enter or paste text to analyze"
+    )
+
+
+class LexileAdjustmentForm(forms.Form):
+    """Form for adjusting text to a different Lexile level."""
+
+    text = forms.CharField(
+        widget=forms.Textarea(attrs={
+            "class": "form-control",
+            "rows": 8,
+        }),
+        help_text="Text to adjust"
+    )
+
+    current_lexile = forms.IntegerField(
+        widget=forms.HiddenInput()
+    )
+
+    target_lexile = forms.IntegerField(
+        min_value=100,
+        max_value=1800,
+        widget=forms.NumberInput(attrs={
+            "class": "form-control"
+        }),
+        help_text="Target Lexile level"
+    )

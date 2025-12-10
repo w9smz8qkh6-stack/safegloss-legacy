@@ -31,6 +31,17 @@
         </a>
       </div>
       <div class="card-footer bg-light">
+        <small class="text-muted d-block mb-2">AI Tools</small>
+        <div class="d-grid gap-2">
+          <a href="{% url 'core:story_generate' %}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-stars me-2"></i>Generate Story
+          </a>
+          <a href="{% url 'core:lexile_analyze' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-graph-up me-2"></i>Lexile Analyzer
+          </a>
+        </div>
+      </div>
+      <div class="card-footer bg-light">
         <small class="text-muted d-block mb-2">Analytics & Export</small>
         <div class="d-grid gap-2">
           <a href="{% url 'core:roster_comparison' %}" class="btn btn-sm btn-outline-success">

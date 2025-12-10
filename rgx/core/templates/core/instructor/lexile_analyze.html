@@ -1,0 +1,162 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Lexile Analyzer{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-3 col-lg-2">
+      {% include "core/instructor/_sidebar.html" %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="col-md-9 col-lg-10">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h4 class="mb-1">
+            <i class="bi bi-graph-up me-2"></i>Lexile Analyzer
+          </h4>
+          <p class="text-muted mb-0">Analyze text to estimate reading level and complexity metrics</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <!-- Analysis Form -->
+        <div class="col-lg-6">
+          <div class="card shadow-sm">
+            <div class="card-header">
+              <h5 class="mb-0"><i class="bi bi-textarea-t me-2"></i>Text to Analyze</h5>
+            </div>
+            <div class="card-body">
+              <form method="post">
+                {% csrf_token %}
+                <div class="mb-3">
+                  {{ form.text }}
+                  <div class="form-text">{{ form.text.help_text }}</div>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-bar-chart me-2"></i>Analyze Text
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="col-lg-6">
+          {% if analysis %}
+          <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0"><i class="bi bi-clipboard-data me-2"></i>Analysis Results</h5>
+            </div>
+            <div class="card-body">
+              <!-- Main Lexile Score -->
+              <div class="text-center p-4 bg-light rounded mb-3">
+                <div class="display-4 fw-bold text-primary">
+                  {% if analysis.lexile %}{{ analysis.lexile }}L{% else %}N/A{% endif %}
+                </div>
+                <div class="text-muted">{{ analysis.lexile_label }}</div>
+              </div>
+
+              <!-- Metrics Grid -->
+              {% if analysis.metrics %}
+              <div class="row g-3">
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="h4 mb-0 text-primary">{{ analysis.metrics.word_count }}</div>
+                    <small class="text-muted">Words</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="h4 mb-0 text-primary">{{ analysis.metrics.sentence_count }}</div>
+                    <small class="text-muted">Sentences</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="h4 mb-0 text-info">{{ analysis.metrics.avg_sentence_length }}</div>
+                    <small class="text-muted">Avg Words/Sentence</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="h4 mb-0 text-info">{{ analysis.metrics.avg_syllables_per_word }}</div>
+                    <small class="text-muted">Avg Syllables/Word</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="h4 mb-0 text-warning">{{ analysis.metrics.difficult_word_pct }}%</div>
+                    <small class="text-muted">Difficult Words</small>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="h4 mb-0 text-success">{{ analysis.metrics.flesch_reading_ease }}</div>
+                    <small class="text-muted">Flesch Reading Ease</small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Additional Scores -->
+              <div class="mt-3 pt-3 border-top">
+                <h6 class="text-muted mb-2">Readability Indices</h6>
+                <div class="row g-2 small">
+                  <div class="col-6">
+                    <span class="text-muted">Flesch-Kincaid Grade:</span>
+                    <strong>{{ analysis.metrics.flesch_kincaid_grade|default:"N/A" }}</strong>
+                  </div>
+                  <div class="col-6">
+                    <span class="text-muted">Dale-Chall:</span>
+                    <strong>{{ analysis.metrics.dale_chall|default:"N/A" }}</strong>
+                  </div>
+                  <div class="col-6">
+                    <span class="text-muted">SMOG Index:</span>
+                    <strong>{{ analysis.metrics.smog_index|default:"N/A" }}</strong>
+                  </div>
+                  <div class="col-6">
+                    <span class="text-muted">Grade Level:</span>
+                    <strong>{{ analysis.grade_level|default:"N/A" }}</strong>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="card shadow-sm bg-light">
+            <div class="card-body text-center py-5">
+              <i class="bi bi-bar-chart display-1 text-muted mb-3"></i>
+              <h5 class="text-muted">Analysis results will appear here</h5>
+              <p class="text-muted mb-0">Paste text and click "Analyze Text" to see metrics</p>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- Reference Card -->
+          <div class="card shadow-sm mt-3">
+            <div class="card-header">
+              <h6 class="mb-0"><i class="bi bi-book me-2"></i>Lexile Grade Bands</h6>
+            </div>
+            <div class="card-body p-0">
+              <table class="table table-sm table-striped mb-0">
+                <thead>
+                  <tr><th>Grade</th><th>Lexile Range</th></tr>
+                </thead>
+                <tbody>
+                  {% for grade, range in lexile_grade_bands.items %}
+                  <tr><td>{{ grade }}</td><td>{{ range.0 }}L - {{ range.1 }}L</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

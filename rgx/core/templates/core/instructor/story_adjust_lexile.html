@@ -1,0 +1,246 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Adjust Lexile - {{ story.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-3 col-lg-2">
+      {% include "core/instructor/_sidebar.html" %}
+    </div>
+
+    <!-- Main Content -->
+    <div class="col-md-9 col-lg-10">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+              <li class="breadcrumb-item"><a href="{% url 'core:story_list' %}">Stories</a></li>
+              <li class="breadcrumb-item"><a href="{% url 'core:story_edit' pk=story.pk %}">{{ story.title|truncatechars:30 }}</a></li>
+              <li class="breadcrumb-item active">Adjust Lexile</li>
+            </ol>
+          </nav>
+          <h4 class="mb-0">
+            <i class="bi bi-sliders me-2"></i>Adjust Reading Level
+          </h4>
+        </div>
+        <a href="{% url 'core:story_edit' pk=story.pk %}" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Back to Story
+        </a>
+      </div>
+
+      <div class="row">
+        <!-- Current Analysis -->
+        <div class="col-lg-4">
+          <div class="card shadow-sm">
+            <div class="card-header">
+              <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Current Level</h5>
+            </div>
+            <div class="card-body">
+              <div class="text-center p-3 bg-light rounded mb-3">
+                <div class="display-5 fw-bold text-primary">
+                  {% if current_analysis.lexile %}{{ current_analysis.lexile }}L{% else %}N/A{% endif %}
+                </div>
+                <div class="text-muted">{{ current_analysis.lexile_label }}</div>
+              </div>
+
+              {% if current_analysis.metrics %}
+              <table class="table table-sm">
+                <tr>
+                  <td class="text-muted">Words</td>
+                  <td class="text-end"><strong>{{ current_analysis.metrics.word_count }}</strong></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Sentences</td>
+                  <td class="text-end"><strong>{{ current_analysis.metrics.sentence_count }}</strong></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Avg Sentence Length</td>
+                  <td class="text-end"><strong>{{ current_analysis.metrics.avg_sentence_length }}</strong></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Difficult Words</td>
+                  <td class="text-end"><strong>{{ current_analysis.metrics.difficult_word_pct }}%</strong></td>
+                </tr>
+                <tr>
+                  <td class="text-muted">Grade Level</td>
+                  <td class="text-end"><strong>{{ current_analysis.grade_level }}</strong></td>
+                </tr>
+              </table>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Adjustment Form -->
+          <div class="card shadow-sm mt-3">
+            <div class="card-header">
+              <h5 class="mb-0"><i class="bi bi-arrow-left-right me-2"></i>Target Level</h5>
+            </div>
+            <div class="card-body">
+              <form method="post" id="adjustForm">
+                {% csrf_token %}
+                {{ form.text.as_hidden }}
+                {{ form.current_lexile }}
+
+                <div class="mb-3">
+                  <label for="id_target_lexile" class="form-label">Target Lexile</label>
+                  {{ form.target_lexile }}
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Quick Presets</label>
+                  <div class="btn-group-vertical w-100" role="group">
+                    <button type="button" class="btn btn-outline-success btn-sm preset-btn" data-lexile="400">
+                      Grade 2-3 (400L)
+                    </button>
+                    <button type="button" class="btn btn-outline-info btn-sm preset-btn" data-lexile="600">
+                      Grade 4-5 (600L)
+                    </button>
+                    <button type="button" class="btn btn-outline-primary btn-sm preset-btn" data-lexile="800">
+                      Grade 6-7 (800L)
+                    </button>
+                    <button type="button" class="btn btn-outline-warning btn-sm preset-btn" data-lexile="1000">
+                      Grade 8-9 (1000L)
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm preset-btn" data-lexile="1200">
+                      Grade 10+ (1200L)
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100" id="adjustBtn">
+                  <i class="bi bi-magic me-2"></i>Adjust Text
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div class="col-lg-8">
+          {% if result and result.success %}
+          <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0">
+                <i class="bi bi-check-circle text-success me-2"></i>Adjusted Text
+              </h5>
+              <span class="badge bg-primary fs-6">{{ result.actual_lexile }}L</span>
+            </div>
+            <div class="card-body">
+              <!-- Comparison -->
+              <div class="alert alert-info mb-3">
+                <div class="row text-center">
+                  <div class="col-4">
+                    <small class="text-muted d-block">Original</small>
+                    <strong>{{ current_analysis.lexile }}L</strong>
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted d-block">Target</small>
+                    <strong>{{ result.target_lexile }}L</strong>
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted d-block">Result</small>
+                    <strong class="text-success">{{ result.actual_lexile }}L</strong>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Adjusted Text -->
+              <div class="border rounded p-3 mb-3 reading-content" style="max-height: 400px; overflow-y: auto;">
+                {{ result.text_html|safe }}
+              </div>
+
+              <!-- Metrics Comparison -->
+              {% if result.metrics %}
+              <div class="row g-2 mb-3 text-center small">
+                <div class="col-3">
+                  <div class="p-2 bg-light rounded">
+                    <strong>{{ result.metrics.word_count }}</strong>
+                    <div class="text-muted">Words</div>
+                  </div>
+                </div>
+                <div class="col-3">
+                  <div class="p-2 bg-light rounded">
+                    <strong>{{ result.metrics.avg_sentence_length }}</strong>
+                    <div class="text-muted">Avg Sent</div>
+                  </div>
+                </div>
+                <div class="col-3">
+                  <div class="p-2 bg-light rounded">
+                    <strong>{{ result.metrics.difficult_word_pct }}%</strong>
+                    <div class="text-muted">Difficult</div>
+                  </div>
+                </div>
+                <div class="col-3">
+                  <div class="p-2 bg-light rounded">
+                    <strong>{{ result.grade_level }}</strong>
+                    <div class="text-muted">Grade</div>
+                  </div>
+                </div>
+              </div>
+              {% endif %}
+
+              <!-- Save Options -->
+              <form method="post" action="{% url 'core:story_adjust_save' pk=story.pk %}">
+                {% csrf_token %}
+                <div class="d-flex gap-2">
+                  <button type="submit" name="save_as" value="update" class="btn btn-warning flex-grow-1">
+                    <i class="bi bi-pencil me-1"></i>Update Original
+                  </button>
+                  <button type="submit" name="save_as" value="new" class="btn btn-success flex-grow-1">
+                    <i class="bi bi-plus-circle me-1"></i>Save as New Story
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+          {% elif result and not result.success %}
+          <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Adjustment Failed:</strong> {{ result.error }}
+          </div>
+          {% else %}
+          <!-- Original Text Preview -->
+          <div class="card shadow-sm">
+            <div class="card-header">
+              <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Original Text</h5>
+            </div>
+            <div class="card-body">
+              <div class="border rounded p-3 reading-content" style="max-height: 500px; overflow-y: auto;">
+                {{ story.text_html|safe }}
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const targetInput = document.getElementById('id_target_lexile');
+  const presetBtns = document.querySelectorAll('.preset-btn');
+  const adjustForm = document.getElementById('adjustForm');
+  const adjustBtn = document.getElementById('adjustBtn');
+
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      targetInput.value = this.dataset.lexile;
+      presetBtns.forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  adjustForm.addEventListener('submit', function() {
+    adjustBtn.disabled = true;
+    adjustBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Adjusting...';
+  });
+});
+</script>
+{% endblock %}
