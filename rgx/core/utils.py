@@ -183,13 +183,16 @@ def lexile_to_grade_band(lexile: int) -> str:
 # =============================================================================
 
 def get_openai_client():
-    """Get OpenAI client if configured."""
-    api_key = getattr(settings, 'OPENAI_API_KEY', '')
+    """Get OpenRouter client (OpenAI-compatible API)."""
+    api_key = getattr(settings, 'OPENROUTER_API_KEY', '')
     if not api_key:
-        raise ValueError("OPENAI_API_KEY not configured in settings")
+        raise ValueError("OPENROUTER_API_KEY not configured in settings")
 
     from openai import OpenAI
-    return OpenAI(api_key=api_key)
+    return OpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+    )
 
 
 def get_lexile_guidelines(target_lexile: int) -> dict:
@@ -295,7 +298,7 @@ async def generate_story_async(
     genre: str = "narrative",
     target_language: str = "English",
     additional_instructions: str = "",
-    model: str = "gpt-4o"
+    model: str = "openai/gpt-4o"
 ) -> dict:
     """
     Generate a story using OpenAI with Lexile targeting.
@@ -367,7 +370,7 @@ def generate_story_sync(
     genre: str = "narrative",
     target_language: str = "English",
     additional_instructions: str = "",
-    model: str = "gpt-4o"
+    model: str = "openai/gpt-4o"
 ) -> dict:
     """
     Synchronous version of story generation for use in Django views.
@@ -440,7 +443,7 @@ def regenerate_for_lexile(
     text: str,
     target_lexile: int,
     current_lexile: int,
-    model: str = "gpt-4o"
+    model: str = "openai/gpt-4o"
 ) -> dict:
     """
     Adjust existing text to better match target Lexile level.
@@ -624,7 +627,7 @@ def generate_glossary_terms(
     target_lexile: int = None,
     num_terms: int = 10,
     native_language: str = None,
-    model: str = "gpt-4o"
+    model: str = "openai/gpt-4o"
 ) -> dict:
     """
     Use AI to identify challenging vocabulary and generate glossary terms.
@@ -754,7 +757,7 @@ def suggest_additional_terms(
     text: str,
     existing_terms: list,
     num_suggestions: int = 5,
-    model: str = "gpt-4o"
+    model: str = "openai/gpt-4o"
 ) -> dict:
     """
     Suggest additional glossary terms not already in the glossary.
@@ -830,7 +833,7 @@ def generate_quiz_questions(
     question_types: list = None,
     target_lexile: int = None,
     focus_area: str = None,
-    model: str = "gpt-4o"
+    model: str = "openai/gpt-4o"
 ) -> dict:
     """
     Generate comprehension quiz questions based on story text.
@@ -975,7 +978,7 @@ def generate_vocabulary_quiz(
     terms: list,
     quiz_type: str = "definition_match",
     num_questions: int = None,
-    model: str = "gpt-4o"
+    model: str = "openai/gpt-4o"
 ) -> dict:
     """
     Generate a vocabulary quiz from glossary terms.
