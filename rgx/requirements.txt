@@ -12,3 +12,5 @@ openai>=1.0
 posthog>=3.0
 gunicorn>=21.0
 whitenoise>=6.6
+cryptography==46.0.3
+PyJWT==2.10.1
