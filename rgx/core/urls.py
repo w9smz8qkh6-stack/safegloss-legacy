@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.home_redirect, name="home"),
     path("offline/", views.offline, name="offline"),
     path("sw.js", views.service_worker, name="service_worker"),
+    path("complete-profile/", views.complete_profile, name="complete_profile"),
 
     # Student views
     path("join/", views.join_roster, name="join_roster"),

@@ -11,7 +11,7 @@ from .forms import (
     LessonFilterForm, StoryForm, StorySegmentFormSet, GlossaryForm, TermForm,
     LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm,
     JoinRosterForm, StoryGenerationForm, LexileAnalysisForm, LexileAdjustmentForm,
-    GlossaryGenerationForm, QuizGenerationForm
+    GlossaryGenerationForm, QuizGenerationForm, ProfileCompletionForm
 )
 from django.db.models import Avg, Sum, F
 from .models import (
@@ -53,6 +53,41 @@ def home_redirect(request):
 def offline(request):
     """Offline page for PWA."""
     return render(request, "core/offline.html")
+
+
+@login_required
+def complete_profile(request):
+    """Complete user profile after signup (especially for social auth users)."""
+    user = request.user
+
+    # If profile already completed, redirect to appropriate page
+    if user.profile_completed:
+        if user.is_instructor() or user.is_researcher():
+            return redirect("core:instructor_dashboard")
+        return redirect("core:student_lessons")
+
+    # Pre-fill display name from social account if available
+    initial_data = {}
+    if not user.display_name:
+        if user.first_name:
+            initial_data["display_name"] = f"{user.first_name} {user.last_name}".strip()
+        elif user.email:
+            initial_data["display_name"] = user.email.split("@")[0]
+
+    if request.method == "POST":
+        form = ProfileCompletionForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Profile completed! Welcome to Safegloss.")
+
+            # Redirect based on role
+            if user.is_instructor() or user.is_researcher():
+                return redirect("core:instructor_dashboard")
+            return redirect("core:student_lessons")
+    else:
+        form = ProfileCompletionForm(instance=user, initial=initial_data)
+
+    return render(request, "core/complete_profile.html", {"form": form})
 
 
 # =============================================================================

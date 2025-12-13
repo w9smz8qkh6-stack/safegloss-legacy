@@ -2,8 +2,45 @@ from django import forms
 from django.forms import inlineformset_factory
 from .models import (
     Lesson, Story, StorySegment, Quiz, ItemBankQuestion, ItemBankChoice,
-    Roster, RosterMembership, Glossary, Term, Site
+    Roster, RosterMembership, Glossary, Term, Site, User
 )
+
+
+class ProfileCompletionForm(forms.ModelForm):
+    """Form for completing user profile after signup."""
+
+    ROLE_CHOICES = [
+        ("", "Select your role..."),
+        (User.ROLE_STUDENT, "I am a Student"),
+        (User.ROLE_INSTRUCTOR, "I am an Instructor"),
+        (User.ROLE_RESEARCHER, "I am a Researcher"),
+    ]
+
+    role = forms.ChoiceField(
+        choices=ROLE_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select form-select-lg"}),
+        help_text="This determines what features you can access"
+    )
+
+    display_name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={
+            "class": "form-control form-control-lg",
+            "placeholder": "How should we call you?"
+        }),
+        help_text="This is how your name will appear to others"
+    )
+
+    class Meta:
+        model = User
+        fields = ["display_name", "role"]
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.profile_completed = True
+        if commit:
+            user.save()
+        return user
 
 
 class LessonFilterForm(forms.Form):

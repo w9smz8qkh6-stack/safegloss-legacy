@@ -23,6 +23,8 @@ class User(AbstractUser):
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_STUDENT)
     site = models.ForeignKey(Site, null=True, blank=True, on_delete=models.SET_NULL)
+    profile_completed = models.BooleanField(default=False)
+    display_name = models.CharField(max_length=100, blank=True)
 
     def is_student(self):
         return self.role == self.ROLE_STUDENT
@@ -32,6 +34,14 @@ class User(AbstractUser):
 
     def is_researcher(self):
         return self.role == self.ROLE_RESEARCHER
+
+    def get_display_name(self):
+        """Return display name, falling back to username or email."""
+        if self.display_name:
+            return self.display_name
+        if self.first_name:
+            return f"{self.first_name} {self.last_name}".strip()
+        return self.username or self.email.split('@')[0]
 
 
 class Roster(models.Model):
