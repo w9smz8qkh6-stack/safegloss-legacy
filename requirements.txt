@@ -1,7 +1,8 @@
 django>=5.0,<6.0
 psycopg2-binary>=2.9
-django-allauth>=0.63
+django-allauth[socialaccount]>=0.63
 PyJWT>=2.8
+cryptography>=41.0
 django-bootstrap5>=24.0
 django-crispy-forms>=2.2
 crispy-bootstrap5>=0.7
