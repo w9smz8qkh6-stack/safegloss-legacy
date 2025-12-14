@@ -1,0 +1,79 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}Safegloss Research - Open Source Reading Platform{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <!-- Hero Section -->
+  <div class="row align-items-center mb-5">
+    <div class="col-lg-6">
+      <h1 class="display-4 fw-bold mb-3">Safegloss Research</h1>
+      <p class="lead text-muted mb-4">
+        A free, open-source reading and glossary platform for language learners and educators.
+      </p>
+      <div class="d-flex gap-3 flex-wrap">
+        <a href="{% url 'account_login' %}" class="btn btn-primary btn-lg">
+          <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+        </a>
+        <a href="{% url 'account_signup' %}" class="btn btn-outline-primary btn-lg">
+          <i class="bi bi-person-plus me-2"></i>Create Account
+        </a>
+      </div>
+    </div>
+    <div class="col-lg-6 text-center mt-4 mt-lg-0">
+      <i class="bi bi-book text-primary" style="font-size: 12rem; opacity: 0.8;"></i>
+    </div>
+  </div>
+
+  <!-- Features Section -->
+  <div class="row g-4 mb-5">
+    <div class="col-md-4">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body text-center p-4">
+          <i class="bi bi-journal-text text-primary mb-3" style="font-size: 3rem;"></i>
+          <h5 class="card-title fw-bold">Interactive Stories</h5>
+          <p class="card-text text-muted">
+            Read stories with built-in glossary support. Click on terms to see definitions and translations.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body text-center p-4">
+          <i class="bi bi-translate text-primary mb-3" style="font-size: 3rem;"></i>
+          <h5 class="card-title fw-bold">Multilingual Glossaries</h5>
+          <p class="card-text text-muted">
+            Access vocabulary in multiple languages to support diverse learners.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body text-center p-4">
+          <i class="bi bi-mortarboard text-primary mb-3" style="font-size: 3rem;"></i>
+          <h5 class="card-title fw-bold">Lesson Management</h5>
+          <p class="card-text text-muted">
+            Instructors can create lessons, assign readings, and track student progress.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Section -->
+  <div class="row justify-content-center">
+    <div class="col-lg-8 text-center">
+      <h2 class="fw-bold mb-3">Open Source for Education</h2>
+      <p class="text-muted mb-4">
+        Safegloss Research is developed by the American Association of Lexicographers to provide free language learning tools for students and educators worldwide.
+      </p>
+      <a href="https://github.com" class="btn btn-outline-secondary">
+        <i class="bi bi-github me-2"></i>View on GitHub
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
