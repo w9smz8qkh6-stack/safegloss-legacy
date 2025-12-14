@@ -129,6 +129,12 @@ OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 POSTHOG_API_KEY = env("POSTHOG_API_KEY", default="")
 POSTHOG_HOST = env("POSTHOG_HOST", default="")
 
+# Authentication backends (required for social auth)
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
 # Social account settings
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
@@ -137,3 +143,4 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 SOCIALACCOUNT_LOGIN_ON_GET = True
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Skip email verification for easier signup
