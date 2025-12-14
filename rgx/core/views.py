@@ -55,6 +55,11 @@ def home_redirect(request):
     return render(request, "core/home.html")
 
 
+def test_view(request):
+    """Simple test view to debug routing."""
+    return HttpResponse(f"TEST VIEW WORKS - auth: {request.user.is_authenticated}", content_type="text/plain")
+
+
 def offline(request):
     """Offline page for PWA."""
     return render(request, "core/offline.html")
