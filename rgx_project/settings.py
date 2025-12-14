@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
 
     "core",
 ]
@@ -127,3 +128,12 @@ LOGOUT_REDIRECT_URL = "account_login"
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 POSTHOG_API_KEY = env("POSTHOG_API_KEY", default="")
 POSTHOG_HOST = env("POSTHOG_HOST", default="")
+
+# Social account settings
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "online"},
+    }
+}
+SOCIALACCOUNT_LOGIN_ON_GET = True
