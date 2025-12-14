@@ -47,7 +47,7 @@ def home_redirect(request):
         if getattr(request.user, "role", "") in ("instructor", "researcher"):
             return redirect("core:instructor_dashboard")
         return redirect("core:student_lessons")
-    return redirect("account_login")
+    return render(request, "core/home.html")
 
 
 def offline(request):
