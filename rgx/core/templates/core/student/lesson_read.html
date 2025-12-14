@@ -284,6 +284,37 @@ document.addEventListener('DOMContentLoaded', function() {
   ];
 
   // ==========================================================================
+  // REAL-TIME LESSON STATE POLLING
+  // ==========================================================================
+
+  const CURRENT_MODE = '{{ mode }}';
+  const POLL_INTERVAL = 2000; // Check every 2 seconds
+
+  async function checkLessonState() {
+    try {
+      const response = await fetch(`/api/lesson/${LESSON_ID}/state/`, {
+        credentials: 'same-origin',
+      });
+      if (!response.ok) return;
+
+      const state = await response.json();
+      const allowedModes = state.allowed_modes || [];
+
+      // If current mode is no longer allowed or default mode changed, reload
+      if (!allowedModes.includes(CURRENT_MODE) ||
+          (state.default_mode !== CURRENT_MODE && allowedModes.length === 1)) {
+        // Reload with new default mode
+        window.location.href = `?mode=${state.default_mode}`;
+      }
+    } catch (err) {
+      // Silently fail - don't disrupt reading
+    }
+  }
+
+  // Start polling for lesson state changes
+  setInterval(checkLessonState, POLL_INTERVAL);
+
+  // ==========================================================================
   // SEGMENT VIEW TRACKING
   // ==========================================================================
 

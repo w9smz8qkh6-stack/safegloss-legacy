@@ -1770,6 +1770,24 @@ def lesson_cache_data(request, pk):
     })
 
 
+@login_required
+def lesson_state(request, pk):
+    """Return current lesson state for real-time polling updates."""
+    lesson = get_object_or_404(Lesson, pk=pk)
+
+    # Check access for students
+    if hasattr(request.user, "is_student") and request.user.is_student():
+        roster_ids = lesson.rosters.values_list("id", flat=True)
+        if not RosterMembership.objects.filter(student=request.user, roster_id__in=roster_ids).exists():
+            return JsonResponse({"error": "Access denied"}, status=403)
+
+    return JsonResponse({
+        "default_mode": lesson.default_mode,
+        "allowed_modes": lesson.allowed_modes or [lesson.default_mode],
+        "is_active": lesson.is_active,
+    })
+
+
 # =============================================================================
 # AI STORY GENERATION VIEWS
 # =============================================================================
