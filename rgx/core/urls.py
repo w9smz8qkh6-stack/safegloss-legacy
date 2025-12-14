@@ -70,7 +70,6 @@ urlpatterns = [
     # API endpoints for tracking
     path("api/segment-view/", views.log_segment_view, name="log_segment_view"),
     path("api/lesson/<int:pk>/cache-data/", views.lesson_cache_data, name="lesson_cache_data"),
-    path("api/lesson/<int:pk>/state/", views.lesson_state, name="lesson_state"),
     path("api/lexile-analyze/", views.lexile_analyze_api, name="lexile_analyze_api"),
 
     # AI Story Generation
