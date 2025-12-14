@@ -43,10 +43,16 @@ def instructor_required(view_func):
 
 
 def home_redirect(request):
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"home_redirect called, user.is_authenticated={request.user.is_authenticated}")
+
     if request.user.is_authenticated:
         if getattr(request.user, "role", "") in ("instructor", "researcher"):
             return redirect("core:instructor_dashboard")
         return redirect("core:student_lessons")
+
+    logger.info("Rendering core/home.html for unauthenticated user")
     return render(request, "core/home.html")
 
 
