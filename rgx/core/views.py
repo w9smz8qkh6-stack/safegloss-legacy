@@ -676,7 +676,7 @@ def quiz_add_question(request, pk):
     # Get available questions from item bank
     available_questions = ItemBankQuestion.objects.filter(
         owner=request.user
-    ).exclude(pk__in=existing_question_ids).order_by("-created_at")
+    ).exclude(pk__in=existing_question_ids).order_by("-id")
 
     if request.method == "POST":
         action = request.POST.get("action")
