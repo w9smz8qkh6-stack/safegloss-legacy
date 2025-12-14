@@ -1,6 +1,6 @@
 {
-  "name": "Safegloss Reading Platform",
-  "short_name": "Safegloss",
+  "name": "Safegloss Story Manager",
+  "short_name": "Safegloss SM",
   "description": "Interactive reading platform with glossary support for language learners",
   "start_url": "/lessons/",
   "display": "standalone",
