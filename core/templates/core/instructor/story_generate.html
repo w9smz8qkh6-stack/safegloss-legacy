@@ -23,6 +23,22 @@
         <form method="post">
           {% csrf_token %}
 
+          {% if form.errors %}
+          <div class="alert alert-danger">
+            <strong>Please correct the errors below:</strong>
+            <ul class="mb-0">
+              {% for field in form %}
+                {% for error in field.errors %}
+                <li>{{ field.label }}: {{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+              {% for error in form.non_field_errors %}
+              <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+
           <!-- Required Parameters -->
           <h6 class="text-muted mb-3">Required Settings</h6>
 
@@ -112,6 +128,18 @@
               <i class="bi bi-chevron-down"></i>
             </a>
             <div class="collapse mt-3" id="advancedOptions">
+              <div class="row mb-3">
+                <div class="col-md-6">
+                  <label for="id_vocabulary_mode" class="form-label">Vocabulary Mode</label>
+                  {{ form.vocabulary_mode }}
+                  <div class="form-text">{{ form.vocabulary_mode.help_text }}</div>
+                </div>
+                <div class="col-md-6">
+                  <label for="id_max_stretch_words" class="form-label">Max Stretch Words</label>
+                  {{ form.max_stretch_words }}
+                  <div class="form-text">{{ form.max_stretch_words.help_text }}</div>
+                </div>
+              </div>
               <div class="mb-3">
                 <label for="id_allowed_vocabulary" class="form-label">Allowed Vocabulary</label>
                 {{ form.allowed_vocabulary }}
@@ -224,13 +252,43 @@
           Reading levels are approximate and designed to match the target band.
         </div>
 
+        <!-- AI Generation -->
+        <hr>
+        <h6 class="mb-3">
+          <i class="bi bi-robot me-2"></i>Generate with AI
+        </h6>
+
+        <div class="mb-3">
+          <label for="ai_model" class="form-label">AI Model</label>
+          <select id="ai_model" class="form-select">
+            <option value="openai/gpt-4o-mini" selected>GPT-4o Mini (Fast & Affordable)</option>
+            <option value="openai/gpt-4o">GPT-4o (Best Quality)</option>
+            <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+            <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Fast)</option>
+          </select>
+        </div>
+
+        <button type="button" id="generate-ai-btn" class="btn btn-primary mb-3">
+          <i class="bi bi-stars me-2"></i>Generate Story with AI
+        </button>
+
+        <div id="ai-error" class="alert alert-danger d-none"></div>
+        <div id="ai-loading" class="d-none">
+          <div class="d-flex align-items-center text-muted">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+              <span class="visually-hidden">Generating...</span>
+            </div>
+            Generating story... This may take 15-30 seconds.
+          </div>
+        </div>
+
         <!-- Next Steps -->
         <hr>
         <h6 class="mb-3">
           <i class="bi bi-arrow-right-circle me-2"></i>Next Steps
         </h6>
         <p class="small text-muted">
-          Copy the prompt above to use with your preferred AI service (ChatGPT, Claude, etc.),
+          Use the button above to generate with AI, or copy the prompt to use with your preferred AI service,
           then paste the generated story below for validation.
         </p>
 
@@ -240,15 +298,58 @@
           <input type="hidden" name="word_count" value="{{ generation_params.word_count }}">
 
           <div class="mb-3">
-            <label for="story_text" class="form-label">Paste Generated Story</label>
+            <label for="story_text" class="form-label">Generated Story</label>
             <textarea name="story_text" id="story_text" class="form-control" rows="8"
-                      placeholder="Paste the AI-generated story here for validation..."></textarea>
+                      placeholder="Click 'Generate Story with AI' above or paste a story here..."></textarea>
           </div>
 
           <button type="submit" class="btn btn-success">
             <i class="bi bi-check2-square me-2"></i>Validate & Preview
           </button>
         </form>
+
+        <script>
+        document.getElementById('generate-ai-btn').addEventListener('click', async function() {
+          const btn = this;
+          const loading = document.getElementById('ai-loading');
+          const error = document.getElementById('ai-error');
+          const textarea = document.getElementById('story_text');
+          const model = document.getElementById('ai_model').value;
+
+          // Reset state
+          error.classList.add('d-none');
+          btn.disabled = true;
+          loading.classList.remove('d-none');
+
+          try {
+            const response = await fetch('{% url "core:story_generate_ai" %}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+              },
+              body: 'model=' + encodeURIComponent(model)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              textarea.value = data.story_text;
+              textarea.style.height = 'auto';
+              textarea.style.height = textarea.scrollHeight + 'px';
+            } else {
+              error.textContent = data.error || 'Generation failed';
+              error.classList.remove('d-none');
+            }
+          } catch (e) {
+            error.textContent = 'Network error: ' + e.message;
+            error.classList.remove('d-none');
+          } finally {
+            btn.disabled = false;
+            loading.classList.add('d-none');
+          }
+        });
+        </script>
       </div>
     </div>
   </div>

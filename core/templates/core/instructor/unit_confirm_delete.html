@@ -1,0 +1,38 @@
+{% extends "core/base.html" %}
+
+{% block title %}Delete Unit{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6">
+    <div class="card border-danger">
+      <div class="card-header bg-danger text-white">
+        <i class="bi bi-exclamation-triangle me-2"></i>Delete Unit
+      </div>
+      <div class="card-body">
+        <p class="mb-3">Are you sure you want to delete the unit <strong>"{{ unit.title }}"</strong>?</p>
+
+        {% if unit.lesson_count > 0 %}
+        <div class="alert alert-warning">
+          <i class="bi bi-info-circle me-2"></i>
+          This unit contains {{ unit.lesson_count }} lesson{{ unit.lesson_count|pluralize }}.
+          The lessons will not be deleted, only removed from this unit.
+        </div>
+        {% endif %}
+
+        <p class="text-muted small">This action cannot be undone.</p>
+
+        <form method="post">
+          {% csrf_token %}
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">
+              <i class="bi bi-trash me-2"></i>Delete Unit
+            </button>
+            <a href="{% url 'core:unit_edit' unit.pk %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -106,7 +106,8 @@ class TextMetricsExtractor:
     )
 
     # Dialogue detection (text within quotes)
-    DIALOGUE_PATTERN = re.compile(r'["""\'].*?["""\']')
+    # Include ASCII quotes, curly/smart quotes, and single quotes
+    DIALOGUE_PATTERN = re.compile(r'["\u201C\u201D\u201E\u201F\'\u2018\u2019\u201A\u201B].*?["\u201C\u201D\u201E\u201F\'\u2018\u2019\u201A\u201B]')
 
     # Passive voice indicators (common patterns)
     PASSIVE_PATTERNS = [
@@ -150,8 +151,11 @@ class TextMetricsExtractor:
         if not text or not text.strip():
             return metrics
 
-        # Count paragraphs
+        # Count paragraphs - try double newlines first, fall back to single newlines
         paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        if len(paragraphs) <= 1:
+            # Fall back to single newlines (common in AI-generated text)
+            paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
         metrics.total_paragraphs = len(paragraphs) if paragraphs else 1
 
         # Segment sentences
@@ -202,13 +206,28 @@ class TextMetricsExtractor:
 
         return metrics
 
+    # All quote characters for tracking
+    QUOTE_CHARS = set('"\'\u201C\u201D\u201E\u201F\u2018\u2019\u201A\u201B')
+    OPEN_QUOTES = set('"\'\u201C\u201E\u201F\u2018\u201A\u201B')
+    CLOSE_QUOTES = set('"\'\u201D\u201F\u2019\u201B')
+
+    # Speech/dialogue verbs for attribution detection
+    SPEECH_VERBS = {
+        'said', 'says', 'asked', 'asks', 'replied', 'replies', 'answered', 'answers',
+        'shouted', 'shouts', 'whispered', 'whispers', 'yelled', 'yells', 'cried', 'cries',
+        'exclaimed', 'exclaims', 'muttered', 'mutters', 'mumbled', 'mumbles',
+        'called', 'calls', 'screamed', 'screams', 'thought', 'thinks', 'wondered', 'wonders',
+        'added', 'adds', 'continued', 'continues', 'began', 'begins', 'started', 'starts',
+        'groaned', 'groans', 'sighed', 'sighs', 'laughed', 'laughs', 'giggled', 'giggles',
+    }
+
     def _segment_sentences(self, text: str) -> list[str]:
         """
         Segment text into sentences.
 
         Handles:
         - Standard punctuation
-        - Dialogue with embedded punctuation
+        - Dialogue with embedded punctuation (doesn't split inside quotes)
         - Abbreviations (basic handling)
         """
         # Normalize whitespace
@@ -221,17 +240,22 @@ class TextMetricsExtractor:
         for abbrev in abbrevs:
             protected = protected.replace(abbrev, abbrev.replace('.', '<DOT>'))
 
-        # Split on sentence boundaries
-        # Use a more robust approach: split on .!? followed by space and capital
+        # Split on sentence boundaries, tracking quote state
         sentences = []
         current = []
         words = protected.split()
+        in_quote = False
 
         for i, word in enumerate(words):
             current.append(word)
 
-            # Check if this word ends a sentence
-            if self._is_sentence_end(word, words, i):
+            # Track quote state
+            for char in word:
+                if char in self.QUOTE_CHARS:
+                    in_quote = not in_quote
+
+            # Check if this word ends a sentence (only if not inside quotes)
+            if not in_quote and self._is_sentence_end(word, words, i):
                 sentence = ' '.join(current).replace('<DOT>', '.')
                 if sentence.strip():
                     sentences.append(sentence.strip())
@@ -250,8 +274,9 @@ class TextMetricsExtractor:
         if not word:
             return False
 
-        # Check for sentence-ending punctuation
-        ends_with_punct = word.rstrip('"\'""').endswith(('.', '!', '?'))
+        # Strip trailing quotes for punctuation check
+        stripped = word.rstrip('"\'\u201C\u201D\u201E\u201F\u2018\u2019\u201A\u201B')
+        ends_with_punct = stripped.endswith(('.', '!', '?'))
         if not ends_with_punct:
             return False
 
@@ -259,16 +284,43 @@ class TextMetricsExtractor:
         if index >= len(words) - 1:
             return True
 
+        # Check for dialogue attribution pattern: "text!" Name said.
+        # If word ends with punctuation + closing quote, check for attribution
+        if any(word.endswith(q) for q in self.CLOSE_QUOTES):
+            if self._is_dialogue_attribution(words, index + 1):
+                return False  # Don't end sentence; attribution follows
+
         # Check if next word starts with capital (new sentence)
-        next_word = words[index + 1].lstrip('"\'""')
+        next_word = words[index + 1].lstrip('"\'\u201C\u201D\u201E\u201F\u2018\u2019\u201A\u201B')
         if next_word and next_word[0].isupper():
             return True
 
         # Check if next word starts with opening quote + capital
-        if next_word.startswith(('"', '"', "'")):
-            inner = next_word.lstrip('"\'""')
+        if any(words[index + 1].startswith(q) for q in self.OPEN_QUOTES):
+            inner = words[index + 1].lstrip('"\'\u201C\u201D\u201E\u201F\u2018\u2019\u201A\u201B')
             if inner and inner[0].isupper():
                 return True
+
+        return False
+
+    def _is_dialogue_attribution(self, words: list[str], start_index: int) -> bool:
+        """Check if words starting at start_index form a dialogue attribution."""
+        if start_index >= len(words):
+            return False
+
+        # Pattern 1: "Name verb" (e.g., "Sam said")
+        if start_index + 1 < len(words):
+            next_word = words[start_index + 1].lower().rstrip('.,!?')
+            if next_word in self.SPEECH_VERBS:
+                return True
+
+        # Pattern 2: "pronoun verb" (e.g., "he said", "she asked")
+        first_word = words[start_index].lower().rstrip('.,!?')
+        if first_word in ('he', 'she', 'it', 'they', 'i', 'we'):
+            if start_index + 1 < len(words):
+                next_word = words[start_index + 1].lower().rstrip('.,!?')
+                if next_word in self.SPEECH_VERBS:
+                    return True
 
         return False
 

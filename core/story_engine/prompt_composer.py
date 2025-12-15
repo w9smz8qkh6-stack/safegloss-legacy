@@ -259,7 +259,8 @@ Never mention the rules or constraints in your output."""
                     "reflective": "Include moments of pause and emotional processing.",
                     "moderate": "Balance action with reflection.",
                 }
-                lines.append(f"- {pacing_desc.get(voice['pacing'], f'Pacing: {voice[\"pacing\"]}')}")
+                pacing_value = voice['pacing']
+                lines.append(f"- {pacing_desc.get(pacing_value, f'Pacing: {pacing_value}')}")
 
             if voice.get("description_style"):
                 desc_style = {

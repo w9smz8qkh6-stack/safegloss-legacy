@@ -26,13 +26,21 @@
 
           <div class="row mb-3">
             <div class="col-md-6">
-              <label for="id_site" class="form-label">Site <span class="text-danger">*</span></label>
+              <label for="id_site" class="form-label">Site</label>
               {{ form.site }}
             </div>
             <div class="col-md-6">
               <label for="id_grade_band" class="form-label">Grade Band</label>
               {{ form.grade_band }}
             </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="id_courses" class="form-label">
+              <i class="bi bi-journal-bookmark me-1"></i>Courses
+            </label>
+            {{ form.courses }}
+            <div class="form-text">{{ form.courses.help_text }}</div>
           </div>
 
           <div class="d-flex gap-2">
@@ -45,33 +53,9 @@
       </div>
     </div>
 
-    {% if roster and memberships %}
-    <div class="card mt-4">
-      <div class="card-header">
-        <i class="bi bi-person-lines-fill me-2"></i>Students in Roster
-      </div>
-      <div class="card-body p-0">
-        <div class="list-group list-group-flush">
-          {% for membership in memberships %}
-            <div class="list-group-item d-flex justify-content-between align-items-center">
-              <div>
-                <i class="bi bi-person me-2"></i>
-                {{ membership.student.username }}
-                {% if membership.student.email %}
-                  <small class="text-muted">({{ membership.student.email }})</small>
-                {% endif %}
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-    {% elif roster %}
-    <div class="card mt-4">
-      <div class="card-body text-center text-muted py-4">
-        <i class="bi bi-person-plus fs-1 d-block mb-2"></i>
-        <p>No students in this roster yet.</p>
-      </div>
+    {% if roster %}
+    <div class="card mt-4" id="student-management">
+      {% include "core/instructor/partials/roster_students.html" %}
     </div>
     {% endif %}
   </div>

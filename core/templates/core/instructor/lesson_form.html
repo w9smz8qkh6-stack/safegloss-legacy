@@ -14,25 +14,51 @@
       </a>
     </div>
 
+    {% if unit %}
+    <div class="alert alert-info mb-4">
+      <i class="bi bi-collection me-2"></i>
+      This lesson will be added to unit: <strong>{{ unit.title }}</strong>
+    </div>
+    {% endif %}
+
     <div class="card">
       <div class="card-body">
         <form method="post">
           {% csrf_token %}
+          {% if unit %}
+          <input type="hidden" name="unit" value="{{ unit.pk }}">
+          {% endif %}
+
+          {% if form.errors %}
+          <div class="alert alert-danger">
+            <strong>Please correct the errors below:</strong>
+            <ul class="mb-0">
+              {% for field in form %}
+                {% for error in field.errors %}
+                <li>{{ field.label }}: {{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+              {% for error in form.non_field_errors %}
+              <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
 
           <div class="mb-3">
             <label for="id_title" class="form-label">Title <span class="text-danger">*</span></label>
             {{ form.title }}
           </div>
 
-          <div class="row mb-3">
-            <div class="col-md-6">
-              <label for="id_site" class="form-label">Site</label>
-              {{ form.site }}
-            </div>
-            <div class="col-md-6">
-              <label for="id_story" class="form-label">Story <span class="text-danger">*</span></label>
+          <div class="mb-3">
+            <label for="id_story" class="form-label">Story <span class="text-danger">*</span></label>
+            <div class="input-group">
               {{ form.story }}
+              <a href="{% url 'core:story_import_search' %}" class="btn btn-outline-primary" title="Import story from external library">
+                <i class="bi bi-cloud-download me-1"></i>Import
+              </a>
             </div>
+            <div class="form-text">Select an existing story or import from Project Gutenberg / Open Library.</div>
           </div>
 
           <div class="mb-3">
@@ -50,6 +76,21 @@
               <label for="id_default_mode" class="form-label">Default Reading Mode</label>
               {{ form.default_mode }}
             </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Allowed Reading Modes</label>
+            <div class="d-flex flex-wrap gap-3">
+              {% for choice in form.allowed_modes %}
+              <div class="form-check">
+                {{ choice.tag }}
+                <label class="form-check-label" for="{{ choice.id_for_label }}">
+                  {{ choice.choice_label }}
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="form-text">Select which reading modes students can use. If none selected, all modes will be available.</div>
           </div>
 
           <div class="mb-3">

@@ -1,0 +1,80 @@
+{% if error %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle me-2"></i>{{ error }}
+</div>
+{% elif results %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-book me-2"></i>Search Results</span>
+    <span class="badge bg-secondary">{{ total }} found</span>
+  </div>
+  <div class="list-group list-group-flush">
+    {% for book in results %}
+    <div class="list-group-item">
+      <div class="row align-items-center">
+        <div class="col-auto">
+          {% if book.cover_url %}
+          <img src="{{ book.cover_url }}" alt="Cover" class="rounded" style="width: 60px; height: 80px; object-fit: cover;">
+          {% else %}
+          <div class="bg-secondary rounded d-flex align-items-center justify-content-center" style="width: 60px; height: 80px;">
+            <i class="bi bi-book text-white fs-4"></i>
+          </div>
+          {% endif %}
+        </div>
+        <div class="col">
+          <h6 class="mb-1">{{ book.title|truncatechars:60 }}</h6>
+          <p class="mb-1 small text-muted">
+            <i class="bi bi-person me-1"></i>{{ book.author|default:"Unknown Author"|truncatechars:40 }}
+          </p>
+          <div class="d-flex gap-2 flex-wrap">
+            {% if book.first_publish_year %}
+            <span class="badge bg-light text-dark">{{ book.first_publish_year }}</span>
+            {% endif %}
+            <span class="badge {% if book.source == 'gutenberg' %}bg-success{% elif book.source == 'opentextbook' %}bg-warning text-dark{% else %}bg-info{% endif %}">
+              {% if book.source == "gutenberg" %}Gutenberg{% elif book.source == "opentextbook" %}Textbook{% else %}Open Library{% endif %}
+            </span>
+            {% if book.has_full_text %}
+            <span class="badge bg-primary">Full Text</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="btn-group">
+            <button type="button"
+                    class="btn btn-sm {% if book.source|add:book.external_id in bookmarked %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                    onclick="toggleBookmark('{{ book.source }}', '{{ book.external_id }}', '{{ book.title|escapejs }}', '{{ book.author|escapejs }}', '{{ book.cover_url }}', this)"
+                    title="Bookmark">
+              <i class="bi {% if book.source|add:book.external_id in bookmarked %}bi-bookmark-fill{% else %}bi-bookmark{% endif %}"></i>
+            </button>
+            <button type="button"
+                    class="btn btn-sm btn-primary"
+                    onclick="loadBookDetails('{{ book.source }}', '{{ book.external_id }}')"
+                    {% if not book.has_full_text %}disabled title="No full text available"{% else %}title="View details and import"{% endif %}>
+              <i class="bi bi-cloud-download me-1"></i>Import
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% if results|length >= 20 %}
+<div class="text-center mt-3">
+  <button type="button" class="btn btn-outline-secondary"
+          hx-get="{% url 'core:story_import_search_results' %}?query={{ query }}&page={{ page|add:1 }}"
+          hx-target="#search-results"
+          hx-swap="innerHTML">
+    <i class="bi bi-arrow-down me-2"></i>Load More
+  </button>
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center text-muted py-5">
+  <i class="bi bi-search fs-1 d-block mb-3"></i>
+  <p>No results found for "{{ query }}"</p>
+  <p class="small">Try different search terms or check another source.</p>
+</div>
+{% endif %}

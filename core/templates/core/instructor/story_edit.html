@@ -1,6 +1,13 @@
 {% extends "core/base.html" %}
+{% load humanize %}
 
 {% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+{% if tab == 'content' or tab == 'segments' %}
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.css" rel="stylesheet">
+{% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -9,15 +16,24 @@
       <i class="bi bi-journal-text me-2"></i>{{ story.title }}
     </h1>
     <div class="text-muted">
-      {% if story.reading_level_label %}
-        <span class="badge bg-info me-2">{{ story.reading_level_label }}</span>
+      {% if story.ar_level %}
+        <span class="badge bg-success me-2" title="Accelerated Reader Level">AR {{ story.ar_level }}</span>
+      {% endif %}
+      {% if story.lexile_level %}
+        <span class="badge bg-info me-2" title="Lexile">{{ story.lexile_level }}</span>
       {% endif %}
       <span class="badge bg-secondary">{{ story.get_source_type_display }}</span>
+      {% if story.word_count %}
+        <span class="text-muted ms-2">{{ story.word_count|intcomma }} words</span>
+      {% endif %}
     </div>
   </div>
   <div class="btn-group">
     <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left me-2"></i>Back
+    </a>
+    <a href="{% url 'core:story_preview' story.pk %}" class="btn btn-outline-primary" target="_blank">
+      <i class="bi bi-eye me-2"></i>Preview
     </a>
     <a href="{% url 'core:story_export' story.pk %}" class="btn btn-outline-success" target="_blank">
       <i class="bi bi-printer me-2"></i>Export
@@ -68,14 +84,77 @@
 
       <div class="row mb-3">
         <div class="col-md-6">
-          <label for="id_source_type" class="form-label">Source Type</label>
-          {{ form.source_type }}
+          <label class="form-label">Source Type</label>
+          <div class="form-control-plaintext">
+            <span class="badge {% if story.source_type == 'ai_generated' %}bg-primary{% elif story.source_type == 'manual' %}bg-secondary{% else %}bg-info{% endif %}">
+              {{ story.get_source_type_display }}
+            </span>
+          </div>
         </div>
         <div class="col-md-6">
-          <label for="id_reading_level_label" class="form-label">Reading Level</label>
-          {{ form.reading_level_label }}
+          <label class="form-label">Reading Levels</label>
+          <div class="form-control-plaintext">
+            {% if story.reading_level_metrics %}
+              <div class="d-flex flex-wrap gap-2">
+                {% if story.ar_level %}
+                  <span class="badge bg-success" title="Accelerated Reader / ATOS Level">AR {{ story.ar_level }}</span>
+                {% endif %}
+                {% if story.lexile_level %}
+                  <span class="badge bg-info" title="Lexile Measure">{{ story.lexile_level }}</span>
+                {% endif %}
+                {% if story.guided_reading_level %}
+                  <span class="badge bg-primary" title="Guided Reading Level">GR {{ story.guided_reading_level }}</span>
+                {% endif %}
+                {% if story.reading_level_metrics.ar_interest_level %}
+                  <span class="badge bg-secondary" title="Interest Level">{{ story.reading_level_metrics.ar_interest_level }}</span>
+                {% endif %}
+                {% if story.reading_level_metrics.ar_points %}
+                  <span class="badge bg-warning text-dark" title="Estimated AR Quiz Points">{{ story.reading_level_metrics.ar_points }} pts</span>
+                {% endif %}
+              </div>
+              {% if story.reading_level_metrics.lexile_label %}
+                <small class="text-muted d-block mt-1">{{ story.reading_level_metrics.lexile_label }}</small>
+              {% endif %}
+            {% else %}
+              <span class="text-muted">Save content to compute reading levels</span>
+            {% endif %}
+          </div>
         </div>
       </div>
+
+      {% if story.reading_level_metrics %}
+      <div class="row mb-3">
+        <div class="col-12">
+          <label class="form-label">Text Statistics</label>
+          <div class="row text-center">
+            <div class="col-md-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-primary">{{ story.reading_level_metrics.word_count|intcomma }}</div>
+                <small class="text-muted">Words</small>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-primary">{{ story.reading_level_metrics.sentence_count|intcomma }}</div>
+                <small class="text-muted">Sentences</small>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-primary">{{ story.reading_level_metrics.avg_sentence_length }}</div>
+                <small class="text-muted">Avg Words/Sentence</small>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="border rounded p-2">
+                <div class="fs-4 fw-bold text-primary">{{ story.reading_level_metrics.difficult_word_pct }}%</div>
+                <small class="text-muted">Difficult Words</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
 
       <button type="submit" class="btn btn-primary">
         <i class="bi bi-check-circle me-2"></i>Save Details
@@ -87,13 +166,12 @@
 {% elif tab == 'content' %}
 <div class="card">
   <div class="card-body">
-    <form method="post" action="?tab=details">
+    <form method="post" action="?tab=content">
       {% csrf_token %}
 
       <div class="mb-3">
         <label for="id_text_html" class="form-label">Story Content</label>
-        {{ form.text_html }}
-        <div class="form-text">Full story content. Use HTML for formatting.</div>
+        <textarea name="text_html" id="id_text_html" class="form-control">{{ story.text_html }}</textarea>
       </div>
 
       <button type="submit" class="btn btn-primary">
@@ -107,7 +185,12 @@
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-list-ol me-2"></i>Story Segments</span>
-    <span class="text-muted">{{ story.segments.count }} segment{{ story.segments.count|pluralize }}</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted">{{ story.segments.count }} segment{{ story.segments.count|pluralize }}</span>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#autoSegmentModal">
+        <i class="bi bi-magic me-1"></i>Auto-Segment
+      </button>
+    </div>
   </div>
   <div class="card-body">
     <form method="post" action="?tab=segments">
@@ -140,7 +223,7 @@
             </div>
             <div class="mb-0">
               <label class="form-label">Content</label>
-              {{ segment_form.text_html }}
+              <textarea name="{{ segment_form.text_html.html_name }}" id="{{ segment_form.text_html.id_for_label }}" class="form-control segment-content-editor">{{ segment_form.text_html.value|default:'' }}</textarea>
             </div>
           </div>
         </div>
@@ -154,13 +237,102 @@
   </div>
 </div>
 
+<!-- Auto-Segment Modal -->
+<div class="modal fade" id="autoSegmentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-magic me-2"></i>Auto-Segment Story</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">Automatically split the story content into segments based on:</p>
+
+        <div class="mb-3">
+          <label class="form-label">Segmentation Mode</label>
+          <select id="segmentMode" class="form-select">
+            <option value="paragraph" selected>By Paragraphs (&lt;p&gt; tags)</option>
+            <option value="heading">By Headings (h1-h6)</option>
+            <option value="linebreak">By Line Breaks (&lt;br&gt; tags)</option>
+          </select>
+        </div>
+
+        <div class="form-check mb-3">
+          <input class="form-check-input" type="checkbox" id="clearExisting" checked>
+          <label class="form-check-label" for="clearExisting">
+            Replace existing segments
+          </label>
+          <div class="form-text">If unchecked, new segments will be appended.</div>
+        </div>
+
+        <div id="autoSegmentError" class="alert alert-danger d-none"></div>
+        <div id="autoSegmentSuccess" class="alert alert-success d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="autoSegmentBtn">
+          <i class="bi bi-magic me-2"></i>Auto-Segment
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('autoSegmentBtn').addEventListener('click', async function() {
+  const btn = this;
+  const errorDiv = document.getElementById('autoSegmentError');
+  const successDiv = document.getElementById('autoSegmentSuccess');
+  const mode = document.getElementById('segmentMode').value;
+  const clearExisting = document.getElementById('clearExisting').checked;
+
+  errorDiv.classList.add('d-none');
+  successDiv.classList.add('d-none');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+
+  try {
+    const response = await fetch('{% url "core:story_auto_segment" story.pk %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: `mode=${mode}&clear_existing=${clearExisting}`
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      successDiv.textContent = data.message;
+      successDiv.classList.remove('d-none');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      errorDiv.textContent = data.error || 'Auto-segment failed';
+      errorDiv.classList.remove('d-none');
+    }
+  } catch (e) {
+    errorDiv.textContent = 'Network error: ' + e.message;
+    errorDiv.classList.remove('d-none');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-magic me-2"></i>Auto-Segment';
+  }
+});
+</script>
+
 {% elif tab == 'glossary' %}
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-book me-2"></i>Glossary Terms</span>
-    <a href="{% url 'core:term_create' story.pk %}" class="btn btn-sm btn-primary">
-      <i class="bi bi-plus-circle me-1"></i>Add Term
-    </a>
+    <div class="btn-group">
+      <a href="{% url 'core:glossary_generate' story.pk %}" class="btn btn-sm btn-success">
+        <i class="bi bi-stars me-1"></i>AI Generate
+      </a>
+      <a href="{% url 'core:term_create' story.pk %}" class="btn btn-sm btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>Add Term
+      </a>
+    </div>
   </div>
   <div class="card-body">
     <div class="row mb-3">
@@ -236,12 +408,51 @@
     <div class="text-center py-4 text-muted">
       <i class="bi bi-book fs-1 d-block mb-2"></i>
       <p>No glossary terms yet.</p>
-      <a href="{% url 'core:term_create' story.pk %}" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-circle me-1"></i>Add First Term
-      </a>
+      <div class="btn-group">
+        <a href="{% url 'core:glossary_generate' story.pk %}" class="btn btn-success btn-sm">
+          <i class="bi bi-stars me-1"></i>Generate with AI
+        </a>
+        <a href="{% url 'core:term_create' story.pk %}" class="btn btn-primary btn-sm">
+          <i class="bi bi-plus-circle me-1"></i>Add Manually
+        </a>
+      </div>
     </div>
     {% endif %}
   </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if tab == 'content' or tab == 'segments' %}
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.js"></script>
+<script>
+$(document).ready(function() {
+  {% if tab == 'content' %}
+  $('#id_text_html').summernote({
+    height: 400,
+    toolbar: [
+      ['style', ['style']],
+      ['font', ['bold', 'italic', 'underline', 'clear']],
+      ['para', ['ul', 'ol', 'paragraph']],
+      ['insert', ['link']],
+      ['view', ['codeview', 'help']]
+    ],
+    styleTags: ['p', 'h2', 'h3', 'h4'],
+  });
+  {% elif tab == 'segments' %}
+  $('.segment-content-editor').summernote({
+    height: 200,
+    toolbar: [
+      ['font', ['bold', 'italic', 'underline', 'clear']],
+      ['para', ['ul', 'ol', 'paragraph']],
+      ['insert', ['link']],
+      ['view', ['codeview']]
+    ],
+  });
+  {% endif %}
+});
+</script>
 {% endif %}
 {% endblock %}

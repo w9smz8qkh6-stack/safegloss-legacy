@@ -1,0 +1,42 @@
+{% if bookmarks %}
+<div class="list-group list-group-flush">
+  {% for bookmark in bookmarks %}
+  <div class="list-group-item">
+    <div class="d-flex align-items-start">
+      <div class="flex-grow-1">
+        <h6 class="mb-1 small">{{ bookmark.title|truncatechars:40 }}</h6>
+        <p class="mb-1 small text-muted">{{ bookmark.author|truncatechars:30 }}</p>
+        <span class="badge {% if bookmark.source == 'gutenberg' %}bg-success{% elif bookmark.source == 'opentextbook' %}bg-warning text-dark{% else %}bg-info{% endif %} small">
+          {{ bookmark.get_source_display }}
+        </span>
+      </div>
+      <div class="ms-2">
+        <button type="button"
+                class="btn btn-sm btn-outline-primary mb-1"
+                onclick="loadBookDetails('{{ bookmark.source }}', '{{ bookmark.external_id }}')"
+                title="Import">
+          <i class="bi bi-cloud-download"></i>
+        </button>
+        <form method="post"
+              action="{% url 'core:story_import_bookmark_remove' pk=bookmark.pk %}"
+              hx-post="{% url 'core:story_import_bookmark_remove' pk=bookmark.pk %}"
+              hx-target="#bookmarks-list"
+              hx-swap="innerHTML"
+              style="display: inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove bookmark">
+            <i class="bi bi-x"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card-body text-center text-muted py-4">
+  <i class="bi bi-bookmark fs-1 d-block mb-2"></i>
+  <p class="mb-0 small">No bookmarks yet.</p>
+  <p class="small text-muted">Click the bookmark icon on search results to save texts for later.</p>
+</div>
+{% endif %}

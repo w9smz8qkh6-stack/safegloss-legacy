@@ -22,83 +22,144 @@
   </div>
 </div>
 
-{% if lessons %}
-<div class="row g-4">
-  {% for lesson in lessons %}
-  <div class="col-12 col-md-6 col-lg-4">
-    <div class="card h-100 shadow-sm">
-      <div class="card-header bg-primary text-white">
-        <h5 class="card-title mb-0">
-          <i class="bi bi-journal-text me-2"></i>{{ lesson.title }}
-        </h5>
-      </div>
-      <div class="card-body">
-        {% if lesson.story %}
-        <div class="mb-3">
-          <span class="badge bg-secondary me-2">
-            <i class="bi bi-book me-1"></i>{{ lesson.story.title|truncatechars:30 }}
-          </span>
-          {% if lesson.story.reading_level_label %}
-          <span class="badge bg-info">
-            {{ lesson.story.reading_level_label }}
-          </span>
+{% if course_structure or standalone_lessons %}
+
+  <!-- Courses with Units and Lessons -->
+  {% for course_data in course_structure %}
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+      <h4 class="mb-0">
+        <i class="bi bi-journal-bookmark me-2"></i>{{ course_data.course.title }}
+      </h4>
+      {% if course_data.course.description %}
+      <small class="opacity-75">{{ course_data.course.description }}</small>
+      {% endif %}
+    </div>
+    <div class="card-body p-0">
+      {% for unit_data in course_data.units %}
+      <div class="{% if not forloop.last %}border-bottom{% endif %}">
+        <div class="bg-light px-3 py-2">
+          <h5 class="mb-0">
+            <i class="bi bi-collection me-2 text-secondary"></i>{{ unit_data.unit.title }}
+          </h5>
+          {% if unit_data.unit.description %}
+          <small class="text-muted">{{ unit_data.unit.description }}</small>
           {% endif %}
         </div>
-        {% endif %}
+        <div class="row g-3 p-3">
+          {% for lesson in unit_data.lessons %}
+          <div class="col-12 col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+              <div class="card-header bg-white border-bottom">
+                <h6 class="card-title mb-0">
+                  <i class="bi bi-journal-text me-2 text-primary"></i>{{ lesson.title }}
+                </h6>
+              </div>
+              <div class="card-body py-2">
+                {% if lesson.story %}
+                <div class="mb-2">
+                  <span class="badge bg-secondary">
+                    <i class="bi bi-book me-1"></i>{{ lesson.story.title|truncatechars:25 }}
+                  </span>
+                  {% if lesson.story.reading_level_label %}
+                  <span class="badge bg-info">{{ lesson.story.reading_level_label }}</span>
+                  {% endif %}
+                </div>
+                {% endif %}
 
-        {% if lesson.introduction_html %}
-        <p class="card-text text-muted small">
-          {{ lesson.introduction_html|striptags|truncatechars:100 }}
-        </p>
-        {% endif %}
-
-        {% with lp=progress_map|default_if_none:"" %}
-        {% if lesson.pk in progress_map %}
-          {% with lesson_progress=progress_map %}
-          <div class="mb-3">
-            {% if progress_map|dictsort:lesson.pk %}
-              {% if lesson_progress|default_if_none:"" %}
-              <span class="badge bg-warning text-dark">
-                <i class="bi bi-hourglass-split me-1"></i>In Progress
-              </span>
-              {% endif %}
-            {% endif %}
+                <div class="mb-2">
+                  {% if lesson.pk in progress_map %}
+                  <span class="badge bg-warning text-dark">
+                    <i class="bi bi-hourglass-split me-1"></i>In Progress
+                  </span>
+                  {% else %}
+                  <span class="badge bg-light text-dark">
+                    <i class="bi bi-circle me-1"></i>Not Started
+                  </span>
+                  {% endif %}
+                  {% if lesson.quiz %}
+                  <span class="badge bg-outline-secondary border">
+                    <i class="bi bi-question-circle me-1"></i>Quiz
+                  </span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="card-footer bg-white py-2">
+                <a href="{% url 'core:lesson_intro' pk=lesson.pk %}" class="btn btn-primary btn-sm w-100">
+                  <i class="bi bi-play-circle me-1"></i>Start
+                </a>
+              </div>
+            </div>
           </div>
-          {% endwith %}
-        {% else %}
-        <div class="mb-3">
-          <span class="badge bg-light text-dark">
-            <i class="bi bi-circle me-1"></i>Not Started
-          </span>
-        </div>
-        {% endif %}
-        {% endwith %}
-
-        <div class="d-flex gap-2 flex-wrap">
-          {% for m in lesson.allowed_modes %}
-          <small class="text-muted">
-            {% if m == 'continuous' %}<i class="bi bi-text-paragraph me-1"></i>{% endif %}
-            {% if m == 'cards' %}<i class="bi bi-card-text me-1"></i>{% endif %}
-            {% if m == 'movie' %}<i class="bi bi-film me-1"></i>{% endif %}
-            {{ m|title }}
-          </small>
           {% endfor %}
-          {% if lesson.quiz %}
-          <small class="text-muted">
-            <i class="bi bi-question-circle me-1"></i>Quiz
-          </small>
-          {% endif %}
         </div>
       </div>
-      <div class="card-footer bg-white">
-        <a href="{% url 'core:lesson_intro' pk=lesson.pk %}" class="btn btn-primary w-100">
-          <i class="bi bi-play-circle me-2"></i>Start Lesson
-        </a>
-      </div>
+      {% endfor %}
     </div>
   </div>
   {% endfor %}
-</div>
+
+  <!-- Standalone Lessons (not in any course) -->
+  {% if standalone_lessons %}
+  <div class="card mb-4">
+    <div class="card-header bg-secondary text-white">
+      <h4 class="mb-0">
+        <i class="bi bi-journal-text me-2"></i>Standalone Lessons
+      </h4>
+      <small class="opacity-75">Individual lessons not part of a course</small>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% for lesson in standalone_lessons %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-header bg-white border-bottom">
+              <h6 class="card-title mb-0">
+                <i class="bi bi-journal-text me-2 text-secondary"></i>{{ lesson.title }}
+              </h6>
+            </div>
+            <div class="card-body py-2">
+              {% if lesson.story %}
+              <div class="mb-2">
+                <span class="badge bg-secondary">
+                  <i class="bi bi-book me-1"></i>{{ lesson.story.title|truncatechars:25 }}
+                </span>
+                {% if lesson.story.reading_level_label %}
+                <span class="badge bg-info">{{ lesson.story.reading_level_label }}</span>
+                {% endif %}
+              </div>
+              {% endif %}
+
+              <div class="mb-2">
+                {% if lesson.pk in progress_map %}
+                <span class="badge bg-warning text-dark">
+                  <i class="bi bi-hourglass-split me-1"></i>In Progress
+                </span>
+                {% else %}
+                <span class="badge bg-light text-dark">
+                  <i class="bi bi-circle me-1"></i>Not Started
+                </span>
+                {% endif %}
+                {% if lesson.quiz %}
+                <span class="badge bg-outline-secondary border">
+                  <i class="bi bi-question-circle me-1"></i>Quiz
+                </span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="card-footer bg-white py-2">
+              <a href="{% url 'core:lesson_intro' pk=lesson.pk %}" class="btn btn-secondary btn-sm w-100">
+                <i class="bi bi-play-circle me-1"></i>Start
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 {% else %}
 <div class="text-center py-5">
   <i class="bi bi-inbox display-1 text-muted"></i>

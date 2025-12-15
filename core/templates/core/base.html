@@ -35,6 +35,16 @@
               </a>
             </li>
             <li class="nav-item">
+              <a class="nav-link {% if 'units' in request.path %}active{% endif %}" href="{% url 'core:unit_list' %}">
+                <i class="bi bi-collection me-1"></i>Units
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if 'courses' in request.path %}active{% endif %}" href="{% url 'core:course_list' %}">
+                <i class="bi bi-journal-bookmark me-1"></i>Courses
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link {% if 'lessons' in request.path and 'instructor' in request.path %}active{% endif %}" href="{% url 'core:instructor_lesson_list' %}">
                 <i class="bi bi-mortarboard me-1"></i>Lessons
               </a>

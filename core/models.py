@@ -35,13 +35,16 @@ class User(AbstractUser):
 
 
 class Roster(models.Model):
-    site = models.ForeignKey(Site, on_delete=models.CASCADE)
+    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rosters", null=True, blank=True)
+    site = models.ForeignKey(Site, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=200)
     grade_band = models.CharField(max_length=50, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
-        return f"{self.name} ({self.site.code})"
+        if self.site:
+            return f"{self.name} ({self.site.code})"
+        return self.name
 
 
 class RosterMembership(models.Model):
@@ -74,6 +77,86 @@ class Story(models.Model):
     def __str__(self):
         return self.title
 
+    def update_reading_levels(self) -> bool:
+        """
+        Compute and store reading level metrics from text_html.
+        Returns True if metrics were computed, False if text was too short.
+        """
+        from core.services.reading_levels import analyze_reading_level, format_reading_level_display
+
+        if not self.text_html:
+            return False
+
+        metrics = analyze_reading_level(self.text_html)
+        if not metrics:
+            return False
+
+        self.reading_level_metrics = metrics.to_dict()
+        self.reading_level_label = format_reading_level_display(metrics, format="compact")
+        return True
+
+    @property
+    def word_count(self) -> int:
+        """Return word count from metrics or estimate from text."""
+        if self.reading_level_metrics:
+            return self.reading_level_metrics.get("word_count", 0)
+        # Fallback: rough estimate
+        from core.services.reading_levels import strip_html
+        return len(strip_html(self.text_html).split()) if self.text_html else 0
+
+    @property
+    def ar_level(self) -> str:
+        """Return ATOS/AR level display string."""
+        if self.reading_level_metrics:
+            atos = self.reading_level_metrics.get("atos_level")
+            if atos:
+                return f"{atos:.1f}"
+        return ""
+
+    @property
+    def lexile_level(self) -> str:
+        """Return Lexile display string."""
+        if self.reading_level_metrics:
+            lexile = self.reading_level_metrics.get("lexile_estimate")
+            if lexile:
+                return f"{lexile}L"
+        return ""
+
+    @property
+    def guided_reading_level(self) -> str:
+        """Return Guided Reading level."""
+        if self.reading_level_metrics:
+            return self.reading_level_metrics.get("guided_reading", "")
+        return ""
+
+
+class ExternalBookmark(models.Model):
+    """Bookmark for external texts (Open Library, Gutenberg, Open Textbook Library) pending import."""
+    SOURCE_OPENLIBRARY = "openlibrary"
+    SOURCE_GUTENBERG = "gutenberg"
+    SOURCE_OPENTEXTBOOK = "opentextbook"
+    SOURCE_CHOICES = [
+        (SOURCE_OPENLIBRARY, "Open Library"),
+        (SOURCE_GUTENBERG, "Project Gutenberg"),
+        (SOURCE_OPENTEXTBOOK, "Open Textbook Library"),
+    ]
+
+    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="external_bookmarks")
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
+    external_id = models.CharField(max_length=100)
+    title = models.CharField(max_length=500)
+    author = models.CharField(max_length=500, blank=True)
+    cover_url = models.URLField(max_length=1000, blank=True)
+    metadata = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ("instructor", "source", "external_id")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_source_display()})"
+
 
 class StorySegment(models.Model):
     story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name="segments")
@@ -89,6 +172,71 @@ class StorySegment(models.Model):
 
     def __str__(self):
         return f"{self.story.title} – segment {self.index}"
+
+
+class Unit(models.Model):
+    """A unit is a container for two or more related lessons."""
+    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="units")
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def lesson_count(self):
+        return self.unit_lessons.count()
+
+
+class UnitLesson(models.Model):
+    """Through model for Unit-Lesson relationship with ordering."""
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name="unit_lessons")
+    lesson = models.ForeignKey("Lesson", on_delete=models.CASCADE, related_name="unit_memberships")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("unit", "lesson")
+        ordering = ["order"]
+
+    def __str__(self):
+        return f"{self.unit.title} - {self.lesson.title} (#{self.order})"
+
+
+class Course(models.Model):
+    """A course is a container for one or more units, assigned to rosters."""
+    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="courses")
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    rosters = models.ManyToManyField("Roster", related_name="courses", blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def unit_count(self):
+        return self.course_units.count()
+
+
+class CourseUnit(models.Model):
+    """Through model for Course-Unit relationship with ordering."""
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="course_units")
+    unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name="course_memberships")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("course", "unit")
+        ordering = ["order"]
+
+    def __str__(self):
+        return f"{self.course.title} - {self.unit.title} (#{self.order})"
 
 
 class MediaAsset(models.Model):
@@ -274,9 +422,9 @@ class Lesson(models.Model):
     MODE_MOVIE = "movie"
 
     instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="lessons")
-    site = models.ForeignKey(Site, on_delete=models.CASCADE, related_name="lessons")
+    site = models.ForeignKey(Site, null=True, blank=True, on_delete=models.SET_NULL, related_name="lessons")
     title = models.CharField(max_length=255)
-    introduction_html = models.TextField()
+    introduction_html = models.TextField(blank=True, default="")
     story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name="lessons")
     quiz = models.ForeignKey(Quiz, null=True, blank=True, on_delete=models.SET_NULL)
     rosters = models.ManyToManyField(Roster, related_name="lessons", blank=True)
