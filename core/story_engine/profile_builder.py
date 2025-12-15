@@ -34,9 +34,14 @@ class StyleRules:
     max_clauses: int = 1
     sentence_types: list[str] = field(default_factory=lambda: ["simple", "compound"])
     dialogue_ratio: str = "medium"
+    dialogue_ratio_min: float = 0.20
+    dialogue_ratio_max: float = 0.40
     paragraph_length: str = "short"
     sensory_detail: str = "moderate"
     figurative_language: str = "simple"
+    pacing: str = "moderate"
+    writing_voice: dict = field(default_factory=dict)
+    style_avoid: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -47,6 +52,24 @@ class VocabularyRules:
     academic_terms: str = "rare"
     frequency_tier: str = "top_3000"
     passive_voice: str = "avoid"
+
+
+@dataclass
+class VocabularyConstraints:
+    """
+    Vocabulary control settings for glossary-locked stories.
+
+    Modes:
+    - "none": No vocabulary restrictions
+    - "prefer": Prefer allowed words but permit others within frequency tier
+    - "strict": Only use allowed words (with stretch word allowance)
+    """
+    mode: str = "none"  # none, prefer, strict
+    allowed_words: list[str] = field(default_factory=list)
+    restricted_words: list[str] = field(default_factory=list)
+    max_stretch_words: int = 5  # Words outside allowed list (strict mode)
+    stretch_words_require_definition: bool = True
+    frequency_threshold: str = "top_3000"  # For "prefer" mode fallback
 
 
 @dataclass
@@ -80,7 +103,10 @@ class WritingProfile:
     vocabulary: VocabularyRules = field(default_factory=VocabularyRules)
     genre_rules: GenreRules = field(default_factory=GenreRules)
 
-    # Optional constraints
+    # Vocabulary constraints (glossary-locked mode)
+    vocab_constraints: VocabularyConstraints = field(default_factory=VocabularyConstraints)
+
+    # Legacy fields (for backwards compatibility)
     allowed_vocabulary: list[str] = field(default_factory=list)
     restricted_vocabulary: list[str] = field(default_factory=list)
 
@@ -135,6 +161,8 @@ class WritingProfileBuilder:
         study_mode: bool = False,
         allowed_vocabulary: list[str] | None = None,
         restricted_vocabulary: list[str] | None = None,
+        vocabulary_mode: str = "none",
+        max_stretch_words: int = 5,
         theme: str | None = None,
     ) -> WritingProfile:
         """
@@ -149,6 +177,8 @@ class WritingProfileBuilder:
             study_mode: If True, include inline definitions
             allowed_vocabulary: Glossary-locked vocabulary list
             restricted_vocabulary: Words to avoid
+            vocabulary_mode: "none", "prefer", or "strict"
+            max_stretch_words: Max words outside allowed list (strict mode)
             theme: Story theme (for guardrail checking)
 
         Returns:
@@ -162,6 +192,21 @@ class WritingProfileBuilder:
         if not check.allowed:
             raise ValueError(f"Request blocked by guardrails: {check.violations}")
 
+        # Determine vocabulary mode automatically if vocabulary is provided
+        effective_vocab_mode = vocabulary_mode
+        if effective_vocab_mode == "none" and allowed_vocabulary:
+            effective_vocab_mode = "prefer"  # Auto-enable prefer mode
+
+        # Build vocabulary constraints
+        vocab_constraints = VocabularyConstraints(
+            mode=effective_vocab_mode,
+            allowed_words=allowed_vocabulary or [],
+            restricted_words=restricted_vocabulary or [],
+            max_stretch_words=max_stretch_words,
+            stretch_words_require_definition=study_mode,
+            frequency_threshold=self._get_frequency_threshold(lexile_band),
+        )
+
         # Start with base profile
         profile = WritingProfile(
             age_band=age_band,
@@ -170,6 +215,8 @@ class WritingProfileBuilder:
             style_profile=style_profile,
             ell_mode=ell_mode,
             study_mode=study_mode,
+            vocab_constraints=vocab_constraints,
+            # Legacy fields for backwards compatibility
             allowed_vocabulary=allowed_vocabulary or [],
             restricted_vocabulary=restricted_vocabulary or [],
         )
@@ -268,13 +315,37 @@ class WritingProfileBuilder:
         profile.style.avg_sentence_length_min += modifier
         profile.style.avg_sentence_length_max += modifier
 
+        # Apply dialogue ratio adjustments
+        if "dialogue_ratio_target" in adjustments:
+            target = adjustments["dialogue_ratio_target"]
+            profile.style.dialogue_ratio_min = target.get("min", profile.style.dialogue_ratio_min)
+            profile.style.dialogue_ratio_max = target.get("max", profile.style.dialogue_ratio_max)
+        elif "dialogue_ratio_modifier" in adjustments:
+            # Apply modifier to existing range
+            modifier = adjustments["dialogue_ratio_modifier"]
+            profile.style.dialogue_ratio_min += modifier
+            profile.style.dialogue_ratio_max += modifier
+            # Clamp to valid range
+            profile.style.dialogue_ratio_min = max(0.05, profile.style.dialogue_ratio_min)
+            profile.style.dialogue_ratio_max = min(0.70, profile.style.dialogue_ratio_max)
+
         # Apply other style adjustments
-        if "dialogue_ratio" in adjustments:
-            profile.style.dialogue_ratio = adjustments["dialogue_ratio"]
         if "sensory_detail" in adjustments:
             profile.style.sensory_detail = adjustments["sensory_detail"]
         if "figurative_language" in adjustments:
             profile.style.figurative_language = adjustments["figurative_language"]
+
+        # Apply writing voice settings
+        writing_voice = style.get("writing_voice", {})
+        if writing_voice:
+            profile.style.writing_voice = writing_voice
+            if "pacing" in writing_voice:
+                profile.style.pacing = writing_voice["pacing"]
+
+        # Apply style-specific avoid list
+        avoid_list = style.get("avoid", [])
+        if avoid_list:
+            profile.style.style_avoid = avoid_list
 
         # Check for age-specific restrictions
         age_restrictions = style.get("age_restrictions", {}).get(profile.age_band, {})
@@ -283,6 +354,13 @@ class WritingProfileBuilder:
             if "avoid" in age_restrictions:
                 for item in age_restrictions["avoid"]:
                     profile.guidance.append(f"Avoid {item}")
+            # Add age-appropriate techniques
+            if "techniques" in age_restrictions:
+                for technique in age_restrictions["techniques"]:
+                    profile.guidance.append(f"Use {technique.replace('_', ' ')}")
+            if "humor_types" in age_restrictions:
+                humor_types = ", ".join(h.replace("_", " ") for h in age_restrictions["humor_types"])
+                profile.guidance.append(f"Humor types appropriate for this age: {humor_types}")
 
         # Add style guidance
         profile.guidance.extend(style.get("guidance", []))
@@ -311,3 +389,12 @@ class WritingProfileBuilder:
         # Add general ELL guidance
         general_guidance = self.rules._cache.get("ell_rules", {}).get("general_ell_guidance", [])
         profile.guidance.extend(general_guidance)
+
+    def _get_frequency_threshold(self, lexile_band: str) -> str:
+        """Get vocabulary frequency threshold for a Lexile band."""
+        try:
+            lexile_rules = self.rules.get_lexile_rules(lexile_band)
+            vocab = lexile_rules.get("vocabulary", {})
+            return vocab.get("frequency_tier", "top_3000")
+        except ValueError:
+            return "top_3000"

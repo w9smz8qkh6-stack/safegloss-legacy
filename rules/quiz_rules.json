@@ -1,0 +1,436 @@
+{
+  "$schema": "quiz_rules_schema.json",
+  "description": "Quiz generation rules aligned with Bloom's taxonomy and reading development",
+  "version": "1.0.0",
+  "question_types": {
+    "mcq_single": {
+      "label": "Multiple Choice (Single Answer)",
+      "description": "Standard multiple choice with one correct answer",
+      "bloom_levels": ["remember", "understand", "apply"],
+      "min_choices": 3,
+      "max_choices": 4,
+      "requires_distractor_quality": true,
+      "applicable_age_bands": ["6-8", "8-10", "10-12", "12-14"],
+      "generation_guidance": [
+        "All distractors must be plausible given the text",
+        "Avoid 'all of the above' or 'none of the above' options",
+        "Correct answer should not be obviously longer or more detailed",
+        "Distractors should reflect common misconceptions",
+        "Randomize correct answer position"
+      ]
+    },
+    "mcq_multi": {
+      "label": "Multiple Choice (Multiple Answers)",
+      "description": "Multiple choice where more than one answer may be correct",
+      "bloom_levels": ["understand", "analyze"],
+      "min_choices": 4,
+      "max_choices": 5,
+      "min_correct": 2,
+      "max_correct": 3,
+      "applicable_age_bands": ["10-12", "12-14"],
+      "generation_guidance": [
+        "Clearly indicate that multiple answers are expected",
+        "Ensure partial credit is possible",
+        "Each correct answer should be independently justifiable"
+      ]
+    },
+    "true_false": {
+      "label": "True / False",
+      "description": "Binary true/false statement verification",
+      "bloom_levels": ["remember", "understand"],
+      "applicable_age_bands": ["6-8", "8-10", "10-12", "12-14"],
+      "generation_guidance": [
+        "Statement must be unambiguously true or false based on text",
+        "Avoid double negatives",
+        "False statements should be plausibly incorrect, not obviously wrong",
+        "Include mix of true and false answers in quiz"
+      ]
+    },
+    "short_answer": {
+      "label": "Short Answer",
+      "description": "Brief text response (1-3 sentences)",
+      "bloom_levels": ["understand", "apply", "analyze"],
+      "max_words": 50,
+      "applicable_age_bands": ["8-10", "10-12", "12-14"],
+      "generation_guidance": [
+        "Question should have a clear, specific expected answer",
+        "Provide sample answer for grading reference",
+        "Allow for paraphrasing in acceptable responses"
+      ]
+    },
+    "long_answer": {
+      "label": "Extended Response",
+      "description": "Longer text response requiring explanation",
+      "bloom_levels": ["analyze", "evaluate", "create"],
+      "min_words": 50,
+      "max_words": 200,
+      "applicable_age_bands": ["10-12", "12-14"],
+      "generation_guidance": [
+        "Provide clear rubric criteria",
+        "Question should require evidence from text",
+        "Allow for multiple valid interpretations where appropriate"
+      ]
+    },
+    "cloze": {
+      "label": "Fill in the Blank",
+      "description": "Complete sentences with missing words",
+      "bloom_levels": ["remember", "understand"],
+      "applicable_age_bands": ["6-8", "8-10", "10-12", "12-14"],
+      "generation_guidance": [
+        "Target vocabulary words or key concepts",
+        "Provide word bank for younger readers",
+        "Blank should have a single clear answer",
+        "Context should make answer determinable"
+      ]
+    },
+    "matching": {
+      "label": "Matching",
+      "description": "Match items from two columns",
+      "bloom_levels": ["remember", "understand"],
+      "min_pairs": 4,
+      "max_pairs": 8,
+      "applicable_age_bands": ["8-10", "10-12", "12-14"],
+      "generation_guidance": [
+        "Include 1-2 distractor items in longer list",
+        "All items should be from same category",
+        "Relationships should be clear and unambiguous"
+      ]
+    },
+    "ordering": {
+      "label": "Sequence/Ordering",
+      "description": "Arrange items in correct order",
+      "bloom_levels": ["understand", "analyze"],
+      "min_items": 3,
+      "max_items": 6,
+      "applicable_age_bands": ["6-8", "8-10", "10-12", "12-14"],
+      "generation_guidance": [
+        "Events must have a clear, unambiguous order",
+        "Use for chronological events or logical sequences",
+        "Provide clear ordering criterion"
+      ]
+    }
+  },
+  "bloom_taxonomy": {
+    "remember": {
+      "label": "Remember",
+      "description": "Recall facts and basic concepts",
+      "question_stems": [
+        "What is...", "Who...", "Where...", "When...",
+        "Name...", "List...", "Define...", "Recall..."
+      ],
+      "cognitive_demand": "low",
+      "text_dependency": "high"
+    },
+    "understand": {
+      "label": "Understand",
+      "description": "Explain ideas or concepts",
+      "question_stems": [
+        "Explain...", "Describe...", "Summarize...",
+        "What does ___ mean?", "In your own words...",
+        "Why did...", "How would you explain..."
+      ],
+      "cognitive_demand": "low-medium",
+      "text_dependency": "high"
+    },
+    "apply": {
+      "label": "Apply",
+      "description": "Use information in new situations",
+      "question_stems": [
+        "How would you use...", "What would happen if...",
+        "Can you give an example of...", "How does ___ apply to..."
+      ],
+      "cognitive_demand": "medium",
+      "text_dependency": "medium"
+    },
+    "analyze": {
+      "label": "Analyze",
+      "description": "Draw connections among ideas",
+      "question_stems": [
+        "Compare...", "Contrast...", "Why do you think...",
+        "What evidence supports...", "How is ___ related to...",
+        "What is the relationship between..."
+      ],
+      "cognitive_demand": "medium-high",
+      "text_dependency": "medium"
+    },
+    "evaluate": {
+      "label": "Evaluate",
+      "description": "Justify a decision or position",
+      "question_stems": [
+        "Do you agree...", "What is your opinion of...",
+        "How would you judge...", "Was ___ justified?",
+        "What would you recommend..."
+      ],
+      "cognitive_demand": "high",
+      "text_dependency": "low-medium"
+    },
+    "create": {
+      "label": "Create",
+      "description": "Produce new or original work",
+      "question_stems": [
+        "What would you create...", "Design a...",
+        "How would you improve...", "Write a different ending...",
+        "Predict what might happen if..."
+      ],
+      "cognitive_demand": "high",
+      "text_dependency": "low"
+    }
+  },
+  "question_categories": {
+    "literal_comprehension": {
+      "label": "Literal Comprehension",
+      "description": "Questions about explicitly stated information",
+      "bloom_levels": ["remember", "understand"],
+      "text_dependency": "high",
+      "guidance": [
+        "Answer must be directly findable in text",
+        "Tests basic reading accuracy",
+        "Good for vocabulary-in-context questions"
+      ]
+    },
+    "inferential_comprehension": {
+      "label": "Inferential Comprehension",
+      "description": "Questions requiring readers to draw conclusions",
+      "bloom_levels": ["understand", "analyze"],
+      "text_dependency": "medium",
+      "guidance": [
+        "Answer requires connecting multiple text elements",
+        "Tests ability to read between the lines",
+        "Must be supportable by text evidence"
+      ]
+    },
+    "vocabulary": {
+      "label": "Vocabulary",
+      "description": "Questions about word meaning and usage",
+      "bloom_levels": ["remember", "understand", "apply"],
+      "text_dependency": "high",
+      "guidance": [
+        "Focus on glossary terms and stretch words",
+        "Include context clues in question",
+        "Test both definition and usage"
+      ]
+    },
+    "text_structure": {
+      "label": "Text Structure",
+      "description": "Questions about how the text is organized",
+      "bloom_levels": ["understand", "analyze"],
+      "text_dependency": "medium",
+      "guidance": [
+        "Ask about sequence, cause/effect, problem/solution",
+        "Identify main ideas and supporting details",
+        "Recognize genre conventions"
+      ]
+    },
+    "author_purpose": {
+      "label": "Author's Purpose & Craft",
+      "description": "Questions about why and how the author wrote",
+      "bloom_levels": ["analyze", "evaluate"],
+      "text_dependency": "medium",
+      "guidance": [
+        "Explore word choice and its effects",
+        "Identify author's message or theme",
+        "Analyze literary devices"
+      ]
+    },
+    "critical_thinking": {
+      "label": "Critical Thinking",
+      "description": "Questions requiring judgment and evaluation",
+      "bloom_levels": ["evaluate", "create"],
+      "text_dependency": "low",
+      "guidance": [
+        "Open-ended with multiple valid responses",
+        "Requires text evidence to support opinion",
+        "Connects to broader themes or real life"
+      ]
+    }
+  },
+  "age_band_rules": {
+    "6-8": {
+      "label": "Early Readers (Ages 6-8)",
+      "allowed_question_types": ["mcq_single", "true_false", "cloze", "ordering"],
+      "allowed_bloom_levels": ["remember", "understand"],
+      "allowed_categories": ["literal_comprehension", "vocabulary", "text_structure"],
+      "constraints": {
+        "max_questions_per_quiz": 8,
+        "mcq_choices": 3,
+        "cloze_word_bank": true,
+        "ordering_max_items": 4,
+        "question_max_words": 15,
+        "avoid_negatives": true
+      },
+      "question_distribution": {
+        "literal_comprehension": 0.50,
+        "vocabulary": 0.30,
+        "text_structure": 0.20
+      },
+      "guidance": [
+        "Use simple, direct language in questions",
+        "Avoid negative phrasing (NOT, EXCEPT)",
+        "Provide word banks for cloze questions",
+        "Focus on 'who, what, where, when'",
+        "Questions should have single clear answers",
+        "Include picture/illustration references when available"
+      ]
+    },
+    "8-10": {
+      "label": "Developing Readers (Ages 8-10)",
+      "allowed_question_types": ["mcq_single", "true_false", "short_answer", "cloze", "matching", "ordering"],
+      "allowed_bloom_levels": ["remember", "understand", "apply"],
+      "allowed_categories": ["literal_comprehension", "inferential_comprehension", "vocabulary", "text_structure"],
+      "constraints": {
+        "max_questions_per_quiz": 10,
+        "mcq_choices": 4,
+        "cloze_word_bank": true,
+        "short_answer_max_words": 30,
+        "ordering_max_items": 5,
+        "question_max_words": 20,
+        "avoid_negatives": true
+      },
+      "question_distribution": {
+        "literal_comprehension": 0.40,
+        "inferential_comprehension": 0.20,
+        "vocabulary": 0.25,
+        "text_structure": 0.15
+      },
+      "guidance": [
+        "Introduce simple 'why' questions",
+        "Begin cause-and-effect questions",
+        "Short answers should be 1-2 sentences",
+        "Matching sets should have clear categories",
+        "Sequence questions can have 4-5 events"
+      ]
+    },
+    "10-12": {
+      "label": "Transitional Readers (Ages 10-12)",
+      "allowed_question_types": ["mcq_single", "mcq_multi", "true_false", "short_answer", "long_answer", "cloze", "matching", "ordering"],
+      "allowed_bloom_levels": ["remember", "understand", "apply", "analyze"],
+      "allowed_categories": ["literal_comprehension", "inferential_comprehension", "vocabulary", "text_structure", "author_purpose"],
+      "constraints": {
+        "max_questions_per_quiz": 12,
+        "mcq_choices": 4,
+        "cloze_word_bank": false,
+        "short_answer_max_words": 40,
+        "long_answer_max_words": 150,
+        "ordering_max_items": 6,
+        "question_max_words": 25
+      },
+      "question_distribution": {
+        "literal_comprehension": 0.25,
+        "inferential_comprehension": 0.30,
+        "vocabulary": 0.20,
+        "text_structure": 0.10,
+        "author_purpose": 0.15
+      },
+      "guidance": [
+        "Include analysis and comparison questions",
+        "Ask about character motivation",
+        "Introduce theme identification",
+        "Questions may require evidence citing",
+        "Multiple-answer questions can be introduced"
+      ]
+    },
+    "12-14": {
+      "label": "Advanced Young Readers (Ages 12-14)",
+      "allowed_question_types": ["mcq_single", "mcq_multi", "true_false", "short_answer", "long_answer", "cloze", "matching", "ordering"],
+      "allowed_bloom_levels": ["remember", "understand", "apply", "analyze", "evaluate", "create"],
+      "allowed_categories": ["literal_comprehension", "inferential_comprehension", "vocabulary", "text_structure", "author_purpose", "critical_thinking"],
+      "constraints": {
+        "max_questions_per_quiz": 15,
+        "mcq_choices": 4,
+        "cloze_word_bank": false,
+        "short_answer_max_words": 50,
+        "long_answer_max_words": 200,
+        "ordering_max_items": 6,
+        "question_max_words": 35
+      },
+      "question_distribution": {
+        "literal_comprehension": 0.15,
+        "inferential_comprehension": 0.25,
+        "vocabulary": 0.15,
+        "text_structure": 0.10,
+        "author_purpose": 0.20,
+        "critical_thinking": 0.15
+      },
+      "guidance": [
+        "Include evaluation and opinion questions",
+        "Ask about author's craft and technique",
+        "Require evidence-based arguments",
+        "Open-ended questions with rubrics",
+        "Complex inference across text sections"
+      ]
+    }
+  },
+  "assessment_modes": {
+    "study_mode": {
+      "label": "Study Mode",
+      "description": "Low-stakes practice with immediate feedback",
+      "features": {
+        "show_answers_immediately": true,
+        "allow_retries": true,
+        "show_explanations": true,
+        "show_text_references": true,
+        "track_progress": true,
+        "adaptive_difficulty": true
+      },
+      "question_selection": {
+        "prefer_lower_bloom": true,
+        "mix_difficulty": true,
+        "include_hints": true
+      }
+    },
+    "exam_mode": {
+      "label": "Exam Mode",
+      "description": "Summative assessment without hints",
+      "features": {
+        "show_answers_immediately": false,
+        "allow_retries": false,
+        "show_explanations": false,
+        "show_text_references": false,
+        "track_progress": true,
+        "adaptive_difficulty": false
+      },
+      "question_selection": {
+        "prefer_lower_bloom": false,
+        "mix_difficulty": true,
+        "include_hints": false
+      }
+    }
+  },
+  "alignment_rules": {
+    "story_alignment": {
+      "description": "Rules for aligning quiz questions with story content",
+      "requirements": [
+        "All literal questions must cite specific text passage",
+        "Vocabulary questions must use words from story",
+        "Inference questions must be answerable from text",
+        "Character questions must match story characters"
+      ],
+      "metadata_fields": [
+        "source_story_id",
+        "source_segment_ids",
+        "source_text_excerpt"
+      ]
+    },
+    "glossary_alignment": {
+      "description": "Rules for aligning quiz questions with glossary terms",
+      "requirements": [
+        "Vocabulary questions should prioritize glossary terms",
+        "Definitions must match glossary exactly",
+        "Context sentences should use term correctly"
+      ],
+      "metadata_fields": [
+        "glossary_term_id",
+        "term_definition",
+        "term_usage_count"
+      ]
+    },
+    "lexile_alignment": {
+      "description": "Rules for matching quiz difficulty to story Lexile",
+      "requirements": [
+        "Question language should match story Lexile band",
+        "Answer choices should use age-appropriate vocabulary",
+        "Question complexity should scale with Lexile"
+      ]
+    }
+  }
+}

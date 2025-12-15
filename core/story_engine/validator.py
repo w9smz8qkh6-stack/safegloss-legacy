@@ -274,9 +274,9 @@ class StoryValidator:
             ))
             deduction = 0.1 if severity == ValidationSeverity.WARNING else 0.25
 
-        # Check complex sentence ratio
-        # Lower bands should have fewer complex sentences
-        max_complex_ratio = 0.3 if max_clauses <= 1 else 0.5
+        # Check complex sentence ratio - use corpus-derived thresholds
+        validation_thresholds = rules.get("validation_thresholds", {})
+        max_complex_ratio = validation_thresholds.get("max_complex_ratio", 0.3 if max_clauses <= 1 else 0.5)
 
         if metrics.complex_sentence_ratio > max_complex_ratio:
             issues.append(ValidationIssue(
@@ -304,15 +304,20 @@ class StoryValidator:
         grammar_rules = rules.get("grammar", {})
         passive_allowed = grammar_rules.get("passive_voice", "avoid")
 
-        # Determine max passive ratio based on rules
-        if passive_allowed in [False, "avoid", "never"]:
-            max_passive_ratio = 0.05
-        elif passive_allowed == "rare":
-            max_passive_ratio = 0.1
-        elif passive_allowed == "occasional":
-            max_passive_ratio = 0.2
-        else:  # allowed
-            max_passive_ratio = 0.3
+        # Use corpus-derived threshold if available
+        validation_thresholds = rules.get("validation_thresholds", {})
+        max_passive_ratio = validation_thresholds.get("max_passive_ratio")
+
+        # Fall back to rule-based thresholds if no corpus data
+        if max_passive_ratio is None:
+            if passive_allowed in [False, "avoid", "never"]:
+                max_passive_ratio = 0.05
+            elif passive_allowed == "rare":
+                max_passive_ratio = 0.1
+            elif passive_allowed == "occasional":
+                max_passive_ratio = 0.2
+            else:  # allowed
+                max_passive_ratio = 0.3
 
         if metrics.passive_voice_ratio > max_passive_ratio:
             if passive_allowed in [False, "avoid", "never"]:
@@ -381,31 +386,38 @@ class StoryValidator:
         metrics: TextMetrics,
         rules: dict,
     ) -> tuple[list[ValidationIssue], float]:
-        """Validate dialogue ratio (informational check)."""
+        """Validate dialogue ratio using corpus-derived thresholds."""
         issues = []
         deduction = 0.0
 
-        # Dialogue is generally good for engagement but shouldn't dominate
-        if metrics.dialogue_ratio > 0.7:
+        # Use corpus-derived thresholds if available
+        validation_thresholds = rules.get("validation_thresholds", {})
+        dialogue_range = validation_thresholds.get("dialogue_ratio", {"min": 0.15, "max": 0.45})
+        min_dialogue = dialogue_range.get("min", 0.15)
+        max_dialogue = dialogue_range.get("max", 0.45)
+
+        # Check for excessive dialogue
+        if metrics.dialogue_ratio > max_dialogue + 0.15:  # 15% tolerance above max
             issues.append(ValidationIssue(
                 code="HIGH_DIALOGUE_RATIO",
-                severity=ValidationSeverity.INFO,
-                message=f"Dialogue comprises {metrics.dialogue_ratio:.0%} of sentences",
+                severity=ValidationSeverity.WARNING if metrics.dialogue_ratio < 0.7 else ValidationSeverity.INFO,
+                message=f"Dialogue comprises {metrics.dialogue_ratio:.0%} of sentences (target: {min_dialogue:.0%}-{max_dialogue:.0%})",
                 metric_name="dialogue_ratio",
                 actual_value=round(metrics.dialogue_ratio, 2),
-                expected_range=(0.2, 0.6),
+                expected_range=(min_dialogue, max_dialogue),
                 suggestion="Balance dialogue with narrative description",
             ))
             deduction = 0.05
 
-        elif metrics.dialogue_ratio < 0.1 and metrics.total_sentences > 10:
+        # Check for low dialogue
+        elif metrics.dialogue_ratio < min_dialogue - 0.05 and metrics.total_sentences > 10:
             issues.append(ValidationIssue(
                 code="LOW_DIALOGUE_RATIO",
                 severity=ValidationSeverity.INFO,
-                message=f"Minimal dialogue ({metrics.dialogue_ratio:.0%})",
+                message=f"Minimal dialogue ({metrics.dialogue_ratio:.0%}, target: {min_dialogue:.0%}-{max_dialogue:.0%})",
                 metric_name="dialogue_ratio",
                 actual_value=round(metrics.dialogue_ratio, 2),
-                expected_range=(0.2, 0.6),
+                expected_range=(min_dialogue, max_dialogue),
                 suggestion="Consider adding dialogue for engagement",
             ))
             # No deduction for low dialogue - it's just a suggestion

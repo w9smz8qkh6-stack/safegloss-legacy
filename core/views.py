@@ -7,7 +7,8 @@ from functools import wraps
 
 from .forms import (
     LessonFilterForm, StoryForm, StorySegmentFormSet, GlossaryForm, TermForm,
-    LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm
+    LessonForm, QuizForm, ItemBankQuestionForm, ItemBankChoiceFormSet, RosterForm,
+    StoryGeneratorForm
 )
 from .models import (
     Lesson, LessonProgress, RosterMembership, Term, GlossClickLog,
@@ -311,6 +312,176 @@ def story_delete(request, pk):
         messages.success(request, f"Story '{title}' deleted.")
         return redirect("core:story_list")
     return render(request, "core/instructor/story_confirm_delete.html", {"story": story})
+
+
+@login_required
+@instructor_required
+def story_generate(request):
+    """
+    AI-powered story generation with Lexile-aligned constraints.
+
+    Shows form for generation parameters, creates prompt, and displays
+    the composed prompt for review (actual AI generation requires API integration).
+    """
+    from .story_engine import compose_story_prompt, validate_story, extract_metrics
+
+    composed_prompt = None
+    validation_result = None
+    generation_params = None
+
+    if request.method == "POST":
+        form = StoryGeneratorForm(request.POST)
+        if form.is_valid():
+            generation_params = form.get_generation_params()
+
+            try:
+                # Compose the prompt using the story engine
+                composed_prompt = compose_story_prompt(**generation_params)
+
+                # Store params in session for later use
+                request.session["story_generation_params"] = generation_params
+                request.session["story_generation_prompt_hash"] = composed_prompt.profile_hash
+
+                messages.success(
+                    request,
+                    "Story prompt generated successfully. Review the constraints below."
+                )
+
+            except ValueError as e:
+                messages.error(request, f"Generation error: {e}")
+
+    else:
+        form = StoryGeneratorForm()
+
+    context = {
+        "form": form,
+        "composed_prompt": composed_prompt,
+        "generation_params": generation_params,
+        "title": "Generate AI Story",
+    }
+    return render(request, "core/instructor/story_generate.html", context)
+
+
+@login_required
+@instructor_required
+def story_generate_preview(request):
+    """
+    Preview a generated story before saving.
+
+    This view receives generated story text (from AI or manual input),
+    validates it, and shows metrics and transparency information.
+    """
+    from .story_engine import validate_story, extract_metrics
+
+    if request.method != "POST":
+        return redirect("core:story_generate")
+
+    story_text = request.POST.get("story_text", "").strip()
+    lexile_band = request.POST.get("lexile_band", "500-600L")
+    target_word_count = int(request.POST.get("word_count", 400))
+
+    if not story_text:
+        messages.error(request, "No story text provided.")
+        return redirect("core:story_generate")
+
+    # Validate the story
+    validation = validate_story(story_text, lexile_band, target_word_count)
+    metrics = extract_metrics(story_text)
+
+    # Get generation params from session
+    generation_params = request.session.get("story_generation_params", {})
+
+    context = {
+        "story_text": story_text,
+        "validation": validation,
+        "metrics": metrics,
+        "generation_params": generation_params,
+        "lexile_band": lexile_band,
+        "title": "Preview Generated Story",
+    }
+    return render(request, "core/instructor/story_generate_preview.html", context)
+
+
+@login_required
+@instructor_required
+def story_generate_save(request):
+    """
+    Save a generated story after preview.
+    """
+    if request.method != "POST":
+        return redirect("core:story_generate")
+
+    story_text = request.POST.get("story_text", "").strip()
+    title = request.POST.get("title", "").strip()
+
+    if not story_text or not title:
+        messages.error(request, "Title and story text are required.")
+        return redirect("core:story_generate")
+
+    # Get generation params from session
+    generation_params = request.session.get("story_generation_params", {})
+    prompt_hash = request.session.get("story_generation_prompt_hash", "")
+
+    # Create the story
+    story = Story.objects.create(
+        instructor=request.user,
+        title=title,
+        text_html=f"<p>{story_text.replace(chr(10)+chr(10), '</p><p>').replace(chr(10), '<br>')}</p>",
+        source_type=Story.SOURCE_AI,
+        source_metadata={
+            "generation_params": generation_params,
+            "prompt_hash": prompt_hash,
+            "generator_version": "1.0.0",
+        },
+        reading_level_label=generation_params.get("lexile_band", ""),
+    )
+
+    # Compute and store metrics
+    from .story_engine import extract_metrics
+    metrics = extract_metrics(story_text)
+    story.reading_level_metrics = metrics.to_dict()
+    story.save()
+
+    # Clear session data
+    request.session.pop("story_generation_params", None)
+    request.session.pop("story_generation_prompt_hash", None)
+
+    messages.success(request, f"Story '{title}' created successfully!")
+    return redirect("core:story_edit", pk=story.pk)
+
+
+@login_required
+@instructor_required
+def story_export(request, pk):
+    """
+    Export a story in print-friendly format.
+
+    Supports:
+    - Web view (print-friendly HTML)
+    - PDF (via browser print)
+    """
+    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+
+    # Get metrics if available
+    metrics = story.reading_level_metrics or {}
+
+    # Get glossary terms
+    glossary = getattr(story, 'glossary', None)
+    terms = []
+    if glossary:
+        terms = list(glossary.terms.filter(is_selected_for_glossary=True).order_by('term_text'))
+
+    # Get segments
+    segments = story.segments.order_by('index')
+
+    context = {
+        "story": story,
+        "metrics": metrics,
+        "terms": terms,
+        "segments": segments,
+        "title": f"Export: {story.title}",
+    }
+    return render(request, "core/instructor/story_export.html", context)
 
 
 # =============================================================================

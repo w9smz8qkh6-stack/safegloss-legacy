@@ -17,6 +17,9 @@
         <i class="bi bi-lightning-charge me-2"></i>Quick Actions
       </div>
       <div class="card-body d-grid gap-2">
+        <a href="{% url 'core:story_generate' %}" class="btn btn-success">
+          <i class="bi bi-stars me-2"></i>AI Generate Story
+        </a>
         <a href="{% url 'core:story_create' %}" class="btn btn-outline-primary">
           <i class="bi bi-plus-circle me-2"></i>New Story
         </a>

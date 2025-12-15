@@ -8,9 +8,10 @@ Prompt ordering (mandatory):
 1. Reader & Age Profile
 2. Developmental Writing Rules
 3. Genre-Specific Rules
-4. Lexile & Language Constraints
-5. Story-Specific Parameters
-6. Output Constraints
+4. Style Profile Rules (if style_profile selected)
+5. Lexile & Language Constraints
+6. Story-Specific Parameters
+7. Output Constraints
 """
 
 from dataclasses import dataclass
@@ -76,15 +77,23 @@ Never mention the rules or constraints in your output."""
         # Section 3: Genre-Specific Rules
         sections.append(self._compose_genre_rules(profile))
 
-        # Section 4: Lexile & Language Constraints
+        # Section 4: Style Profile Rules (if style_profile selected)
+        if profile.style_profile:
+            sections.append(self._compose_style_rules(profile))
+
+        # Section 5: Lexile & Language Constraints
         sections.append(self._compose_language_constraints(profile))
 
-        # Section 5: Story-Specific Parameters
+        # Section 5b: Vocabulary Control (if glossary-locked)
+        if profile.vocab_constraints.mode != "none":
+            sections.append(self._compose_vocabulary_control(profile))
+
+        # Section 6: Story-Specific Parameters
         sections.append(self._compose_story_parameters(
             profile, theme, setting, main_character, word_count, tone
         ))
 
-        # Section 6: Output Constraints
+        # Section 7: Output Constraints
         sections.append(self._compose_output_constraints(profile))
 
         user_prompt = "\n\n".join(filter(None, sections))
@@ -223,8 +232,107 @@ Never mention the rules or constraints in your output."""
 
         return "\n".join(lines)
 
+    def _compose_style_rules(self, profile: WritingProfile) -> str:
+        """Section 4: Style Profile Rules."""
+        style = profile.style
+        style_name = profile.style_profile
+
+        lines = [
+            "## WRITING STYLE",
+            "",
+            f"Style: {style_name.replace('_', ' ').title()}",
+            "",
+        ]
+
+        # Writing voice characteristics
+        if style.writing_voice:
+            voice = style.writing_voice
+            lines.append("### Voice & Pacing")
+
+            if voice.get("pacing"):
+                pacing_desc = {
+                    "fast": "Keep the pace fast. Something should happen in every paragraph.",
+                    "punchy": "Use punchy, energetic prose. Quick exchanges and snappy dialogue.",
+                    "steady": "Maintain a steady, even pace throughout.",
+                    "varied": "Vary the pace—slower for atmosphere, faster for action.",
+                    "contemplative": "Allow for reflection and contemplation.",
+                    "reflective": "Include moments of pause and emotional processing.",
+                    "moderate": "Balance action with reflection.",
+                }
+                lines.append(f"- {pacing_desc.get(voice['pacing'], f'Pacing: {voice[\"pacing\"]}')}")
+
+            if voice.get("description_style"):
+                desc_style = {
+                    "action-focused": "Descriptions should focus on what characters do, not how things look.",
+                    "sensory-immersive": "Descriptions should immerse the reader through sensory details.",
+                    "kinetic": "Descriptions should convey motion and energy.",
+                    "internal-focused": "Focus on characters' inner experiences and thoughts.",
+                    "metaphorical": "Use imagery and metaphor to create atmosphere.",
+                    "comic-timing": "Pace descriptions for maximum comedic effect.",
+                }
+                lines.append(f"- {desc_style.get(voice['description_style'], '')}")
+
+            if voice.get("emotional_showing"):
+                emotion_style = {
+                    "through_action": "Show emotions through what characters do, not what they feel.",
+                    "through_environment": "Reflect emotions through environmental details.",
+                    "through_stakes": "Build emotion through what characters might lose.",
+                    "through_reaction": "Show emotions through character reactions.",
+                    "through_imagery": "Use imagery to evoke emotional responses.",
+                    "explicit_naming": "Name emotions explicitly when characters experience them.",
+                }
+                lines.append(f"- {emotion_style.get(voice['emotional_showing'], '')}")
+
+            if voice.get("sentence_variation"):
+                variation = {
+                    "low": "Keep sentence length consistent.",
+                    "high": "Vary sentence length significantly for rhythm and effect.",
+                    "dynamic": "Use sentence length dynamically—short for tension, longer for reflection.",
+                    "moderate": "Moderate variation in sentence length.",
+                    "musical": "Choose sentence lengths for their rhythm and sound.",
+                }
+                lines.append(f"- {variation.get(voice['sentence_variation'], '')}")
+
+        # Sensory detail level
+        lines.append("")
+        lines.append("### Sensory & Descriptive Detail")
+        sensory_desc = {
+            "sparse": "Keep sensory details minimal. Focus on action and dialogue.",
+            "selective": "Choose sensory details selectively for emphasis.",
+            "moderate": "Include moderate sensory detail to ground scenes.",
+            "rich": "Use rich sensory details—sight, sound, texture, smell.",
+            "action_focused": "Focus on physical sensations during action (impact, speed, breath).",
+            "poetic": "Use sensory details poetically to evoke mood and atmosphere.",
+        }
+        lines.append(f"- {sensory_desc.get(style.sensory_detail, 'Include appropriate sensory detail.')}")
+
+        # Figurative language
+        fig_lang = {
+            "none": "Do not use figurative language (similes, metaphors).",
+            "minimal": "Use figurative language sparingly, if at all.",
+            "simple": "Simple similes allowed (like, as). No complex metaphors.",
+            "playful": "Use playful comparisons and humorous exaggerations.",
+            "emotion_metaphors": "Use metaphors to describe emotional experiences.",
+            "rich": "Use figurative language to create imagery and atmosphere.",
+        }
+        lines.append(f"- {fig_lang.get(style.figurative_language, '')}")
+
+        # Dialogue guidance
+        lines.append("")
+        lines.append("### Dialogue")
+        lines.append(f"- Target dialogue ratio: {int(style.dialogue_ratio_min * 100)}% to {int(style.dialogue_ratio_max * 100)}% of the story should be dialogue.")
+
+        # Things to avoid
+        if style.style_avoid:
+            lines.append("")
+            lines.append("### Avoid in This Style")
+            for item in style.style_avoid:
+                lines.append(f"- {item}")
+
+        return "\n".join(lines)
+
     def _compose_language_constraints(self, profile: WritingProfile) -> str:
-        """Section 4: Lexile & Language Constraints."""
+        """Section 5: Lexile & Language Constraints."""
         lines = [
             "## LANGUAGE CONSTRAINTS",
             "",
@@ -287,22 +395,70 @@ Never mention the rules or constraints in your output."""
 
         lines.append("- Use clear subject-verb-object sentence order.")
 
-        # Allowed/restricted vocabulary
-        if profile.allowed_vocabulary:
-            lines.append("")
-            lines.append("### Allowed Vocabulary (Prefer These Words)")
-            for word in profile.allowed_vocabulary[:20]:  # Limit to prevent prompt bloat
-                lines.append(f"- {word}")
-            if len(profile.allowed_vocabulary) > 20:
-                lines.append(f"- (and {len(profile.allowed_vocabulary) - 20} more)")
+        return "\n".join(lines)
 
-        if profile.restricted_vocabulary:
+    def _compose_vocabulary_control(self, profile: WritingProfile) -> str:
+        """Section 5b: Vocabulary Control for glossary-locked stories."""
+        vc = profile.vocab_constraints
+        lines = ["## VOCABULARY CONTROL", ""]
+
+        if vc.mode == "strict":
+            lines.extend([
+                "### Strict Glossary Mode",
+                "",
+                "You MUST primarily use words from the allowed vocabulary list below.",
+                f"You may introduce up to {vc.max_stretch_words} 'stretch words' that are NOT on the list.",
+                "",
+            ])
+
+            if vc.stretch_words_require_definition:
+                lines.extend([
+                    "**Stretch Word Requirements:**",
+                    "- Each stretch word must be defined inline when first used.",
+                    "- Use a simple, natural definition within the sentence.",
+                    "- Example: 'The bird was resilient—it kept trying even when things were hard.'",
+                    "",
+                ])
+
+            lines.append("### Allowed Words (Use These)")
+            self._append_word_list(lines, vc.allowed_words, 30)
+
+        elif vc.mode == "prefer":
+            lines.extend([
+                "### Preferred Vocabulary Mode",
+                "",
+                "Prioritize using words from the preferred vocabulary list below.",
+                "Other common words are allowed, but prefer the listed terms when natural.",
+                f"Stay within the {vc.frequency_threshold.replace('_', ' ')} most common words for unlisted vocabulary.",
+                "",
+            ])
+
+            lines.append("### Preferred Words")
+            self._append_word_list(lines, vc.allowed_words, 30)
+
+        # Restricted words (both modes)
+        if vc.restricted_words:
             lines.append("")
-            lines.append("### Restricted Vocabulary (Avoid These Words)")
-            for word in profile.restricted_vocabulary[:20]:
-                lines.append(f"- {word}")
+            lines.append("### Words to Avoid")
+            lines.append("Do NOT use the following words in the story:")
+            self._append_word_list(lines, vc.restricted_words, 20)
 
         return "\n".join(lines)
+
+    def _append_word_list(self, lines: list[str], words: list[str], limit: int) -> None:
+        """Append a word list to lines, grouping for readability."""
+        if not words:
+            lines.append("(No specific words provided)")
+            return
+
+        # Group words into rows of 5-6 for readability
+        displayed = words[:limit]
+        for i in range(0, len(displayed), 5):
+            chunk = displayed[i:i+5]
+            lines.append(f"  {', '.join(chunk)}")
+
+        if len(words) > limit:
+            lines.append(f"  ... and {len(words) - limit} more words")
 
     def _compose_story_parameters(
         self,
@@ -313,7 +469,7 @@ Never mention the rules or constraints in your output."""
         word_count: int,
         tone: str | None,
     ) -> str:
-        """Section 5: Story-Specific Parameters."""
+        """Section 6: Story-Specific Parameters."""
         lines = ["## STORY PARAMETERS", ""]
 
         lines.append(f"Theme: {theme}")
@@ -325,7 +481,11 @@ Never mention the rules or constraints in your output."""
             lines.append(f"Tone: {tone}")
 
         lines.append(f"Target length: {word_count} words (±5%)")
-        lines.append(f"Dialogue level: {profile.style.dialogue_ratio}")
+
+        # Dialogue level - use numeric if no style profile, otherwise style handles it
+        if not profile.style_profile:
+            dialogue_pct = int((profile.style.dialogue_ratio_min + profile.style.dialogue_ratio_max) / 2 * 100)
+            lines.append(f"Dialogue level: approximately {dialogue_pct}% of the story should be dialogue")
 
         # Study mode
         if profile.study_mode:
@@ -337,7 +497,7 @@ Never mention the rules or constraints in your output."""
         return "\n".join(lines)
 
     def _compose_output_constraints(self, profile: WritingProfile) -> str:
-        """Section 6: Output Constraints."""
+        """Section 7: Output Constraints."""
         lines = [
             "## OUTPUT REQUIREMENTS",
             "",
@@ -363,9 +523,15 @@ def compose_story_prompt(
     study_mode: bool = False,
     allowed_vocabulary: list[str] | None = None,
     restricted_vocabulary: list[str] | None = None,
+    vocabulary_mode: str = "none",
+    max_stretch_words: int = 5,
 ) -> ComposedPrompt:
     """
     Convenience function to build profile and compose prompt in one step.
+
+    Args:
+        vocabulary_mode: "none", "prefer", or "strict"
+        max_stretch_words: Max words outside allowed list (strict mode)
 
     Returns a ComposedPrompt ready for LLM submission.
     """
@@ -381,6 +547,8 @@ def compose_story_prompt(
         study_mode=study_mode,
         allowed_vocabulary=allowed_vocabulary,
         restricted_vocabulary=restricted_vocabulary,
+        vocabulary_mode=vocabulary_mode,
+        max_stretch_words=max_stretch_words,
         theme=theme,
     )
 

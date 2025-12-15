@@ -1,0 +1,257 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="row">
+  <!-- Form Column -->
+  <div class="col-12 col-lg-{% if composed_prompt %}6{% else %}8 offset-lg-2{% endif %}">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="h3 mb-0">
+        <i class="bi bi-stars me-2"></i>{{ title }}
+      </h1>
+      <a href="{% url 'core:story_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-2"></i>Back to Stories
+      </a>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <i class="bi bi-sliders me-2"></i>Story Parameters
+      </div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+
+          <!-- Required Parameters -->
+          <h6 class="text-muted mb-3">Required Settings</h6>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_age_band" class="form-label">Age Band <span class="text-danger">*</span></label>
+              {{ form.age_band }}
+              <div class="form-text">{{ form.age_band.help_text }}</div>
+            </div>
+            <div class="col-md-6">
+              <label for="id_lexile_band" class="form-label">Lexile Band <span class="text-danger">*</span></label>
+              {{ form.lexile_band }}
+              <div class="form-text">{{ form.lexile_band.help_text }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_genre" class="form-label">Genre <span class="text-danger">*</span></label>
+              {{ form.genre }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_word_count" class="form-label">Word Count</label>
+              {{ form.word_count }}
+              <div class="form-text">{{ form.word_count.help_text }}</div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="id_theme" class="form-label">Theme/Topic <span class="text-danger">*</span></label>
+            {{ form.theme }}
+            <div class="form-text">{{ form.theme.help_text }}</div>
+          </div>
+
+          <!-- Optional Story Details -->
+          <h6 class="text-muted mb-3">Story Details (Optional)</h6>
+
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_setting" class="form-label">Setting</label>
+              {{ form.setting }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_main_character" class="form-label">Main Character</label>
+              {{ form.main_character }}
+            </div>
+          </div>
+
+          <div class="row mb-4">
+            <div class="col-md-4">
+              <label for="id_tone" class="form-label">Tone</label>
+              {{ form.tone }}
+            </div>
+            <div class="col-md-4">
+              <label for="id_dialogue_level" class="form-label">Dialogue Level</label>
+              {{ form.dialogue_level }}
+            </div>
+            <div class="col-md-4">
+              <label for="id_style_profile" class="form-label">Style Profile</label>
+              {{ form.style_profile }}
+            </div>
+          </div>
+
+          <!-- Special Modes -->
+          <h6 class="text-muted mb-3">Special Modes</h6>
+
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <label for="id_ell_mode" class="form-label">ELL Support</label>
+              {{ form.ell_mode }}
+            </div>
+            <div class="col-md-6">
+              <div class="form-check mt-4">
+                {{ form.study_mode }}
+                <label class="form-check-label" for="id_study_mode">
+                  Enable Study Mode
+                </label>
+                <div class="form-text">{{ form.study_mode.help_text }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Options (Collapsible) -->
+          <div class="mb-4">
+            <a class="text-decoration-none" data-bs-toggle="collapse" href="#advancedOptions" role="button">
+              <i class="bi bi-gear me-1"></i>Advanced Vocabulary Options
+              <i class="bi bi-chevron-down"></i>
+            </a>
+            <div class="collapse mt-3" id="advancedOptions">
+              <div class="mb-3">
+                <label for="id_allowed_vocabulary" class="form-label">Allowed Vocabulary</label>
+                {{ form.allowed_vocabulary }}
+                <div class="form-text">{{ form.allowed_vocabulary.help_text }}</div>
+              </div>
+              <div class="mb-3">
+                <label for="id_restricted_vocabulary" class="form-label">Restricted Vocabulary</label>
+                {{ form.restricted_vocabulary }}
+                <div class="form-text">{{ form.restricted_vocabulary.help_text }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-magic me-2"></i>Generate Prompt
+            </button>
+            <a href="{% url 'core:story_create' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-pencil me-2"></i>Write Manually Instead
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transparency Panel (shows after generation) -->
+  {% if composed_prompt %}
+  <div class="col-12 col-lg-6">
+    <div class="card mb-4 border-success">
+      <div class="card-header bg-success text-white">
+        <i class="bi bi-check-circle me-2"></i>Generated Prompt
+      </div>
+      <div class="card-body">
+        <!-- Applied Rules Summary -->
+        <h6 class="mb-3">
+          <i class="bi bi-list-check me-2"></i>Applied Rules
+        </h6>
+
+        <div class="row mb-3">
+          <div class="col-6">
+            <small class="text-muted">Age Band:</small>
+            <div class="fw-bold">{{ generation_params.age_band }}</div>
+          </div>
+          <div class="col-6">
+            <small class="text-muted">Lexile Band:</small>
+            <div class="fw-bold">{{ generation_params.lexile_band }}</div>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-6">
+            <small class="text-muted">Genre:</small>
+            <div class="fw-bold">{{ generation_params.genre|title }}</div>
+          </div>
+          <div class="col-6">
+            <small class="text-muted">Word Count:</small>
+            <div class="fw-bold">{{ generation_params.word_count }} words</div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <small class="text-muted">Theme:</small>
+          <div class="fw-bold">{{ generation_params.theme }}</div>
+        </div>
+
+        <div class="mb-3">
+          <small class="text-muted">Profile Hash:</small>
+          <code>{{ composed_prompt.profile_hash }}</code>
+        </div>
+
+        <hr>
+
+        <!-- Prompt Preview -->
+        <h6 class="mb-3">
+          <i class="bi bi-file-text me-2"></i>Prompt Preview
+        </h6>
+
+        <div class="accordion mb-3" id="promptAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#systemPrompt">
+                System Message
+              </button>
+            </h2>
+            <div id="systemPrompt" class="accordion-collapse collapse" data-bs-parent="#promptAccordion">
+              <div class="accordion-body">
+                <pre class="bg-light p-3 small" style="white-space: pre-wrap;">{{ composed_prompt.system_message }}</pre>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#userPrompt">
+                User Prompt (Full Constraints)
+              </button>
+            </h2>
+            <div id="userPrompt" class="accordion-collapse collapse" data-bs-parent="#promptAccordion">
+              <div class="accordion-body">
+                <pre class="bg-light p-3 small" style="white-space: pre-wrap; max-height: 400px; overflow-y: auto;">{{ composed_prompt.user_prompt }}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="alert alert-info small mb-3">
+          <i class="bi bi-info-circle me-2"></i>
+          <strong>Note:</strong> This content is Lexile-aligned but not officially Lexile certified.
+          Reading levels are approximate and designed to match the target band.
+        </div>
+
+        <!-- Next Steps -->
+        <hr>
+        <h6 class="mb-3">
+          <i class="bi bi-arrow-right-circle me-2"></i>Next Steps
+        </h6>
+        <p class="small text-muted">
+          Copy the prompt above to use with your preferred AI service (ChatGPT, Claude, etc.),
+          then paste the generated story below for validation.
+        </p>
+
+        <form method="post" action="{% url 'core:story_generate_preview' %}">
+          {% csrf_token %}
+          <input type="hidden" name="lexile_band" value="{{ generation_params.lexile_band }}">
+          <input type="hidden" name="word_count" value="{{ generation_params.word_count }}">
+
+          <div class="mb-3">
+            <label for="story_text" class="form-label">Paste Generated Story</label>
+            <textarea name="story_text" id="story_text" class="form-control" rows="8"
+                      placeholder="Paste the AI-generated story here for validation..."></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-success">
+            <i class="bi bi-check2-square me-2"></i>Validate & Preview
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

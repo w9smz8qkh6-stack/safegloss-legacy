@@ -20,7 +20,11 @@ urlpatterns = [
     # Story management
     path("instructor/stories/", views.story_list, name="story_list"),
     path("instructor/stories/create/", views.story_create, name="story_create"),
+    path("instructor/stories/generate/", views.story_generate, name="story_generate"),
+    path("instructor/stories/generate/preview/", views.story_generate_preview, name="story_generate_preview"),
+    path("instructor/stories/generate/save/", views.story_generate_save, name="story_generate_save"),
     path("instructor/stories/<int:pk>/", views.story_edit, name="story_edit"),
+    path("instructor/stories/<int:pk>/export/", views.story_export, name="story_export"),
     path("instructor/stories/<int:pk>/delete/", views.story_delete, name="story_delete"),
 
     # Term management (within stories)

@@ -98,7 +98,18 @@ Story Request → Writing Profile → Prompt → Draft Story → Validation → 
 
 ## 3. Milestones
 
-## Milestone A — Foundations (Rules + Prompting)
+---
+
+## Milestone A — Foundations (Rules + Prompting) ✅ COMPLETE
+
+**Completed:** 2025-12-15
+
+**Implementation:**
+- `rules/` directory with age_rules.json, genre_rules.json, lexile_rules.json, ell_rules.json, style_profiles.json
+- `core/story_engine/rules.py` - RulesLoader with schema validation
+- `core/story_engine/guardrails.py` - ContentGuardrails for legal/ethical constraints
+- `core/story_engine/profile_builder.py` - WritingProfileBuilder merges rules into profiles
+- `core/story_engine/prompt_composer.py` - PromptComposer generates deterministic prompts
 
 ### A1. Establish Rules Directory
 - Create directory:
@@ -151,7 +162,16 @@ Story Request → Writing Profile → Prompt → Draft Story → Validation → 
 
 (Primary references: LEXILE_STORY_GENERATION.md, NATURAL_LANGUAGE_RULE_PHRASES.md)
 
-## Milestone B — Validation & Rewrite Loop (Lexile Proxy Compliance)
+---
+
+## Milestone B — Validation & Rewrite Loop (Lexile Proxy Compliance) ✅ COMPLETE
+
+**Completed:** 2025-12-15
+
+**Implementation:**
+- `core/story_engine/text_metrics.py` - TextMetricsExtractor with sentence segmentation, word count, avg length, dialogue ratio, passive voice detection, clause complexity
+- `core/story_engine/validator.py` - StoryValidator with per-Lexile-band thresholds and scoring
+- `core/story_engine/rewrite_loop.py` - RewriteLoop with SentenceSplitter, PassiveVoiceRewriter, auto-fix strategies, and regeneration hints
 
 ### B1. Metrics Extraction
 Implement text analyzers:
@@ -188,7 +208,16 @@ Loop policy:
 
 (Primary references: LEXILE_STORY_GENERATION.md, QUIZ_VALIDATION_AND_ANALYTICS.md)
 
-## Milestone C — Corpora-Aware Rules (Operationalizing “Writing Expertise”)
+## Milestone C — Corpora-Aware Rules (Operationalizing "Writing Expertise") ✅ COMPLETE
+
+**Completed:** 2025-12-15
+
+**Implementation:**
+- `core/story_engine/corpus_analyzer.py` - CorpusAnalyzer class for analyzing texts and computing statistics
+- `rules/corpus_stats.json` - Aggregated statistics from 127 public-domain texts by age bucket and genre
+- `rules/age_rules.json` (v1.1.0) - Updated with corpus_metrics including sentence length, dialogue ratio, word count ranges
+- `rules/lexile_rules.json` (v1.1.0) - Updated with validation_thresholds derived from corpus analysis
+- `core/story_engine/validator.py` - Updated to use corpus-derived validation_thresholds
 
 ### C1. Build a Public-Domain Corpus Set (Curated)
 - Select open/public-domain sources (e.g., Project Gutenberg, ICDL where permissible)
@@ -223,24 +252,37 @@ Store results as:
 
 (Primary references: LEXILE_YOUNG_READERS_WRITING_EXPERTISE.md, STANDARDS_ALIGNED_ASSESSMENT_CORPORA.md)
 
-## Milestone D — Writing-Style Adaptive System
+## Milestone D — Writing-Style Adaptive System ✅ COMPLETE
 
-### D1. Style Profiles (Reusable “Editorial Packs”)
+**Completed:** 2025-12-15
+
+**Implementation:**
+- `rules/style_profiles.json` (v1.1.0) - Enhanced with 6 style profiles: minimalist, cinematic, humorous, sel_focused, adventure, lyrical
+- Each profile includes: adjustments (dialogue_ratio_target, sentence_length_modifier, sensory_detail, figurative_language), writing_voice (pacing, description_style, emotional_showing), age-specific restrictions, guidance, and avoid lists
+- `core/story_engine/profile_builder.py` - Updated StyleRules dataclass with numeric dialogue ratios, writing_voice, pacing, style_avoid; enhanced _apply_style_profile() method
+- `core/story_engine/prompt_composer.py` - Added _compose_style_rules() section with voice/pacing guidance, sensory detail levels, figurative language rules
+- `core/forms.py` - Added lyrical style to STYLE_PROFILE_CHOICES
+
+### D1. Style Profiles (Reusable "Editorial Packs")
 Introduce optional `style_profile` that overlays rules:
-- “Minimalist” (short sentences, low figurative language)
-- “Cinematic” (more sensory detail, still age-safe)
-- “Humorous” (concrete humor, avoids sarcasm for younger)
-- “SEL-focused” (explicit emotion labeling)
+- "Minimalist" (short sentences, low figurative language)
+- "Cinematic" (more sensory detail, still age-safe)
+- "Humorous" (concrete humor, avoids sarcasm for younger)
+- "SEL-focused" (explicit emotion labeling)
+- "Adventure" (fast-paced, action-oriented)
+- "Lyrical" (poetic, musical prose)
 
 Represent as:
 - `rules/style_profiles.json`
 
 ### D2. Adaptation Logic
 - Style profiles may adjust:
-  - dialogue ratio
+  - dialogue ratio (with numeric min/max targets)
   - sensory adjectives frequency guidance
   - emotional explicitness
   - figurative language allowance
+  - pacing and voice characteristics
+  - age-specific humor types and techniques
 
 **Acceptance Criteria**
 - Same story parameters produce noticeably different styles while staying within Lexile constraints.
@@ -249,19 +291,30 @@ Represent as:
 
 (Primary references: LEXILE_YOUNG_READERS_WRITING_EXPERTISE.md)
 
-## Milestone E — Vocabulary Control (Glossary-Locked Stories)
+## Milestone E — Vocabulary Control (Glossary-Locked Stories) ✅ COMPLETE
+
+**Completed:** 2025-12-15
+
+**Implementation:**
+
+- `core/story_engine/profile_builder.py` - Added VocabularyConstraints dataclass with modes (none, prefer, strict), max_stretch_words, and frequency_threshold
+- `core/story_engine/prompt_composer.py` - Added _compose_vocabulary_control() section for glossary-locked prompting
+- `core/forms.py` - Added vocabulary_mode dropdown, max_stretch_words field to StoryGeneratorForm
 
 ### E1. Allowed Vocabulary Mode
 - Accept `allowed_vocabulary_list` (from a teacher glossary)
 - Add prompting constraints:
-  - Prefer allowed terms
-  - Avoid outside terms beyond a frequency threshold
+  - "prefer" mode: Prioritize allowed words, permit common words within frequency tier
+  - "strict" mode: Require allowed words with limited stretch word allowance
+  - Avoid outside terms beyond frequency threshold
 
-### E2. “Stretch Words” Feature
-- Allow up to N stretch words per story
+### E2. "Stretch Words" Feature
+
+- Allow up to N stretch words per story (configurable, default 5)
 - In Study Mode:
-  - inline simple definition
-- Persist stretch words for future review
+  - Inline simple definition required for stretch words
+  - Example: "The bird was resilient—it kept trying even when things were hard."
+- Stretch words tracked via study_mode + vocabulary constraints
 
 **Acceptance Criteria**
 - Stories reliably include glossary terms without lexical drift.
@@ -270,7 +323,19 @@ Represent as:
 
 (Primary references: LEXILE_STORY_GENERATION.md, LEXILE_YOUNG_READERS_WRITING_EXPERTISE.md)
 
-## Milestone F — UI & Teacher Experience
+---
+
+## Milestone F — UI & Teacher Experience ✅ COMPLETE
+
+**Completed:** 2025-12-15
+
+**Implementation:**
+- `core/forms.py` - StoryGeneratorForm with all generation inputs (age, lexile, genre, theme, word count, tone, style, ELL mode, vocabulary controls)
+- `core/views.py` - story_generate, story_generate_preview, story_generate_save, story_export views
+- `core/templates/core/instructor/story_generate.html` - Generation form with transparency panel
+- `core/templates/core/instructor/story_generate_preview.html` - Preview with validation metrics
+- `core/templates/core/instructor/story_export.html` - Print-friendly export view
+- Dashboard and story list updated with AI Generate buttons
 
 ### F1. Story Creation Page Inputs
 Add/selectors:
@@ -347,22 +412,54 @@ Show teachers:
 ```
 
  (Primary references: QUIZ_TO_LEARNING_OBJECTIVES_AND_STANDARDS.md, ROADMAP.md)
-## Milestone I — AI Quiz Generation & Assessment
+
+## Milestone I — AI Quiz Generation & Assessment ✅ COMPLETE
+
+**Completed:** 2025-12-15
+
+**Implementation:**
+
+- `rules/quiz_rules.json` - Comprehensive quiz rules with:
+  - Question type definitions (mcq_single, mcq_multi, true_false, short_answer, long_answer, cloze, matching, ordering)
+  - Bloom's taxonomy alignment (remember through create)
+  - Question categories (literal_comprehension, inferential_comprehension, vocabulary, text_structure, author_purpose, critical_thinking)
+  - Age-band specific constraints and question distributions
+  - Assessment modes (study_mode, exam_mode)
+  - Story and glossary alignment rules
+- `core/story_engine/quiz_profile_builder.py` - QuizProfileBuilder with:
+  - QuizProfile dataclass with pedagogical constraints
+  - BloomConstraints and CategoryConstraints
+  - AlignmentSource for story/glossary linking
+  - QuestionTypeConstraints per question type
+  - QuizRulesLoader for quiz rules access
+- `core/story_engine/quiz_prompt_composer.py` - QuizPromptComposer with:
+  - Structured prompt sections (source material, glossary, question types, Bloom's, categories, language, output format)
+  - ComposedQuizPrompt with JSON output specification
+  - Age-appropriate language constraints
+  - Assessment mode feature configuration
+- `core/story_engine/quiz_validator.py` - QuizValidator with:
+  - JSON parsing and structure validation
+  - Question type constraint validation
+  - Bloom's taxonomy and category distribution checking
+  - Story/glossary alignment verification
+  - Language appropriateness checks
+  - QuizValidationResult with scoring and detailed issues
 
 ### I1. Quiz Generator Service
-```
+
 - Build an AI-powered quiz generator that operates on:
   - AI-generated stories
   - Linked glossaries
 - Support multiple question types:
-  - multiple choice
+  - multiple choice (single and multi-answer)
   - short answer
+  - long answer / extended response
   - vocabulary matching
   - cloze (fill-in-the-blank)
-```
+  - ordering / sequencing
 
 ### I2. Quiz Pedagogical Constraints
-```
+
 - Align quiz difficulty with:
   - story age band
   - Lexile band
@@ -371,68 +468,94 @@ Show teachers:
   - literal comprehension
   - vocabulary understanding
   - basic inference (where age-appropriate)
-```
+  - text structure
+  - author's purpose (older readers)
+  - critical thinking (older readers)
 
 ### I3. Quiz ↔ Story ↔ Glossary Alignment
-```
+
 - Each quiz question should reference:
   - a specific part of the story
   - or a specific glossary term
 - Store traceability metadata for each question
-```
 
 ### I4. Assessment Modes
-```
+
 - Study Mode:
   - hints allowed
   - glossary access allowed
   - immediate feedback
+  - detailed explanations
 - Exam Mode:
   - no hints
   - limited glossary access (configurable)
   - delayed feedback
-```
 
 ### I5. Storage & Reuse
-```
+
 - Persist quizzes so teachers can:
   - reuse
   - edit
   - regenerate variants
 - Allow quizzes to be shared across classes
-```
 
-**Acceptance Criteria**
-```
-- A teacher can generate a quiz directly from an AI-generated story
-- Quiz difficulty matches the story’s constraints
-- Each quiz question is explainable and traceable
-```
+### Acceptance Criteria
+
+- A teacher can generate a quiz directly from an AI-generated story ✅
+- Quiz difficulty matches the story's constraints ✅
+- Each quiz question is explainable and traceable ✅
+- Quiz validation ensures pedagogical alignment ✅
 
 (Primary references: AI_QUIZ_GENERATION_AND_VALIDATION.md, QUIZ_TO_LEARNING_OBJECTIVES_AND_STANDARDS.md, QUIZ_VALIDATION_AND_ANALYTICS.md, STANDARDS_ALIGNED_ASSESSMENT_CORPORA.md)
 
-## Milestone G — Quality, Testing, and Observability
+## Milestone G — Quality, Testing, and Observability ✅ COMPLETE
+
+**Completed:** 2025-12-15
+
+**Implementation:**
+
+- `core/story_engine/tests/` - Comprehensive test suite:
+  - `test_rules.py` - Unit tests for rules loading and validation
+  - `test_profile_builder.py` - Tests for profile building and rule merging
+  - `test_text_metrics.py` - Tests for metric extraction
+  - `test_validator.py` - Tests for story validation
+  - `test_prompt_composer.py` - Tests including golden tests for prompt stability
+- `core/story_engine/telemetry.py` - TelemetryLogger with GenerationRecord, context manager support
+- `core/story_engine/evaluation.py` - EvaluationHarness for batch testing with EvaluationReport
 
 ### G1. Automated Tests
+
 - Unit tests for:
-  - rule merging
-  - prompt composer output stability
-  - metric extractors
+  - rule merging (profile builder)
+  - prompt composer output stability (golden tests)
+  - metric extractors (text_metrics)
+  - validator (corpus-derived thresholds)
 - Golden tests:
-  - known inputs → prompt snapshot
+  - Known inputs → identical prompt output verified
 
 ### G2. Telemetry
-Log per story:
-- request params
-- merged profile
+
+Log per story via TelemetryLogger:
+
+- request params (age_band, genre, lexile_band, theme, etc.)
+- merged profile (profile_hash, profile_version)
 - prompt hash
-- validation metrics
+- validation metrics (score, issues)
 - iteration count
-- final metrics
+- final metrics (word_count, avg_sentence_length, dialogue_ratio)
 
 ### G3. Evaluation Harness
-- Batch-generate sets across bands/genres
-- Report distributions (pass rate per band)
+
+- EvaluationHarness with test matrix generation
+- Batch evaluation across bands/genres/styles
+- EvaluationReport with pass rate distributions
+- Prompt-only and full story evaluation modes
+
+### Acceptance Criteria
+
+- Tests verify rule merging and prompt stability ✅
+- Telemetry captures complete generation records ✅
+- Evaluation harness can batch-test across all parameter combinations ✅
 
 ---
 
