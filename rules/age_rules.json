@@ -1,0 +1,119 @@
+{
+  "$schema": "age_rules_schema.json",
+  "description": "Age-based developmental writing rules for young readers",
+  "version": "1.0.0",
+  "rules": {
+    "6-8": {
+      "label": "Early Readers (Ages 6-8)",
+      "lexile_range": "300-450L",
+      "narrative": {
+        "max_characters": 1,
+        "conflict_count": 1,
+        "timeline": "linear",
+        "emotion_expression": "explicit",
+        "inference_level": "none",
+        "moral_clarity": "stated",
+        "flashbacks": false
+      },
+      "cognitive": {
+        "cause_effect": "explicit",
+        "internal_thoughts": false,
+        "subplots": false,
+        "dialogue_purpose": "simple_exchange"
+      },
+      "guidance": [
+        "Use only one main character",
+        "Focus on a single, clear problem",
+        "Events must occur in the order they happen",
+        "Name all emotions directly",
+        "State cause and effect explicitly",
+        "No flashbacks or time jumps",
+        "State the lesson clearly at the end"
+      ]
+    },
+    "8-10": {
+      "label": "Developing Readers (Ages 8-10)",
+      "lexile_range": "450-600L",
+      "narrative": {
+        "max_characters": 2,
+        "conflict_count": 1,
+        "timeline": "linear",
+        "emotion_expression": "explicit",
+        "inference_level": "low",
+        "moral_clarity": "clear",
+        "flashbacks": false
+      },
+      "cognitive": {
+        "cause_effect": "explicit",
+        "internal_thoughts": "limited",
+        "subplots": false,
+        "dialogue_purpose": "advances_plot"
+      },
+      "guidance": [
+        "Use no more than two main characters",
+        "Keep character roles clearly distinct",
+        "Focus on one clear external goal",
+        "Limited internal thoughts allowed",
+        "Dialogue should advance the plot",
+        "Minimal inference required",
+        "Make the lesson clear through the outcome"
+      ]
+    },
+    "10-12": {
+      "label": "Transitional Readers (Ages 10-12)",
+      "lexile_range": "600-800L",
+      "narrative": {
+        "max_characters": 2,
+        "conflict_count": 2,
+        "timeline": "mostly_linear",
+        "emotion_expression": "mixed",
+        "inference_level": "moderate",
+        "moral_clarity": "implied",
+        "flashbacks": "rare"
+      },
+      "cognitive": {
+        "cause_effect": "mostly_explicit",
+        "internal_thoughts": true,
+        "subplots": "minimal",
+        "dialogue_purpose": "carries_meaning"
+      },
+      "guidance": [
+        "Two main characters allowed",
+        "Internal thoughts and feelings permitted",
+        "Mild inference allowed but resolved by end",
+        "Minimal subplots if any",
+        "Dialogue carries deeper meaning",
+        "Moral may be implied but should be understandable",
+        "Brief flashbacks allowed if clearly signposted"
+      ]
+    },
+    "12-14": {
+      "label": "Advanced Young Readers (Ages 12-14)",
+      "lexile_range": "800-1050L",
+      "narrative": {
+        "max_characters": 3,
+        "conflict_count": 2,
+        "timeline": "flexible",
+        "emotion_expression": "implicit",
+        "inference_level": "high",
+        "moral_clarity": "implicit",
+        "flashbacks": true
+      },
+      "cognitive": {
+        "cause_effect": "can_be_inferred",
+        "internal_thoughts": true,
+        "subplots": "allowed",
+        "dialogue_purpose": "multifunctional"
+      },
+      "guidance": [
+        "Up to three main characters allowed",
+        "Complex internal worlds permitted",
+        "Readers may infer meaning without explicit explanation",
+        "Subplots allowed if they connect to main story",
+        "Dialogue can serve multiple purposes",
+        "Moral does not need to be stated explicitly",
+        "Nonlinear storytelling allowed if clear"
+      ]
+    }
+  }
+}

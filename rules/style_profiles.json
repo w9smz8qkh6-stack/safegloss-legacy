@@ -1,0 +1,123 @@
+{
+  "$schema": "style_profiles_schema.json",
+  "description": "Reusable editorial style packs that overlay base rules",
+  "version": "1.0.0",
+  "profiles": {
+    "minimalist": {
+      "label": "Minimalist",
+      "description": "Clean, direct prose with short sentences",
+      "adjustments": {
+        "sentence_length_modifier": -2,
+        "dialogue_ratio": "low",
+        "sensory_detail": "sparse",
+        "figurative_language": "none",
+        "adjective_density": "low"
+      },
+      "guidance": [
+        "Use short, direct sentences",
+        "Minimize adjectives and adverbs",
+        "Avoid figurative language",
+        "Focus on action and dialogue",
+        "Let actions speak for themselves"
+      ]
+    },
+    "cinematic": {
+      "label": "Cinematic",
+      "description": "Visually rich prose with sensory detail",
+      "adjustments": {
+        "sentence_length_modifier": 0,
+        "dialogue_ratio": "medium",
+        "sensory_detail": "rich",
+        "figurative_language": "simple",
+        "adjective_density": "moderate"
+      },
+      "guidance": [
+        "Include visual and sensory details",
+        "Describe settings vividly",
+        "Use action verbs that create mental images",
+        "Include sound, smell, and texture when relevant",
+        "Simple similes allowed (like, as)"
+      ]
+    },
+    "humorous": {
+      "label": "Humorous",
+      "description": "Light, playful tone with age-appropriate humor",
+      "adjustments": {
+        "sentence_length_modifier": -1,
+        "dialogue_ratio": "high",
+        "sensory_detail": "selective",
+        "figurative_language": "playful",
+        "adjective_density": "moderate"
+      },
+      "guidance": [
+        "Use concrete, situational humor",
+        "Avoid sarcasm for younger ages",
+        "Include funny dialogue",
+        "Use exaggeration appropriately",
+        "Physical comedy over wordplay for younger readers"
+      ],
+      "age_restrictions": {
+        "6-8": {
+          "humor_types": ["physical", "silly", "surprise", "repetition"],
+          "avoid": ["sarcasm", "irony", "wordplay"]
+        },
+        "8-10": {
+          "humor_types": ["physical", "silly", "surprise", "simple_wordplay"],
+          "avoid": ["sarcasm", "complex_irony"]
+        },
+        "10-12": {
+          "humor_types": ["situational", "wordplay", "character", "mild_sarcasm"],
+          "avoid": ["dark_humor", "adult_references"]
+        },
+        "12-14": {
+          "humor_types": ["situational", "wordplay", "character", "irony", "satire"],
+          "avoid": ["dark_humor", "inappropriate_content"]
+        }
+      }
+    },
+    "sel_focused": {
+      "label": "SEL-Focused",
+      "description": "Social-emotional learning emphasis with explicit emotion labeling",
+      "adjustments": {
+        "sentence_length_modifier": 0,
+        "dialogue_ratio": "medium",
+        "sensory_detail": "moderate",
+        "figurative_language": "emotion_metaphors",
+        "adjective_density": "emotion_focused"
+      },
+      "guidance": [
+        "Name emotions explicitly",
+        "Show characters recognizing their feelings",
+        "Include moments of emotional regulation",
+        "Model empathy and perspective-taking",
+        "Demonstrate healthy coping strategies",
+        "Include reflection on feelings"
+      ],
+      "sel_competencies": {
+        "self_awareness": "Characters identify and name their emotions",
+        "self_management": "Characters use strategies to manage strong feelings",
+        "social_awareness": "Characters consider others' perspectives",
+        "relationship_skills": "Characters communicate effectively and resolve conflicts",
+        "responsible_decision_making": "Characters consider consequences before acting"
+      }
+    },
+    "adventure": {
+      "label": "Adventure",
+      "description": "Fast-paced, action-oriented storytelling",
+      "adjustments": {
+        "sentence_length_modifier": -1,
+        "dialogue_ratio": "medium",
+        "sensory_detail": "action_focused",
+        "figurative_language": "minimal",
+        "adjective_density": "action_verbs"
+      },
+      "guidance": [
+        "Keep the pace moving",
+        "Use strong action verbs",
+        "Include moments of tension and release",
+        "Short paragraphs during action sequences",
+        "Vary sentence length for rhythm"
+      ]
+    }
+  }
+}

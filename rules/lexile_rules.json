@@ -1,0 +1,192 @@
+{
+  "$schema": "lexile_rules_schema.json",
+  "description": "Lexile band to linguistic constraint mappings",
+  "version": "1.0.0",
+  "disclaimer": "Lexile is a proprietary measure. These rules produce Lexile-aligned content, not certified Lexile scores.",
+  "approved_phrasing": [
+    "Lexile-aligned",
+    "Designed for readers around {band}",
+    "Reading difficulty approximately equivalent to {band}"
+  ],
+  "prohibited_phrasing": [
+    "Lexile certified",
+    "Official Lexile score",
+    "Lexile rated"
+  ],
+  "bands": {
+    "300-400L": {
+      "label": "Beginning Reader",
+      "typical_age": "6-7",
+      "typical_grade": "1-2",
+      "sentence": {
+        "avg_length": {"min": 6, "max": 9},
+        "types": ["simple"],
+        "max_clauses": 0
+      },
+      "vocabulary": {
+        "level": "very_common",
+        "abstract_nouns": false,
+        "academic_terms": false,
+        "frequency_tier": "top_1000"
+      },
+      "grammar": {
+        "passive_voice": false,
+        "nested_clauses": false,
+        "parentheticals": false,
+        "appositives": false
+      },
+      "guidance": [
+        "Use only simple sentences",
+        "Average 6-9 words per sentence",
+        "Use only very common, everyday words",
+        "No dependent clauses",
+        "No passive voice"
+      ]
+    },
+    "400-500L": {
+      "label": "Early Elementary",
+      "typical_age": "7-8",
+      "typical_grade": "2-3",
+      "sentence": {
+        "avg_length": {"min": 8, "max": 11},
+        "types": ["simple"],
+        "max_clauses": 1
+      },
+      "vocabulary": {
+        "level": "common",
+        "abstract_nouns": "rare",
+        "academic_terms": false,
+        "frequency_tier": "top_2000"
+      },
+      "grammar": {
+        "passive_voice": false,
+        "nested_clauses": false,
+        "parentheticals": false,
+        "appositives": false
+      },
+      "guidance": [
+        "Use simple sentences",
+        "Average 8-11 words per sentence",
+        "Occasional dependent clause allowed",
+        "Use common spoken English words",
+        "No passive voice"
+      ]
+    },
+    "500-600L": {
+      "label": "Elementary",
+      "typical_age": "8-9",
+      "typical_grade": "3-4",
+      "sentence": {
+        "avg_length": {"min": 10, "max": 13},
+        "types": ["simple", "compound"],
+        "max_clauses": 1
+      },
+      "vocabulary": {
+        "level": "mostly_common",
+        "abstract_nouns": "occasional",
+        "academic_terms": "rare",
+        "frequency_tier": "top_3000"
+      },
+      "grammar": {
+        "passive_voice": "avoid",
+        "nested_clauses": false,
+        "parentheticals": false,
+        "appositives": false
+      },
+      "guidance": [
+        "Use simple and compound sentences",
+        "Average 10-13 words per sentence",
+        "Limit dependent clauses to one per sentence",
+        "Use mostly common words",
+        "Avoid passive voice"
+      ]
+    },
+    "600-700L": {
+      "label": "Upper Elementary",
+      "typical_age": "9-10",
+      "typical_grade": "4-5",
+      "sentence": {
+        "avg_length": {"min": 11, "max": 14},
+        "types": ["simple", "compound"],
+        "max_clauses": 1
+      },
+      "vocabulary": {
+        "level": "mostly_common",
+        "abstract_nouns": "allowed",
+        "academic_terms": "some",
+        "frequency_tier": "top_4000"
+      },
+      "grammar": {
+        "passive_voice": "rare",
+        "nested_clauses": false,
+        "parentheticals": false,
+        "appositives": "rare"
+      },
+      "guidance": [
+        "Use simple and compound sentences",
+        "Average 11-14 words per sentence",
+        "Few dependent clauses",
+        "Some academic vocabulary allowed",
+        "Minimize passive voice"
+      ]
+    },
+    "700-900L": {
+      "label": "Middle School",
+      "typical_age": "10-12",
+      "typical_grade": "5-7",
+      "sentence": {
+        "avg_length": {"min": 13, "max": 17},
+        "types": ["simple", "compound", "complex"],
+        "max_clauses": 2
+      },
+      "vocabulary": {
+        "level": "mixed",
+        "abstract_nouns": "allowed",
+        "academic_terms": "moderate",
+        "frequency_tier": "top_6000"
+      },
+      "grammar": {
+        "passive_voice": "occasional",
+        "nested_clauses": "rare",
+        "parentheticals": "occasional",
+        "appositives": "occasional"
+      },
+      "guidance": [
+        "Use compound sentences",
+        "Average 13-17 words per sentence",
+        "Moderate dependent clauses",
+        "Mixed vocabulary including academic",
+        "Occasional passive voice acceptable"
+      ]
+    },
+    "900-1100L": {
+      "label": "Advanced Middle School",
+      "typical_age": "12-14",
+      "typical_grade": "7-9",
+      "sentence": {
+        "avg_length": {"min": 16, "max": 20},
+        "types": ["simple", "compound", "complex"],
+        "max_clauses": 2
+      },
+      "vocabulary": {
+        "level": "academic_allowed",
+        "abstract_nouns": "regular",
+        "academic_terms": "regular",
+        "frequency_tier": "top_8000"
+      },
+      "grammar": {
+        "passive_voice": "allowed",
+        "nested_clauses": "occasional",
+        "parentheticals": "allowed",
+        "appositives": "allowed"
+      },
+      "guidance": [
+        "Complex sentences allowed",
+        "Average 16-20 words per sentence",
+        "Regular dependent clauses",
+        "Academic vocabulary allowed",
+        "Passive voice acceptable when appropriate"
+      ]
+    }
+  }
+}
