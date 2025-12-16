@@ -7,19 +7,120 @@
   .filter-section {
     background: #f8f9fa;
     border-radius: 0.5rem;
-    padding: 1.5rem;
+    padding: 1rem;
   }
-  .filter-group {
-    margin-bottom: 1rem;
+  /* Hierarchical Tree Filter */
+  .filter-tree {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: white;
   }
-  .filter-group:last-child {
-    margin-bottom: 0;
+  .tree-node {
+    border-bottom: 1px solid #e9ecef;
   }
-  .filter-label {
-    font-weight: 600;
-    margin-bottom: 0.5rem;
+  .tree-node:last-child {
+    border-bottom: none;
+  }
+  .tree-node-header {
+    display: flex;
+    align-items: center;
+    padding: 0.6rem 0.75rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    gap: 0.5rem;
+  }
+  .tree-node-header:hover {
+    background: #f0f4f8;
+  }
+  .tree-node.selected > .tree-node-header {
+    background: #e7f1ff;
+  }
+  .tree-node.expanded > .tree-node-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+  }
+  .tree-expand-icon {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: #6c757d;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  .tree-node.expanded > .tree-node-header .tree-expand-icon {
+    transform: rotate(90deg);
+  }
+  .tree-node-checkbox {
+    flex-shrink: 0;
+  }
+  .tree-node-label {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #212529;
+  }
+  .tree-node-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    background: #e9ecef;
+    color: #495057;
+  }
+  .tree-node-children {
+    display: none;
+    padding-left: 1.25rem;
+    background: #fafbfc;
+    border-top: 1px solid #e9ecef;
+  }
+  .tree-node.expanded > .tree-node-children {
     display: block;
   }
+  /* Depth styling */
+  .tree-depth-0 > .tree-node-header { padding-left: 0.75rem; }
+  .tree-depth-1 > .tree-node-header { font-weight: 400; }
+  .tree-depth-1 > .tree-node-header .tree-node-label { color: #495057; }
+  .tree-depth-2 > .tree-node-header { font-weight: 400; font-size: 0.85rem; }
+  .tree-depth-2 > .tree-node-header .tree-node-label { color: #6c757d; }
+  .tree-depth-3 > .tree-node-header { font-size: 0.8rem; }
+  /* Authority icons */
+  .tree-node-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+  }
+  .tree-node-icon.authority { background: #0d6efd; color: white; }
+  .tree-node-icon.program { background: #198754; color: white; }
+  .tree-node-icon.grade { background: #6f42c1; color: white; }
+  .tree-node-icon.subject { background: #fd7e14; color: white; }
+  .tree-node-icon.course { background: #20c997; color: white; }
+  /* Selection summary */
+  .selection-summary {
+    background: #e7f1ff;
+    border: 1px solid #b6d4fe;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+  }
+  .selection-summary .badge {
+    font-weight: 500;
+  }
+  /* Loading state */
+  .tree-loading {
+    padding: 0.5rem 0.75rem;
+    color: #6c757d;
+    font-size: 0.85rem;
+  }
+  /* Legacy - keep for other parts */
   .checkbox-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -158,18 +259,11 @@
   .resource-tier-header:hover {
     opacity: 0.9;
   }
-  .resource-tier-official .resource-tier-header {
-    background: linear-gradient(135deg, #198754 0%, #157347 100%);
-    color: white;
-  }
-  .resource-tier-recommended .resource-tier-header {
-    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
-    color: white;
-  }
-  .resource-tier-commonly_used .resource-tier-header {
-    background: linear-gradient(135deg, #6c757d 0%, #5c636a 100%);
-    color: white;
-  }
+  .resource-tier-official .resource-tier-header { background: linear-gradient(135deg, #198754 0%, #157347 100%); color: white; }
+  .resource-tier-endorsed .resource-tier-header { background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%); color: white; }
+  .resource-tier-non_textbook .resource-tier-header { background: linear-gradient(135deg, #fd7e14 0%, #e36414 100%); color: white; }
+  .resource-tier-offering .resource-tier-header { background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%); color: white; }
+  .resource-tier-youtube .resource-tier-header { background: linear-gradient(135deg, #dc3545 0%, #b52a38 100%); color: white; }
   .resource-tier-content {
     background: white;
     padding: 0.5rem;
@@ -230,6 +324,29 @@
     font-size: 0.7rem;
     color: #198754;
     font-style: italic;
+  }
+  .resource-badges {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-top: 0.15rem;
+  }
+  .audience-badge {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.2rem;
+    background: #e9ecef;
+    color: #495057;
+  }
+  .audience-badge.student { background: #d1e7dd; color: #0f5132; }
+  .audience-badge.teacher { background: #e2d9f3; color: #2d1b69; }
+  .audience-badge.both { background: #cfe2ff; color: #084298; }
+  .companion-badge {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.2rem;
+    background: #ffe8a1;
+    color: #664d03;
   }
   .resource-tier-header .collapse-icon {
     transition: transform 0.2s;
@@ -313,6 +430,221 @@
   .document-card:last-child {
     margin-bottom: 0;
   }
+  /* Course Document Cards */
+  .course-document {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    background: white;
+    overflow: hidden;
+  }
+  .course-document.expanded {
+    box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.1);
+  }
+  .course-header {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+    border-bottom: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  .course-header:hover {
+    background: linear-gradient(135deg, #e9ecef 0%, #f8f9fa 100%);
+  }
+  .course-document.expanded .course-header {
+    border-bottom-color: #dee2e6;
+    background: #f8f9fa;
+  }
+  .course-code {
+    font-family: monospace;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #0d6efd;
+    background: #e7f1ff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    margin-right: 0.75rem;
+    flex-shrink: 0;
+  }
+  .course-title {
+    flex: 1;
+    font-weight: 500;
+    color: #212529;
+  }
+  .course-meta {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-left: auto;
+  }
+  .course-expand-icon {
+    margin-left: 0.5rem;
+    transition: transform 0.2s;
+    color: #6c757d;
+  }
+  .course-document.expanded .course-expand-icon {
+    transform: rotate(180deg);
+  }
+  .course-body {
+    display: none;
+    padding: 0;
+  }
+  .course-document.expanded .course-body {
+    display: block;
+  }
+  /* Course Tabs */
+  .course-tabs {
+    border-bottom: 1px solid #dee2e6;
+    background: #f8f9fa;
+    padding: 0 1rem;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .course-tab {
+    padding: 0.75rem 1rem;
+    border: none;
+    background: none;
+    color: #6c757d;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .course-tab:hover {
+    color: #495057;
+    background: rgba(0,0,0,0.03);
+  }
+  .course-tab.active {
+    color: #0d6efd;
+    border-bottom-color: #0d6efd;
+    background: white;
+  }
+  .course-tab i {
+    margin-right: 0.35rem;
+  }
+  .course-tab-content {
+    padding: 1.25rem;
+    min-height: 150px;
+  }
+  .course-tab-pane {
+    display: none;
+  }
+  .course-tab-pane.active {
+    display: block;
+  }
+  .tab-placeholder {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+  }
+  .tab-placeholder i {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+    display: block;
+    opacity: 0.5;
+  }
+  .tab-placeholder h6 {
+    margin-bottom: 0.5rem;
+    color: #495057;
+  }
+  .tab-placeholder p {
+    margin: 0;
+    font-size: 0.875rem;
+  }
+  /* Tab-specific accent colors */
+  .course-tab[data-tab="overview"].active { color: #0dcaf0; border-bottom-color: #0dcaf0; }
+  .course-tab[data-tab="syllabus"].active,
+  .course-tab[data-tab="subject_guide"].active,
+  .course-tab[data-tab="ced"].active,
+  .course-tab[data-tab="legal"].active { color: #dc3545; border-bottom-color: #dc3545; }
+  .course-tab[data-tab="objectives"].active { color: #198754; border-bottom-color: #198754; }
+  .course-tab[data-tab="scheme"].active,
+  .course-tab[data-tab="state_board"].active { color: #0d6efd; border-bottom-color: #0d6efd; }
+  .course-tab[data-tab="official_resources"].active { color: #6f42c1; border-bottom-color: #6f42c1; }
+  .course-tab[data-tab="unofficial_resources"].active { color: #fd7e14; border-bottom-color: #fd7e14; }
+  .course-tab[data-tab="examinations"].active,
+  .course-tab[data-tab="tests"].active,
+  .course-tab[data-tab="access_assessment"].active { color: #20c997; border-bottom-color: #20c997; }
+  .course-tab[data-tab="language_expectations"].active { color: #e83e8c; border-bottom-color: #e83e8c; }
+  .course-tab[data-tab="proficiency_levels"].active,
+  .course-tab[data-tab="cefr_levels"].active { color: #17a2b8; border-bottom-color: #17a2b8; }
+  .course-tab[data-tab="key_language_uses"].active { color: #6610f2; border-bottom-color: #6610f2; }
+  .course-tab[data-tab="course_content"].active { color: #dc3545; border-bottom-color: #dc3545; }
+  .course-tab[data-tab="assessment"].active { color: #20c997; border-bottom-color: #20c997; }
+  .course-tab[data-tab="test_format"].active { color: #e83e8c; border-bottom-color: #e83e8c; }
+  .course-tab[data-tab="scoring"].active { color: #fd7e14; border-bottom-color: #fd7e14; }
+  .course-tab[data-tab="preparation"].active { color: #6f42c1; border-bottom-color: #6f42c1; }
+  .course-tab[data-tab="registration"].active { color: #0d6efd; border-bottom-color: #0d6efd; }
+  .course-tab[data-tab="curriculum_standards"].active { color: #dc3545; border-bottom-color: #dc3545; }
+  .course-tab[data-tab="textbooks"].active { color: #6f42c1; border-bottom-color: #6f42c1; }
+  .course-tab[data-tab="national_exams"].active { color: #20c997; border-bottom-color: #20c997; }
+  /* Overview tab content styling */
+  .overview-content {
+    text-align: left;
+  }
+  .overview-content .overview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e9ecef;
+  }
+  .overview-content .overview-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  .overview-content .overview-code {
+    font-family: monospace;
+    color: #0d6efd;
+    font-size: 0.9rem;
+  }
+  .overview-content .overview-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  .overview-content .meta-item {
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    border-left: 3px solid #0d6efd;
+  }
+  .overview-content .meta-label {
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.25rem;
+  }
+  .overview-content .meta-value {
+    font-weight: 500;
+    color: #212529;
+  }
+  .overview-content .meta-value a {
+    color: #0d6efd;
+    word-break: break-all;
+  }
+  .overview-content .meta-value a:hover {
+    text-decoration: underline !important;
+  }
+  .overview-content .overview-description {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    border-left: 3px solid #0dcaf0;
+  }
+  .overview-content .overview-description p {
+    color: #495057;
+    line-height: 1.6;
+  }
 </style>
 {% endblock %}
 
@@ -345,83 +677,44 @@
   <!-- Filters Panel -->
   <div class="col-lg-4 col-xl-3 mb-4">
     <div class="filter-section">
-      <h5 class="mb-3"><i class="bi bi-funnel me-2"></i>Filters</h5>
+      <h5 class="mb-3"><i class="bi bi-funnel me-2"></i>Standards Browser</h5>
 
-      <!-- Authority Filter -->
-      <div class="filter-group">
-        <label class="filter-label">
-          <i class="bi bi-building me-1"></i>Authority
-        </label>
-        <div id="authority-list" class="checkbox-grid">
-          {% for auth in authorities %}
-          <div class="checkbox-item d-flex flex-column">
-            <label class="d-flex align-items-center mb-0">
-              <input type="checkbox" class="form-check-input me-2 authority-checkbox"
-                     value="{{ auth.pk }}" data-code="{{ auth.code }}">
-              <span class="small">{{ auth.name }}</span>
-            </label>
-            <div class="sync-btn-group">
-              <button type="button" class="btn btn-outline-primary sync-btn btn-sync-objectives"
-                      data-authority-id="{{ auth.pk }}" title="Sync learning objectives">
-                <i class="bi bi-arrow-repeat"></i> Objectives
-              </button>
-              <button type="button" class="btn btn-outline-secondary sync-btn btn-sync-resources"
-                      data-authority-id="{{ auth.pk }}" title="Sync supporting resources">
-                <i class="bi bi-book"></i> Resources
-              </button>
+      <!-- Hierarchical Tree Filter -->
+      <div id="filter-tree" class="filter-tree">
+        {% for auth in authorities %}
+        <div class="tree-node tree-depth-0" data-type="authority" data-id="{{ auth.pk }}" data-code="{{ auth.code }}">
+          <div class="tree-node-header">
+            <span class="tree-expand-icon"><i class="bi bi-chevron-right"></i></span>
+            <input type="checkbox" class="form-check-input tree-node-checkbox authority-checkbox"
+                   value="{{ auth.pk }}" data-code="{{ auth.code }}">
+            <span class="tree-node-icon authority"><i class="bi bi-building"></i></span>
+            <span class="tree-node-label">{{ auth.name }}</span>
+          </div>
+          <div class="tree-node-children" data-loaded="false">
+            <div class="tree-loading">
+              <i class="bi bi-arrow-repeat spin me-1"></i>Click to load programs...
             </div>
           </div>
-          {% empty %}
-          <p class="text-muted small mb-0">No authorities available</p>
-          {% endfor %}
         </div>
+        {% empty %}
+        <div class="text-muted small p-3">No standards authorities available</div>
+        {% endfor %}
       </div>
 
-      <!-- Program Filter -->
-      <div class="filter-group">
-        <label class="filter-label">
-          <i class="bi bi-diagram-3 me-1"></i>Program
-        </label>
-        <div id="program-list" class="checkbox-grid">
-          <p class="text-muted small mb-0">Select an authority first</p>
-        </div>
-      </div>
-
-      <!-- Grade Filter -->
-      <div class="filter-group">
-        <label class="filter-label">
-          <i class="bi bi-mortarboard me-1"></i>Grade Level
-        </label>
-        <div id="grade-list" class="checkbox-grid">
-          <p class="text-muted small mb-0">Select a program first</p>
-        </div>
-      </div>
-
-      <!-- Subject Filter -->
-      <div class="filter-group">
-        <label class="filter-label">
-          <i class="bi bi-book me-1"></i>Subject
-        </label>
-        <div id="subject-list" class="checkbox-grid">
-          <p class="text-muted small mb-0">Select a program first</p>
-        </div>
-      </div>
-
-      <!-- Course Filter -->
-      <div class="filter-group">
-        <label class="filter-label">
-          <i class="bi bi-journal-text me-1"></i>Course
-          <small class="text-muted fw-normal">(optional)</small>
-        </label>
-        <div id="course-list" class="checkbox-grid" style="max-height: 250px; overflow-y: auto;">
-          <p class="text-muted small mb-0">Select a subject to filter courses</p>
+      <!-- Selection Summary -->
+      <div id="selection-summary" class="selection-summary d-none">
+        <div class="d-flex justify-content-between align-items-center">
+          <span id="selection-text">No selection</span>
+          <button type="button" class="btn btn-sm btn-link p-0 text-danger" id="clear-selection">
+            <i class="bi bi-x-circle"></i>
+          </button>
         </div>
       </div>
 
       <hr class="my-3">
 
       <!-- Options -->
-      <div class="filter-group">
+      <div class="mb-3">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="show-internal-codes" checked>
           <label class="form-check-label small" for="show-internal-codes">
@@ -430,8 +723,8 @@
         </div>
       </div>
 
-      <button id="search-btn" class="btn btn-primary w-100 mt-3">
-        <i class="bi bi-search me-2"></i>Search Standards
+      <button id="search-btn" class="btn btn-primary w-100">
+        <i class="bi bi-journal-text me-2"></i>Browse Courses
       </button>
     </div>
   </div>
@@ -440,9 +733,9 @@
   <div class="col-lg-8 col-xl-9">
     <div id="results-container">
       <div class="empty-state">
-        <i class="bi bi-search fs-1 d-block mb-3"></i>
-        <h5>Search for Standards</h5>
-        <p class="mb-0">Select filters on the left and click "Search Standards" to view learning objectives.</p>
+        <i class="bi bi-journal-text fs-1 d-block mb-3"></i>
+        <h5>Browse Course Catalog</h5>
+        <p class="mb-0">Select filters on the left and click "Browse Courses" to view available courses.</p>
       </div>
     </div>
   </div>
@@ -454,216 +747,411 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const authorityCheckboxes = document.querySelectorAll('.authority-checkbox');
-  const programList = document.getElementById('program-list');
-  const gradeList = document.getElementById('grade-list');
-  const subjectList = document.getElementById('subject-list');
-  const courseList = document.getElementById('course-list');
+  const filterTree = document.getElementById('filter-tree');
   const resultsContainer = document.getElementById('results-container');
   const searchBtn = document.getElementById('search-btn');
   const showInternalCodes = document.getElementById('show-internal-codes');
+  const selectionSummary = document.getElementById('selection-summary');
+  const selectionText = document.getElementById('selection-text');
+  const clearSelectionBtn = document.getElementById('clear-selection');
 
   // Track selections
-  let selectedAuthorities = [];
   let selectedPrograms = [];
   let selectedGrades = [];
   let selectedSubjects = [];
   let selectedCourses = [];
 
-  // Authority selection change
-  authorityCheckboxes.forEach(cb => {
-    cb.addEventListener('change', function() {
-      this.closest('.checkbox-item').classList.toggle('selected', this.checked);
-      selectedAuthorities = Array.from(document.querySelectorAll('.authority-checkbox:checked'))
-        .map(c => c.value);
-      loadPrograms();
-    });
-  });
+  // =====================
+  // Tree Node Handlers
+  // =====================
 
-  // Load programs for selected authorities
-  async function loadPrograms() {
-    if (selectedAuthorities.length === 0) {
-      programList.innerHTML = '<p class="text-muted small mb-0">Select an authority first</p>';
-      gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
-      subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
-      courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
-      selectedPrograms = [];
-      selectedGrades = [];
-      selectedSubjects = [];
-      selectedCourses = [];
+  // Handle click on tree node header (expand/collapse)
+  filterTree.addEventListener('click', async function(e) {
+    const header = e.target.closest('.tree-node-header');
+    if (!header) return;
+
+    const node = header.closest('.tree-node');
+    const checkbox = header.querySelector('.tree-node-checkbox');
+
+    // If clicking on checkbox, handle selection
+    if (e.target.closest('.tree-node-checkbox')) {
+      handleCheckboxChange(node, checkbox);
       return;
     }
 
-    programList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
+    // Otherwise toggle expand/collapse
+    await toggleNode(node);
+  });
 
-    const params = selectedAuthorities.map(id => `authorities=${id}`).join('&');
-    const response = await fetch(`{% url 'core:standards_api_programs' %}?${params}`);
+  // Toggle expand/collapse of a node
+  async function toggleNode(node) {
+    const isExpanded = node.classList.contains('expanded');
+    const childrenContainer = node.querySelector('.tree-node-children');
+    const isLoaded = childrenContainer?.dataset.loaded === 'true';
+
+    if (isExpanded) {
+      node.classList.remove('expanded');
+    } else {
+      node.classList.add('expanded');
+      // Load children if not yet loaded
+      if (childrenContainer && !isLoaded) {
+        await loadChildren(node, childrenContainer);
+      }
+    }
+  }
+
+  async function triggerObjectiveSync(doc, courseCard) {
+    const objectivesPane = courseCard.querySelector('[data-pane="objectives"]');
+    if (objectivesPane) {
+      objectivesPane.innerHTML = `
+        <div class="text-center py-3">
+          <span class="spinner-border spinner-border-sm"></span>
+          <p class="small mt-2 mb-0">Fetching syllabus and objectives...</p>
+        </div>`;
+    }
+    try {
+      const response = await fetch('{% url "core:standards_api_sync_objectives" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': csrfToken,
+        },
+        body: `authority_id=${doc.authority_id}&document_id=${doc.id}&syllabus_url=${encodeURIComponent(doc.source_url || '')}`
+      });
+      const data = await response.json();
+      if (data.error) {
+        showToast(data.error, 'error');
+        return;
+      }
+      // Poll job, then load objective tree
+      pollJobStatus(data.job_id, courseCard.querySelector('.course-header'), async () => {
+        const [tree, assets] = await Promise.all([
+          fetchObjectiveTree(doc.id),
+          fetchCambridgeAssets(doc.id)
+        ]);
+        renderObjectivePane(objectivesPane, tree);
+        renderCambridgeAssets(courseCard, assets);
+      });
+    } catch (err) {
+      showToast('Error syncing objectives: ' + err.message, 'error');
+    }
+  }
+
+  async function fetchObjectiveTree(documentId) {
+    const resp = await fetch(`{% url 'core:standards_api_document_objectives' document_id=0 %}`.replace('/0/', `/${documentId}/`));
+    return resp.json();
+  }
+
+  function renderObjectivePane(pane, data) {
+    if (!pane) return;
+    if (!data || !data.objectives || data.objectives.length === 0) {
+      pane.innerHTML = '<div class="alert alert-info mb-0">No objectives found yet.</div>';
+      return;
+    }
+    pane.innerHTML = renderObjectiveTree(data.objectives);
+  }
+
+  function renderCambridgeAssets(courseCard, assets) {
+    // Overview description
+    if (assets?.description) {
+      const descEl = courseCard.querySelector('.overview-description');
+      if (descEl) {
+        descEl.innerHTML = `<p>${escapeHtml(assets.description)}</p>`;
+      }
+    }
+
+    const syllabusPane = courseCard.querySelector('[data-pane="syllabus"]');
+    if (syllabusPane && assets?.syllabus_pdf) {
+      syllabusPane.innerHTML = `
+        <div class="mb-2"><strong>${escapeHtml(assets.syllabus_pdf.label || assets.syllabus_pdf.text || 'Syllabus')}</strong></div>
+        <div class="ratio ratio-4x3 border rounded">
+          <iframe src="${assets.syllabus_pdf.local_url || assets.syllabus_pdf.url}" title="Syllabus" allow="fullscreen"></iframe>
+        </div>
+      `;
+    }
+    const schemePane = courseCard.querySelector('[data-pane="scheme"]');
+    if (schemePane && assets?.scheme_pdf) {
+      schemePane.innerHTML = `
+        <div class="mb-2"><strong>${escapeHtml(assets.scheme_pdf.label || assets.scheme_pdf.text || 'Scheme of Work')}</strong></div>
+        <div class="ratio ratio-4x3 border rounded">
+          <iframe src="${assets.scheme_pdf.local_url || assets.scheme_pdf.url}" title="Scheme of Work" allow="fullscreen"></iframe>
+        </div>
+      `;
+    }
+    const examsPane = courseCard.querySelector('[data-pane="examinations"]');
+    if (examsPane && assets?.past_papers?.length) {
+      const rows = assets.past_papers.map(p => `
+        <tr>
+          <td>${escapeHtml(p.name || '')}</td>
+          <td><a href="${p.url}" target="_blank">Download</a></td>
+        </tr>
+      `).join('');
+      examsPane.innerHTML = `
+        <h6>Past Papers</h6>
+        <table class="table table-sm">
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+    if (assets?.endorsed_resources?.length) {
+      const resourcesPane = courseCard.querySelector('[data-pane="official_resources"]') ||
+                            courseCard.querySelector('[data-pane="unofficial_resources"]');
+      if (resourcesPane) {
+        const items = assets.endorsed_resources.map(r => `
+          <li class="mb-2">
+            <div><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
+            ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
+          </li>
+        `).join('');
+        resourcesPane.innerHTML = `
+          <h6>Endorsed Resources</h6>
+          <ul class="mb-0">${items}</ul>
+        `;
+      }
+    }
+    if (assets?.catalog_resources?.length) {
+      const resourcesPane = courseCard.querySelector('[data-pane="official_resources"]') ||
+                            courseCard.querySelector('[data-pane="unofficial_resources"]');
+      if (resourcesPane) {
+        const items = assets.catalog_resources.map(r => `
+          <li class="mb-2">
+            <div><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
+            ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
+          </li>
+        `).join('');
+        resourcesPane.innerHTML += `
+          <h6 class="mt-2">Cambridge Catalog</h6>
+          <ul class="mb-0">${items}</ul>
+        `;
+      }
+    }
+    if (assets?.hachette_resources?.length) {
+      const resourcesPane = courseCard.querySelector('[data-pane="official_resources"]') ||
+                            courseCard.querySelector('[data-pane="unofficial_resources"]');
+      if (resourcesPane) {
+        const items = assets.hachette_resources.map(r => `
+          <li class="mb-2">
+            <div><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
+            ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
+          </li>
+        `).join('');
+        resourcesPane.innerHTML += `
+          <h6 class="mt-2">Hachette Catalog</h6>
+          <ul class="mb-0">${items}</ul>
+        `;
+      }
+    }
+  }
+  // Load children for a node
+  async function loadChildren(node, container) {
+    const nodeType = node.dataset.type;
+    const nodeId = node.dataset.id;
+
+    container.innerHTML = '<div class="tree-loading"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>';
+
+    try {
+      if (nodeType === 'authority') {
+        await loadProgramsForAuthority(nodeId, container);
+      } else if (nodeType === 'program') {
+        await loadGradesAndSubjectsForProgram(nodeId, container);
+      } else if (nodeType === 'subject') {
+        const programId = node.closest('[data-type="program"]')?.dataset.id;
+        const subject = node.dataset.value;
+        await loadCoursesForSubject(programId, subject, container);
+      }
+      container.dataset.loaded = 'true';
+    } catch (err) {
+      container.innerHTML = `<div class="tree-loading text-danger">Error loading: ${err.message}</div>`;
+    }
+  }
+
+  // Load programs for an authority
+  async function loadProgramsForAuthority(authorityId, container) {
+    const response = await fetch(`{% url 'core:standards_api_programs' %}?authorities=${authorityId}`);
     const data = await response.json();
 
     if (data.programs.length === 0) {
-      programList.innerHTML = '<p class="text-muted small mb-0">No programs found</p>';
+      container.innerHTML = '<div class="tree-loading text-muted">No programs found</div>';
       return;
     }
 
-    programList.innerHTML = data.programs.map(p => `
-      <label class="checkbox-item d-flex align-items-center">
-        <input type="checkbox" class="form-check-input me-2 program-checkbox"
-               value="${p.id}" data-code="${p.code}">
-        <span class="small">${p.name}</span>
-      </label>
+    container.innerHTML = data.programs.map(p => `
+      <div class="tree-node tree-depth-1" data-type="program" data-id="${p.id}" data-code="${p.code}">
+        <div class="tree-node-header">
+          <span class="tree-expand-icon"><i class="bi bi-chevron-right"></i></span>
+          <input type="checkbox" class="form-check-input tree-node-checkbox program-checkbox" value="${p.id}">
+          <span class="tree-node-icon program"><i class="bi bi-diagram-3"></i></span>
+          <span class="tree-node-label">${escapeHtml(p.name)}</span>
+        </div>
+        <div class="tree-node-children" data-loaded="false">
+          <div class="tree-loading">Click to load grades & subjects...</div>
+        </div>
+      </div>
     `).join('');
-
-    // Add event listeners to new program checkboxes
-    document.querySelectorAll('.program-checkbox').forEach(cb => {
-      cb.addEventListener('change', function() {
-        this.closest('.checkbox-item').classList.toggle('selected', this.checked);
-        selectedPrograms = Array.from(document.querySelectorAll('.program-checkbox:checked'))
-          .map(c => c.value);
-        loadGradesAndSubjects();
-      });
-    });
-
-    // Reset downstream filters
-    selectedPrograms = [];
-    gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
-    subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
-    courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
-    selectedGrades = [];
-    selectedSubjects = [];
-    selectedCourses = [];
   }
 
-  // Load grades and subjects for selected programs
-  async function loadGradesAndSubjects() {
-    if (selectedPrograms.length === 0) {
-      gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
-      subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
-      courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
-      selectedGrades = [];
-      selectedSubjects = [];
-      selectedCourses = [];
-      return;
+  // Load grades and subjects for a program
+  async function loadGradesAndSubjectsForProgram(programId, container) {
+    const [gradesRes, subjectsRes] = await Promise.all([
+      fetch(`{% url 'core:standards_api_grades' %}?programs=${programId}`),
+      fetch(`{% url 'core:standards_api_subjects' %}?programs=${programId}`)
+    ]);
+    const gradesData = await gradesRes.json();
+    const subjectsData = await subjectsRes.json();
+
+    let html = '';
+
+    // Add grades section
+    if (gradesData.grades.length > 0) {
+      html += `<div class="tree-node tree-depth-2" data-type="grade-group">
+        <div class="tree-node-header" style="background: #f8f0ff;">
+          <span class="tree-expand-icon"><i class="bi bi-chevron-right"></i></span>
+          <span class="tree-node-icon grade"><i class="bi bi-mortarboard"></i></span>
+          <span class="tree-node-label">Grade Levels</span>
+          <span class="tree-node-badge">${gradesData.grades.length}</span>
+        </div>
+        <div class="tree-node-children" data-loaded="true">
+          ${gradesData.grades.map(g => `
+            <div class="tree-node tree-depth-3" data-type="grade" data-value="${g.value}">
+              <div class="tree-node-header">
+                <span class="tree-expand-icon" style="visibility:hidden;"></span>
+                <input type="checkbox" class="form-check-input tree-node-checkbox grade-checkbox" value="${g.value}" data-program="${programId}">
+                <span class="tree-node-label">${escapeHtml(g.label)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
     }
 
-    const params = selectedPrograms.map(id => `programs=${id}`).join('&');
-
-    // Load grades
-    gradeList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
-    const gradesResponse = await fetch(`{% url 'core:standards_api_grades' %}?${params}`);
-    const gradesData = await gradesResponse.json();
-
-    if (gradesData.grades.length === 0) {
-      gradeList.innerHTML = '<p class="text-muted small mb-0">No grades found</p>';
-    } else {
-      gradeList.innerHTML = gradesData.grades.map(g => `
-        <label class="checkbox-item d-flex align-items-center">
-          <input type="checkbox" class="form-check-input me-2 grade-checkbox" value="${g.value}">
-          <span class="small">${g.label}</span>
-        </label>
-      `).join('');
-
-      document.querySelectorAll('.grade-checkbox').forEach(cb => {
-        cb.addEventListener('change', function() {
-          this.closest('.checkbox-item').classList.toggle('selected', this.checked);
-          selectedGrades = Array.from(document.querySelectorAll('.grade-checkbox:checked'))
-            .map(c => c.value);
-        });
-      });
+    // Add subjects section
+    if (subjectsData.subjects.length > 0) {
+      html += `<div class="tree-node tree-depth-2" data-type="subject-group">
+        <div class="tree-node-header" style="background: #fff8f0;">
+          <span class="tree-expand-icon"><i class="bi bi-chevron-right"></i></span>
+          <span class="tree-node-icon subject"><i class="bi bi-book"></i></span>
+          <span class="tree-node-label">Subjects</span>
+          <span class="tree-node-badge">${subjectsData.subjects.length}</span>
+        </div>
+        <div class="tree-node-children" data-loaded="true">
+          ${subjectsData.subjects.map(s => `
+            <div class="tree-node tree-depth-3" data-type="subject" data-value="${escapeHtml(s.value)}">
+              <div class="tree-node-header">
+                <span class="tree-expand-icon"><i class="bi bi-chevron-right"></i></span>
+                <input type="checkbox" class="form-check-input tree-node-checkbox subject-checkbox" value="${escapeHtml(s.value)}" data-program="${programId}">
+                <span class="tree-node-label">${escapeHtml(s.label)}</span>
+              </div>
+              <div class="tree-node-children" data-loaded="false">
+                <div class="tree-loading">Click to load courses...</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
     }
 
-    // Load subjects
-    subjectList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
-    const subjectsResponse = await fetch(`{% url 'core:standards_api_subjects' %}?${params}`);
-    const subjectsData = await subjectsResponse.json();
-
-    if (subjectsData.subjects.length === 0) {
-      subjectList.innerHTML = '<p class="text-muted small mb-0">No subjects found</p>';
-    } else {
-      subjectList.innerHTML = subjectsData.subjects.map(s => `
-        <label class="checkbox-item d-flex align-items-center">
-          <input type="checkbox" class="form-check-input me-2 subject-checkbox" value="${s.value}">
-          <span class="small">${s.label}</span>
-        </label>
-      `).join('');
-
-      document.querySelectorAll('.subject-checkbox').forEach(cb => {
-        cb.addEventListener('change', function() {
-          this.closest('.checkbox-item').classList.toggle('selected', this.checked);
-          selectedSubjects = Array.from(document.querySelectorAll('.subject-checkbox:checked'))
-            .map(c => c.value);
-          loadCourses();
-        });
-      });
-    }
-
-    selectedGrades = [];
-    selectedSubjects = [];
-    selectedCourses = [];
-    courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
+    container.innerHTML = html || '<div class="tree-loading text-muted">No grades or subjects found</div>';
   }
 
-  // Load courses for selected programs and subjects
-  async function loadCourses() {
-    if (selectedPrograms.length === 0) {
-      courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
-      selectedCourses = [];
-      return;
-    }
-
-    courseList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading courses...';
-
-    let params = selectedPrograms.map(id => `programs=${id}`).join('&');
-    if (selectedSubjects.length > 0) {
-      params += '&' + selectedSubjects.map(s => `subjects=${encodeURIComponent(s)}`).join('&');
-    }
-
-    const response = await fetch(`{% url 'core:standards_api_courses' %}?${params}`);
+  // Load courses for a subject
+  async function loadCoursesForSubject(programId, subject, container) {
+    const response = await fetch(`{% url 'core:standards_api_courses' %}?programs=${programId}&subjects=${encodeURIComponent(subject)}`);
     const data = await response.json();
 
     if (data.courses.length === 0) {
-      courseList.innerHTML = '<p class="text-muted small mb-0">No courses found</p>';
-      selectedCourses = [];
+      container.innerHTML = '<div class="tree-loading text-muted">No courses found</div>';
       return;
     }
 
-    // Group courses by subject for better display
-    const coursesBySubject = {};
-    data.courses.forEach(c => {
-      const subj = c.subject || 'Other';
-      if (!coursesBySubject[subj]) coursesBySubject[subj] = [];
-      coursesBySubject[subj].push(c);
-    });
-
-    let html = '';
-    for (const [subject, courses] of Object.entries(coursesBySubject)) {
-      if (Object.keys(coursesBySubject).length > 1) {
-        html += `<div class="w-100 mt-2 mb-1"><small class="text-muted fw-bold">${subject}</small></div>`;
-      }
-      courses.forEach(c => {
-        html += `
-          <label class="checkbox-item d-flex align-items-center">
-            <input type="checkbox" class="form-check-input me-2 course-checkbox"
-                   value="${c.id}" data-name="${escapeHtml(c.name)}">
-            <span class="small" title="${escapeHtml(c.name)} (${c.grade_level})">${escapeHtml(c.name)}</span>
-          </label>
-        `;
-      });
-    }
-    courseList.innerHTML = html;
-
-    // Add event listeners to course checkboxes
-    document.querySelectorAll('.course-checkbox').forEach(cb => {
-      cb.addEventListener('change', function() {
-        this.closest('.checkbox-item').classList.toggle('selected', this.checked);
-        selectedCourses = Array.from(document.querySelectorAll('.course-checkbox:checked'))
-          .map(c => c.value);
-      });
-    });
-
-    selectedCourses = [];
+    container.innerHTML = data.courses.map(c => `
+      <div class="tree-node tree-depth-4" data-type="course" data-id="${c.id}">
+        <div class="tree-node-header">
+          <span class="tree-expand-icon" style="visibility:hidden;"></span>
+          <input type="checkbox" class="form-check-input tree-node-checkbox course-checkbox" value="${c.id}" data-program="${programId}">
+          <span class="tree-node-icon course"><i class="bi bi-journal-text"></i></span>
+          <span class="tree-node-label">
+            ${c.syllabus_code ? `<code class="me-1">${c.syllabus_code}</code>` : ''}
+            ${escapeHtml(c.name)}
+            <small class="text-muted ms-1">(${c.grade_level})</small>
+          </span>
+        </div>
+      </div>
+    `).join('');
   }
 
-  // Search button
+  // Handle checkbox changes
+  function handleCheckboxChange(node, checkbox) {
+    const nodeType = node.dataset.type;
+    const isChecked = checkbox.checked;
+
+    // Update node selected state
+    node.classList.toggle('selected', isChecked);
+
+    // If checking a child, also check all parent nodes to avoid search errors
+    if (isChecked) {
+      checkParentNodes(node);
+    }
+
+    // Update tracked selections
+    updateSelections();
+    updateSelectionSummary();
+  }
+
+  // Check all parent nodes up the tree (ensures program is selected when child is)
+  function checkParentNodes(node) {
+    let current = node.parentElement?.closest('.tree-node');
+    while (current) {
+      // Skip group nodes (grade-group, subject-group) - they don't have checkboxes
+      const parentCheckbox = current.querySelector(':scope > .tree-node-header .tree-node-checkbox');
+      if (parentCheckbox && !parentCheckbox.checked) {
+        parentCheckbox.checked = true;
+        current.classList.add('selected');
+      }
+      current = current.parentElement?.closest('.tree-node');
+    }
+  }
+
+  // Update selection arrays from checkboxes
+  function updateSelections() {
+    selectedPrograms = Array.from(filterTree.querySelectorAll('.program-checkbox:checked')).map(c => c.value);
+    selectedGrades = Array.from(filterTree.querySelectorAll('.grade-checkbox:checked')).map(c => c.value);
+    selectedSubjects = Array.from(filterTree.querySelectorAll('.subject-checkbox:checked')).map(c => c.value);
+    selectedCourses = Array.from(filterTree.querySelectorAll('.course-checkbox:checked')).map(c => c.value);
+  }
+
+  // Update selection summary display
+  function updateSelectionSummary() {
+    const parts = [];
+    if (selectedPrograms.length > 0) parts.push(`${selectedPrograms.length} program(s)`);
+    if (selectedGrades.length > 0) parts.push(`${selectedGrades.length} grade(s)`);
+    if (selectedSubjects.length > 0) parts.push(`${selectedSubjects.length} subject(s)`);
+    if (selectedCourses.length > 0) parts.push(`${selectedCourses.length} course(s)`);
+
+    if (parts.length > 0) {
+      selectionText.innerHTML = parts.map(p => `<span class="badge bg-primary me-1">${p}</span>`).join('');
+      selectionSummary.classList.remove('d-none');
+    } else {
+      selectionSummary.classList.add('d-none');
+    }
+  }
+
+  // Clear all selections
+  clearSelectionBtn.addEventListener('click', function() {
+    filterTree.querySelectorAll('.tree-node-checkbox:checked').forEach(cb => {
+      cb.checked = false;
+      cb.closest('.tree-node')?.classList.remove('selected');
+    });
+    selectedPrograms = [];
+    selectedGrades = [];
+    selectedSubjects = [];
+    selectedCourses = [];
+    updateSelectionSummary();
+  });
+
+  // =====================
+  // Search Button Handler
+  // =====================
+
   searchBtn.addEventListener('click', async function() {
     if (selectedPrograms.length === 0) {
       alert('Please select at least one program.');
@@ -698,157 +1186,504 @@ document.addEventListener('DOMContentLoaded', function() {
       resultsContainer.innerHTML = `
         <div class="empty-state">
           <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-          <h5>No Standards Found</h5>
-          <p class="mb-0">No standards documents match your filters. Try adjusting your selection.</p>
+          <h5>No Courses Found</h5>
+          <p class="mb-0">No courses match your filters. Try adjusting your selection.</p>
         </div>
       `;
       return;
     }
 
-    // Group documents by tier
-    const tierOrder = ['legislative', 'standards_board', 'testing_agency', 'publisher'];
-    const tierLabels = {
-      'legislative': 'Legislative Authority',
-      'standards_board': 'Standards Board',
-      'testing_agency': 'Testing Agency',
-      'publisher': 'Publisher Materials'
-    };
-    const tierIcons = {
-      'legislative': 'bi-building',
-      'standards_board': 'bi-award',
-      'testing_agency': 'bi-clipboard-check',
-      'publisher': 'bi-book'
-    };
-
-    // Group documents by tier
-    const docsByTier = {};
+    // Group courses by subject
+    const coursesBySubject = {};
     data.documents.forEach(doc => {
-      const tier = doc.tier || 'standards_board';
-      if (!docsByTier[tier]) docsByTier[tier] = [];
-      docsByTier[tier].push(doc);
+      const subj = doc.subject || 'Other';
+      if (!coursesBySubject[subj]) coursesBySubject[subj] = [];
+      coursesBySubject[subj].push(doc);
     });
 
     // Render results header
     resultsContainer.innerHTML = `
       <div class="results-header d-flex justify-content-between align-items-center">
-        <span><strong>${data.total_documents}</strong> document(s) found</span>
-        <span class="text-muted small">
-          ${data.show_internal_codes ? 'Showing official codes' : 'Showing system numbering'}
-        </span>
+        <span><strong>${data.total_documents}</strong> course(s) found</span>
       </div>
       <div id="documents-list"></div>
     `;
 
     const documentsList = document.getElementById('documents-list');
 
-    // Check if we have multiple tiers (for tiered display)
-    const tiersWithDocs = tierOrder.filter(t => docsByTier[t] && docsByTier[t].length > 0);
+    // Render courses grouped by subject as expandable document cards
+    for (const [subject, courses] of Object.entries(coursesBySubject).sort()) {
+      const subjectSection = document.createElement('div');
+      subjectSection.className = 'subject-section mb-4';
 
-    if (tiersWithDocs.length > 1) {
-      // Render with tier sections (collapsible)
-      tierOrder.forEach(tier => {
-        if (!docsByTier[tier] || docsByTier[tier].length === 0) return;
+      // Subject header
+      subjectSection.innerHTML = `
+        <h5 class="mb-3">
+          <i class="bi bi-book me-2"></i>${subject}
+          <span class="badge bg-secondary ms-2">${courses.length}</span>
+        </h5>
+        <div class="courses-list"></div>
+      `;
 
-        const tierSection = document.createElement('div');
-        tierSection.className = `tier-section tier-${tier}`;
-        tierSection.innerHTML = `
-          <div class="tier-header" data-tier="${tier}">
-            <h5>
-              <span class="tier-icon"><i class="bi ${tierIcons[tier]}"></i></span>
-              ${tierLabels[tier]}
-              <span class="badge bg-secondary ms-2">${docsByTier[tier].length}</span>
-            </h5>
-            <i class="bi bi-chevron-down collapse-icon"></i>
+      const coursesList = subjectSection.querySelector('.courses-list');
+
+      // Render each course as an expandable document card
+      courses.forEach(doc => {
+        const courseCard = document.createElement('div');
+        courseCard.className = 'course-document';
+        courseCard.dataset.courseId = doc.id;
+        courseCard.dataset.tabConfig = doc.tab_config;
+
+        courseCard.innerHTML = `
+          <div class="course-header">
+            <span class="course-code">${doc.syllabus_code || '-'}</span>
+            <span class="course-title">${escapeHtml(doc.source_title)}</span>
+            <div class="course-meta">
+              <span class="badge bg-light text-dark">${doc.grade_level}</span>
+              <small class="text-muted">${doc.version_label}</small>
+              ${doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2" title="View source" onclick="event.stopPropagation()"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
+            </div>
+            <i class="bi bi-chevron-down course-expand-icon"></i>
           </div>
-          <div class="tier-content" data-tier="${tier}">
-            ${docsByTier[tier].map(doc => renderDocument(doc)).join('')}
+          <div class="course-body">
+            ${renderCourseTabs(doc)}
           </div>
         `;
-        documentsList.appendChild(tierSection);
-      });
 
-      // Add collapse handlers for document tiers
-      document.querySelectorAll('.tier-header').forEach(header => {
-        header.addEventListener('click', function() {
-          const tier = this.dataset.tier;
-          const content = document.querySelector(`.tier-content[data-tier="${tier}"]`);
-          this.classList.toggle('collapsed');
-          content.classList.toggle('collapsed');
+        // Toggle expand/collapse on header click
+        courseCard.querySelector('.course-header').addEventListener('click', function() {
+          courseCard.classList.toggle('expanded');
+          const isExpanded = courseCard.classList.contains('expanded');
+          if (isExpanded && doc.authority_code === 'CAMBRIDGE') {
+            // Lazy load objectives once
+            if (!courseCard.dataset.objectivesLoaded) {
+              triggerObjectiveSync(doc, courseCard);
+              courseCard.dataset.objectivesLoaded = '1';
+            }
+            // Lazy load assets once (independent of objectives)
+            if (!courseCard.dataset.assetsLoaded) {
+              showCambridgeAssetLoading(courseCard);
+              fetchCambridgeAssets(doc.id).then(assets => {
+                renderCambridgeAssets(courseCard, assets);
+                courseCard.dataset.assetsLoaded = '1';
+              }).catch(err => {
+                console.error(err);
+                showToast('Error loading assets: ' + err.message, 'error');
+              });
+            }
+          }
         });
+
+        // Tab switching
+        courseCard.querySelectorAll('.course-tab').forEach(tab => {
+          tab.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const tabName = this.dataset.tab;
+            const tabContent = courseCard.querySelector('.course-tab-content');
+
+            // Update active tab
+            courseCard.querySelectorAll('.course-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+
+            // Update active pane
+            tabContent.querySelectorAll('.course-tab-pane').forEach(p => p.classList.remove('active'));
+            tabContent.querySelector(`[data-pane="${tabName}"]`)?.classList.add('active');
+          });
+        });
+
+        attachResourceTabHandlers(courseCard, doc);
+        attachObjectivesTabHandlers(courseCard, doc);
+
+        coursesList.appendChild(courseCard);
       });
-    } else {
-      // Single tier or no tier grouping - render flat
-      data.documents.forEach(doc => {
-        documentsList.innerHTML += renderDocument(doc);
-      });
+
+      documentsList.appendChild(subjectSection);
     }
-
-    // Add collapse handlers for resource tiers (using event delegation)
-    document.querySelectorAll('.resource-tier-header').forEach(header => {
-      header.addEventListener('click', function() {
-        const tier = this.dataset.tier;
-        const content = this.nextElementSibling;
-        this.classList.toggle('collapsed');
-        content.classList.toggle('collapsed');
-        // Rotate the chevron icon
-        const icon = this.querySelector('.collapse-icon');
-        if (icon) {
-          icon.style.transform = this.classList.contains('collapsed') ? 'rotate(-90deg)' : '';
-        }
-      });
-    });
-
   });
 
-  // Render a document card
-  function renderDocument(doc) {
-    const objectivesHtml = renderObjectiveTree(doc.objectives);
-    const resourcesHtml = renderResources(doc.resources || []);
+  // Render tabs based on tab_config
+  function renderCourseTabs(doc) {
+    const tabConfigs = {
+      cambridge: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'syllabus', label: 'Syllabus', icon: 'bi-file-text' },
+        { id: 'objectives', label: 'Learning Objectives', icon: 'bi-list-check' },
+        { id: 'scheme', label: 'Scheme of Work', icon: 'bi-calendar3' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'examinations', label: 'Examinations', icon: 'bi-clipboard-check' },
+      ],
+      ib: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'subject_guide', label: 'Subject Guide', icon: 'bi-journal-text' },
+        { id: 'objectives', label: 'Assessment Objectives', icon: 'bi-list-check' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'examinations', label: 'Examinations', icon: 'bi-clipboard-check' },
+      ],
+      college_board: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'ced', label: 'Course & Exam Description', icon: 'bi-file-earmark-text' },
+        { id: 'objectives', label: 'Learning Objectives', icon: 'bi-list-check' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'examinations', label: 'AP Exam', icon: 'bi-clipboard-check' },
+      ],
+      wida: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'language_expectations', label: 'Language Expectations', icon: 'bi-chat-square-text' },
+        { id: 'proficiency_levels', label: 'Proficiency Levels', icon: 'bi-bar-chart-steps' },
+        { id: 'key_language_uses', label: 'Key Language Uses', icon: 'bi-diagram-3' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'access_assessment', label: 'ACCESS Assessment', icon: 'bi-clipboard-check' },
+      ],
+      british_council: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'cefr_levels', label: 'CEFR Levels', icon: 'bi-bar-chart-steps' },
+        { id: 'course_content', label: 'Course Content', icon: 'bi-journal-text' },
+        { id: 'objectives', label: 'Learning Outcomes', icon: 'bi-list-check' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'assessment', label: 'Assessment', icon: 'bi-clipboard-check' },
+      ],
+      ets: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'test_format', label: 'Test Format', icon: 'bi-layout-text-window' },
+        { id: 'scoring', label: 'Scoring', icon: 'bi-graph-up' },
+        { id: 'preparation', label: 'Preparation', icon: 'bi-book' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'registration', label: 'Registration', icon: 'bi-calendar-check' },
+      ],
+      foreign_moe: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'curriculum_standards', label: 'Curriculum Standards', icon: 'bi-file-earmark-text' },
+        { id: 'objectives', label: 'Learning Objectives', icon: 'bi-list-check' },
+        { id: 'textbooks', label: 'Textbooks', icon: 'bi-book' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'national_exams', label: 'National Examinations', icon: 'bi-clipboard-check' },
+      ],
+      common_core: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'standards', label: 'Standards', icon: 'bi-file-earmark-text' },
+        { id: 'strands_domains', label: 'Strands & Domains', icon: 'bi-diagram-3' },
+        { id: 'objectives', label: 'Learning Objectives', icon: 'bi-list-check' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'assessments', label: 'Assessments', icon: 'bi-clipboard-check' },
+      ],
+      us_state: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'legal', label: 'Legal', icon: 'bi-file-earmark-text' },
+        { id: 'state_board', label: 'State Board of Education', icon: 'bi-building' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+        { id: 'objectives', label: 'Learning Objectives', icon: 'bi-list-check' },
+        { id: 'tests', label: 'Tests', icon: 'bi-pencil-square' },
+      ],
+      default: [
+        { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
+        { id: 'objectives', label: 'Learning Objectives', icon: 'bi-list-check' },
+        { id: 'official_resources', label: 'Official Resources', icon: 'bi-patch-check' },
+        { id: 'unofficial_resources', label: 'Unofficial Resources', icon: 'bi-collection' },
+      ]
+    };
 
-    // Tier styling
-    const tierBadgeClass = `tier-${doc.tier || 'standards_board'}`;
-    const tierDisplay = doc.tier_display || 'Standards Board';
+    const tabs = tabConfigs[doc.tab_config] || tabConfigs.default;
 
-    // Status badge
-    let statusBadge = '';
-    if (doc.status === 'superseded') {
-      statusBadge = '<span class="badge bg-warning text-dark ms-2">Superseded</span>';
-    } else if (doc.status === 'draft') {
-      statusBadge = '<span class="badge bg-info ms-2">Draft</span>';
+    // Render tab buttons
+    const tabButtons = tabs.map((tab, idx) => `
+      <button class="course-tab ${idx === 0 ? 'active' : ''}" data-tab="${tab.id}">
+        <i class="bi ${tab.icon}"></i>${tab.label}
+      </button>
+    `).join('');
+
+    // Render tab panes with placeholder content
+    const tabPanes = tabs.map((tab, idx) => `
+      <div class="course-tab-pane ${idx === 0 ? 'active' : ''}" data-pane="${tab.id}">
+        ${renderTabPlaceholder(tab, doc)}
+      </div>
+    `).join('');
+
+    return `
+      <div class="course-tabs">${tabButtons}</div>
+      <div class="course-tab-content">${tabPanes}</div>
+    `;
+  }
+
+  // Render placeholder content for each tab type
+  function renderTabPlaceholder(tab, doc) {
+    // Special handling for overview tab - show actual course data
+    if (tab.id === 'overview') {
+      return renderOverviewContent(doc);
+    }
+
+    if (['official_resources', 'unofficial_resources'].includes(tab.id)) {
+      return renderResourceTabContent(doc, tab.id);
+    }
+
+    const placeholders = {
+      syllabus: {
+        icon: 'bi-file-text',
+        title: 'Syllabus Document',
+        description: 'The official syllabus document for this course will be displayed here.',
+        action: doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View Official Syllabus</a>` : ''
+      },
+      subject_guide: {
+        icon: 'bi-journal-text',
+        title: 'Subject Guide',
+        description: 'The official IB Subject Guide containing aims, objectives, syllabus content, and assessment details.',
+        action: doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View on IBO</a>` : ''
+      },
+      ced: {
+        icon: 'bi-file-earmark-text',
+        title: 'Course and Exam Description',
+        description: 'The official College Board Course and Exam Description (CED) containing course framework, unit guides, and exam information.',
+        action: doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View on College Board</a>` : ''
+      },
+      objectives: {
+        icon: 'bi-list-check',
+        title: 'Learning Objectives',
+        description: 'Learning objectives and standards for this course.',
+        action: '',
+        custom: true  // Use custom renderer
+      },
+      scheme: {
+        icon: 'bi-calendar3',
+        title: 'Scheme of Work',
+        description: 'Teaching plans and suggested timelines for covering the syllabus content.',
+        action: ''
+      },
+      official_resources: {
+        icon: 'bi-patch-check',
+        title: 'Official Resources',
+        description: 'Official textbooks, guides, and materials endorsed by the standards authority.',
+        action: ''
+      },
+      unofficial_resources: {
+        icon: 'bi-collection',
+        title: 'Unofficial Resources',
+        description: 'Community-recommended and third-party resources for this course.',
+        action: ''
+      },
+      examinations: {
+        icon: 'bi-clipboard-check',
+        title: 'Examinations',
+        description: 'Past papers, specimen papers, and examination guidelines.',
+        action: ''
+      },
+      legal: {
+        icon: 'bi-file-earmark-text',
+        title: 'Legal Documentation',
+        description: 'Texas Administrative Code (TAC) rules and legal requirements for this course.',
+        action: ''
+      },
+      state_board: {
+        icon: 'bi-building',
+        title: 'State Board of Education',
+        description: 'Official guidance and adopted standards from the State Board of Education.',
+        action: ''
+      },
+      tests: {
+        icon: 'bi-pencil-square',
+        title: 'Standardized Tests',
+        description: 'State assessment information, STAAR blueprints, and testing resources.',
+        action: ''
+      },
+      language_expectations: {
+        icon: 'bi-chat-square-text',
+        title: 'Language Expectations',
+        description: 'WIDA Language Expectations describe what multilingual learners can do with language at each grade cluster. Includes interpretive and expressive communication modes.',
+        action: doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View on WIDA</a>` : ''
+      },
+      proficiency_levels: {
+        icon: 'bi-bar-chart-steps',
+        title: 'Proficiency Level Descriptors',
+        description: 'WIDA Proficiency Level Descriptors (PLDs) describe typical language development across six levels: Entering, Emerging, Developing, Expanding, Bridging, and Reaching.',
+        action: ''
+      },
+      key_language_uses: {
+        icon: 'bi-diagram-3',
+        title: 'Key Language Uses',
+        description: 'The four Key Language Uses (KLUs) — Narrate, Inform, Explain, and Argue — represent prominent ways students use language across content areas.',
+        action: ''
+      },
+      access_assessment: {
+        icon: 'bi-clipboard-check',
+        title: 'ACCESS Assessment',
+        description: 'ACCESS for ELLs is the annual English language proficiency assessment administered to multilingual learners in WIDA Consortium member states.',
+        action: ''
+      },
+      cefr_levels: {
+        icon: 'bi-bar-chart-steps',
+        title: 'CEFR Levels',
+        description: 'Common European Framework of Reference for Languages (CEFR) levels from A1 (Beginner) to C2 (Proficiency). Each level describes what learners can do in speaking, reading, listening, and writing.',
+        action: doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View on British Council</a>` : ''
+      },
+      course_content: {
+        icon: 'bi-journal-text',
+        title: 'Course Content',
+        description: 'Detailed syllabus content, topics covered, and learning materials for this course.',
+        action: ''
+      },
+      assessment: {
+        icon: 'bi-clipboard-check',
+        title: 'Assessment',
+        description: 'Assessment methods, exam formats, and certification details for this course or qualification.',
+        action: ''
+      },
+      test_format: {
+        icon: 'bi-layout-text-window',
+        title: 'Test Format',
+        description: 'Detailed test structure including sections, question types, timing, and delivery format (computer-based, paper-based, or at-home options).',
+        action: doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View on ETS</a>` : ''
+      },
+      scoring: {
+        icon: 'bi-graph-up',
+        title: 'Scoring',
+        description: 'Score ranges, score reporting, CEFR mapping, and how scores are calculated and interpreted by institutions.',
+        action: ''
+      },
+      preparation: {
+        icon: 'bi-book',
+        title: 'Preparation',
+        description: 'Official preparation materials, practice tests, study guides, and recommended preparation timeline.',
+        action: ''
+      },
+      registration: {
+        icon: 'bi-calendar-check',
+        title: 'Registration',
+        description: 'Test dates, registration deadlines, testing centers, fees, and accommodation options.',
+        action: ''
+      },
+      curriculum_standards: {
+        icon: 'bi-file-earmark-text',
+        title: 'Curriculum Standards',
+        description: 'Official national curriculum standards and guidelines from the Ministry of Education, including competency frameworks and learning benchmarks.',
+        action: ''
+      },
+      textbooks: {
+        icon: 'bi-book',
+        title: 'Textbooks',
+        description: 'Approved textbooks and learning materials published by the Ministry of Education or authorized publishers.',
+        action: ''
+      },
+      national_exams: {
+        icon: 'bi-clipboard-check',
+        title: 'National Examinations',
+        description: 'Information about national standardized examinations, including entrance exams, graduation requirements, and assessment frameworks.',
+        action: ''
+      }
+    };
+
+    const content = placeholders[tab.id] || {
+      icon: 'bi-file',
+      title: tab.label,
+      description: 'Content for this section will be available soon.',
+      action: ''
+    };
+
+    // Custom renderer for objectives tab
+    if (tab.id === 'objectives') {
+      return renderObjectivesTabContent(doc);
     }
 
     return `
-      <div class="card document-card">
-        <div class="card-header d-flex justify-content-between align-items-start">
+      <div class="tab-placeholder">
+        <i class="bi ${content.icon}"></i>
+        <h6>${content.title}</h6>
+        <p>${content.description}</p>
+        ${content.action}
+      </div>
+    `;
+  }
+
+  // Render objectives tab with load button and tree container
+  function renderObjectivesTabContent(doc) {
+    const containerId = `objectives-container-${doc.id}`;
+    return `
+      <div class="objectives-tab-content">
+        <div class="d-flex align-items-center justify-content-between mb-3">
           <div>
-            <h5 class="mb-1">${doc.subject} - ${doc.grade_level}</h5>
-            <small class="text-muted">${doc.authority_name} &rarr; ${doc.program_name}</small>
+            <h6 class="mb-1"><i class="bi bi-list-check me-2"></i>Learning Objectives</h6>
+            <small class="text-muted">Standards and objectives for ${escapeHtml(doc.subject)} - ${escapeHtml(doc.grade_level)}</small>
           </div>
-          <div class="text-end">
-            <span class="tier-badge ${tierBadgeClass}">${tierDisplay}</span>
-            ${statusBadge}
+          <button class="btn btn-primary btn-sm load-objectives-btn"
+                  data-document-id="${doc.id}"
+                  data-target="${containerId}">
+            <i class="bi bi-arrow-clockwise me-1"></i>Load Standards
+          </button>
+        </div>
+        <div id="${containerId}" class="objectives-tree-container">
+          <div class="text-center text-muted py-4">
+            <i class="bi bi-diagram-3 fs-1 d-block mb-2 opacity-50"></i>
+            <p class="mb-0">Click "Load Standards" to view the objectives tree</p>
           </div>
         </div>
-        <div class="card-body">
-          <div class="source-panel mb-3">
-            <div class="row">
-              <div class="col-md-6">
-                <strong>Publisher:</strong> ${doc.source_publisher_name || 'Unknown'}
-                ${doc.source_publisher_type_display ? `<span class="text-muted small">(${doc.source_publisher_type_display})</span>` : ''}<br>
-                <strong>Version:</strong> ${doc.version_label}
-              </div>
-              <div class="col-md-6 text-md-end">
-                <span class="badge bg-secondary me-2">${doc.acquisition_method}</span>
-                ${doc.is_reference_only ? '<span class="badge bg-warning text-dark">Reference Only</span>' : ''}
-                ${doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-link">View Source</a>` : ''}
-              </div>
-            </div>
+      </div>
+    `;
+  }
+
+  // Render overview content with actual course data
+  function renderOverviewContent(doc) {
+    const sourceButton = doc.source_url
+      ? `<a href="${doc.source_url}" target="_blank" class="btn btn-outline-primary btn-sm">
+           <i class="bi bi-box-arrow-up-right me-1"></i>View Source
+         </a>`
+      : '';
+
+    // Description will be populated later when course data is fetched
+    const descriptionSection = '';
+
+    const websiteSection = doc.source_url
+      ? `<div class="meta-item">
+           <div class="meta-label">Official Course Website</div>
+           <div class="meta-value">
+             <a href="${doc.source_url}" target="_blank" class="text-decoration-none">
+               <i class="bi bi-globe me-1"></i>${escapeHtml(doc.source_url)}
+             </a>
+           </div>
+         </div>`
+      : '';
+
+    return `
+      <div class="overview-content">
+        <div class="overview-header">
+          <div>
+            <div class="overview-title">${escapeHtml(doc.source_title)}</div>
+            <div class="overview-code">${doc.syllabus_code || 'No code'}</div>
           </div>
-          <div class="objectives-tree">
-            <h6><i class="bi bi-list-nested me-2"></i>Objectives (${doc.objective_count})</h6>
-            ${objectivesHtml || '<p class="text-muted small">No objectives imported yet.</p>'}
+          ${sourceButton}
+        </div>
+        <div class="overview-description" data-doc-id="${doc.id}">${doc.description ? `<p>${escapeHtml(doc.description)}</p>` : descriptionSection}</div>
+        <div class="overview-meta">
+          <div class="meta-item">
+            <div class="meta-label">Authority</div>
+            <div class="meta-value">${escapeHtml(doc.authority_name)}</div>
           </div>
-          ${resourcesHtml}
+          <div class="meta-item">
+            <div class="meta-label">Program</div>
+            <div class="meta-value">${escapeHtml(doc.program_name)}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Subject</div>
+            <div class="meta-value">${escapeHtml(doc.subject)}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Grade Level</div>
+            <div class="meta-value">${escapeHtml(doc.grade_level)}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Version</div>
+            <div class="meta-value">${escapeHtml(doc.version_label)}</div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-label">Course Code</div>
+            <div class="meta-value"><code>${doc.syllabus_code || '-'}</code></div>
+          </div>
+          ${websiteSection}
         </div>
       </div>
     `;
@@ -860,62 +1695,156 @@ document.addEventListener('DOMContentLoaded', function() {
       return '';
     }
 
-    // Group resources by tier
-    const tierOrder = ['official', 'recommended', 'commonly_used'];
-    const tierLabels = {
-      'official': 'Official',
-      'recommended': 'Recommended',
-      'commonly_used': 'Commonly Used'
+    const categoryOrder = ['official', 'endorsed', 'non_textbook', 'offering', 'youtube'];
+    const categoryLabels = {
+      official: 'Official',
+      endorsed: 'Endorsed',
+      non_textbook: 'Non-Textbook',
+      offering: 'Offerings',
+      youtube: 'YouTube'
     };
-    const tierIcons = {
-      'official': 'bi-patch-check-fill',
-      'recommended': 'bi-star-fill',
-      'commonly_used': 'bi-people-fill'
+    const categoryIcons = {
+      official: 'bi-patch-check-fill',
+      endorsed: 'bi-award-fill',
+      non_textbook: 'bi-lightbulb-fill',
+      offering: 'bi-collection-play',
+      youtube: 'bi-youtube'
     };
-    const tierDescriptions = {
-      'official': 'Published or endorsed by the standards authority',
-      'recommended': 'Recommended by professional organizations',
-      'commonly_used': 'Found on district and school websites'
+    const categoryDescriptions = {
+      official: 'Published or endorsed directly by the authority',
+      endorsed: 'Recommended/approved by partner orgs or exam boards',
+      non_textbook: 'Study aids, summaries, and supplementary materials',
+      offering: 'Courses, platforms, and structured offerings',
+      youtube: 'YouTube channels or playlists'
     };
 
-    const resourcesByTier = {};
-    resources.forEach(r => {
+    const normalizeCategory = (r) => {
+      if (r.resource_category) return r.resource_category;
+      if (r.platform === 'youtube') return 'youtube';
+      if (['course', 'curriculum', 'video_series', 'website'].includes((r.media_type || '').toLowerCase())) {
+        return 'offering';
+      }
       const tier = r.recommendation_tier || (r.is_official ? 'official' : 'commonly_used');
-      if (!resourcesByTier[tier]) resourcesByTier[tier] = [];
-      resourcesByTier[tier].push(r);
+      if (tier === 'official') return 'official';
+      if (tier === 'recommended') return 'endorsed';
+      return 'non_textbook';
+    };
+
+    const resourcesByCategory = {};
+    resources.forEach(r => {
+      const cat = normalizeCategory(r);
+      if (!resourcesByCategory[cat]) resourcesByCategory[cat] = [];
+      resourcesByCategory[cat].push(r);
     });
 
-    // Build tier sections
-    const tierSections = tierOrder
-      .filter(tier => resourcesByTier[tier] && resourcesByTier[tier].length > 0)
-      .map(tier => {
-        const tierResources = resourcesByTier[tier];
-        const resourceCards = tierResources.map(r => renderResourceCard(r)).join('');
+    const categorySections = categoryOrder
+      .filter(cat => resourcesByCategory[cat] && resourcesByCategory[cat].length > 0)
+      .map(cat => {
+        const catResources = resourcesByCategory[cat];
+        const companions = ['official', 'endorsed'].includes(cat)
+          ? catResources.filter(r => r.is_companion)
+          : [];
+        const primaries = ['official', 'endorsed'].includes(cat)
+          ? catResources.filter(r => !r.is_companion)
+          : catResources;
+
+        const renderBlock = (label, items) => items.length
+          ? `
+              <div class="mb-2">
+                ${label ? `<small class="text-muted fw-bold d-block mb-1">${label}</small>` : ''}
+                ${items.map(r => renderResourceCard(r)).join('')}
+              </div>
+            ` : '';
 
         return `
-          <div class="resource-tier-section resource-tier-${tier}">
-            <div class="resource-tier-header" data-tier="${tier}">
-              <i class="bi ${tierIcons[tier]}"></i>
-              <span>${tierLabels[tier]}</span>
-              <span class="resource-tier-badge">${tierResources.length}</span>
+          <div class="resource-tier-section resource-tier-${cat}">
+            <div class="resource-tier-header" data-tier="${cat}">
+              <i class="bi ${categoryIcons[cat]}"></i>
+              <span>${categoryLabels[cat]}</span>
+              <span class="resource-tier-badge">${catResources.length}</span>
               <i class="bi bi-chevron-down ms-auto collapse-icon"></i>
             </div>
-            <div class="resource-tier-content" data-tier="${tier}">
-              <small class="text-muted d-block mb-2">${tierDescriptions[tier]}</small>
-              ${resourceCards}
+            <div class="resource-tier-content" data-tier="${cat}">
+              <small class="text-muted d-block mb-2">${categoryDescriptions[cat]}</small>
+              ${renderBlock('', primaries)}
+              ${['official','endorsed'].includes(cat) ? renderBlock('Companion', companions) : ''}
             </div>
           </div>
         `;
       }).join('');
 
-    if (!tierSections) {
-      return '';
-    }
+    if (!categorySections) return '';
 
     return `
       <div class="resources-panel">
         <h6><i class="bi bi-book me-2"></i>Supporting Resources (${resources.length})</h6>
-        ${tierSections}
+        ${categorySections}
+      </div>
+    `;
+  }
+
+  // Render resources split into top-down vs authority-site (bottom-up) for debugging
+  function renderResourcesWithDebug(resources) {
+    if (!resources || resources.length === 0) {
+      return '';
+    }
+    const bottomUp = resources.filter(r => (r.retrieved_from || '').toLowerCase() === 'authority_site');
+    const topDown = resources.filter(r => (r.retrieved_from || '').toLowerCase() !== 'authority_site');
+    const sections = [];
+    if (topDown.length > 0) {
+      sections.push(renderResources(topDown));
+    }
+    if (bottomUp.length > 0) {
+      sections.push(`
+        <div class="resources-panel">
+          <h6><i class="bi bi-bug me-2"></i>Authority Site Discovery (debug) (${bottomUp.length})</h6>
+          ${renderResources(bottomUp)}
+        </div>
+      `);
+    }
+    return sections.join('');
+  }
+
+  async function fetchCambridgeAssets(documentId) {
+    const resp = await fetch(`{% url 'core:standards_api_document_assets' document_id=0 %}`.replace('/0/', `/${documentId}/`));
+    return resp.json();
+  }
+
+  function showCambridgeAssetLoading(courseCard) {
+    const syllabusPane = courseCard.querySelector('[data-pane="syllabus"]');
+    const schemePane = courseCard.querySelector('[data-pane="scheme"]');
+    const examsPane = courseCard.querySelector('[data-pane="examinations"]');
+    [syllabusPane, schemePane, examsPane].forEach(p => {
+      if (p) {
+        p.innerHTML = `
+          <div class="text-center py-3">
+            <span class="spinner-border spinner-border-sm"></span>
+            <p class="small mt-2 mb-0">Loading course assets...</p>
+          </div>
+        `;
+      }
+    });
+  }
+
+  function renderResourceTabContent(doc, tabId) {
+    const containerId = `resources-container-${doc.id}-${tabId}`;
+    return `
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <button class="btn btn-outline-primary btn-sm find-resources-btn"
+                data-authority-id="${doc.authority_id}"
+                data-program-id="${doc.program_id}"
+                data-document-id="${doc.id}"
+                data-target="${containerId}">
+          <i class="bi bi-search"></i>Find resources
+        </button>
+        <button class="btn btn-outline-secondary btn-sm load-resources-btn"
+                data-program-id="${doc.program_id}"
+                data-target="${containerId}">
+          <i class="bi bi-arrow-clockwise"></i>Refresh list
+        </button>
+      </div>
+      <div id="${containerId}" class="resource-results-placeholder small text-muted">
+        No resources loaded yet.
       </div>
     `;
   }
@@ -927,6 +1856,13 @@ document.addEventListener('DOMContentLoaded', function() {
           ${r.endorsement_notes || `Recommended by ${r.recommending_organization}`}
         </div>`
       : '';
+
+    const audience = (r.audience || '').toLowerCase();
+    const audienceLabel = {
+      'student': 'Student-facing',
+      'teacher': 'Teacher-facing',
+      'both': 'Student & Teacher'
+    }[audience] || (audience ? audience : '');
 
     return `
       <div class="resource-card">
@@ -946,10 +1882,178 @@ document.addEventListener('DOMContentLoaded', function() {
             <span class="badge bg-light text-dark">${r.media_type}</span>
             ${r.platform ? `<span class="badge bg-secondary ms-1">${r.platform}</span>` : ''}
           </div>
+          ${r.publisher_url ? `<div class="small"><a href="${r.publisher_url}" target="_blank" class="text-decoration-none"><i class="bi bi-box-arrow-up-right me-1"></i>Publisher page</a></div>` : ''}
+          <div class="resource-badges">
+            ${audienceLabel ? `<span class="audience-badge ${audience.replace(' ', '_')}">${audienceLabel}</span>` : ''}
+            ${r.is_companion ? '<span class="companion-badge">Companion</span>' : ''}
+          </div>
           ${endorsement}
         </div>
       </div>
     `;
+  }
+
+  async function fetchResourcesForProgram(programId, containerId, triggerBtn = null) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    if (!programId) {
+      container.innerHTML = '<div class="alert alert-warning mb-0">No program ID available for this course.</div>';
+      return;
+    }
+
+    const prevHtml = container.innerHTML;
+    container.innerHTML = `
+      <div class="text-center py-3">
+        <span class="spinner-border spinner-border-sm"></span>
+        <p class="mb-0 mt-2 small">Loading resources...</p>
+      </div>
+    `;
+    if (triggerBtn) triggerBtn.disabled = true;
+
+    try {
+      const response = await fetch(`{% url 'core:standards_api_media' %}?programs=${programId}`);
+      const data = await response.json();
+      if (!data.results || data.results.length === 0) {
+        container.innerHTML = '<div class="alert alert-info mb-0">No resources found yet for this course.</div>';
+      } else {
+        container.innerHTML = renderResourcesWithDebug(data.results);
+        // Wire collapse toggles for resource tiers
+        container.querySelectorAll('.resource-tier-header').forEach(header => {
+          header.addEventListener('click', () => {
+            const tier = header.dataset.tier;
+            const content = container.querySelector(`.resource-tier-content[data-tier="${tier}"]`);
+            header.classList.toggle('collapsed');
+            content?.classList.toggle('collapsed');
+          });
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = `<div class="alert alert-danger mb-0">Error loading resources: ${err.message}</div>`;
+    } finally {
+      if (triggerBtn) triggerBtn.disabled = false;
+    }
+  }
+
+  async function startResourceSync(authorityId, programId, containerId, button) {
+    if (!authorityId) return;
+    button.classList.add('syncing');
+    const icon = button.querySelector('i');
+    icon?.classList.add('spin');
+
+    try {
+      const response = await fetch('{% url "core:standards_api_sync_resources" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': csrfToken,
+        },
+        body: `authority_id=${authorityId}&document_id=${encodeURIComponent(button.dataset.documentId || '')}`
+      });
+      const data = await response.json();
+      if (data.error) {
+        showToast(data.error, 'error');
+        icon?.classList.remove('spin');
+        button.classList.remove('syncing');
+        return;
+      }
+      pollJobStatus(data.job_id, button, () => fetchResourcesForProgram(programId, containerId, button));
+    } catch (err) {
+      showToast('Error starting resource sync: ' + err.message, 'error');
+      icon?.classList.remove('spin');
+      button.classList.remove('syncing');
+    }
+  }
+
+  // Attach objectives tab handlers
+  function attachObjectivesTabHandlers(courseCard, doc) {
+    courseCard.querySelectorAll('.load-objectives-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const documentId = this.dataset.documentId;
+        const targetId = this.dataset.target;
+        fetchObjectivesForDocument(documentId, targetId, this);
+      });
+    });
+  }
+
+  // Fetch and render objectives tree for a document
+  async function fetchObjectivesForDocument(documentId, containerId, triggerBtn = null) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // Show loading state
+    container.innerHTML = `
+      <div class="text-center py-4">
+        <span class="spinner-border spinner-border-sm"></span>
+        <p class="mb-0 mt-2 small text-muted">Loading objectives...</p>
+      </div>
+    `;
+    if (triggerBtn) {
+      triggerBtn.disabled = true;
+      triggerBtn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>Loading...';
+    }
+
+    try {
+      const response = await fetch(`/teacher/standards/api/document/${documentId}/objectives/`);
+      const data = await response.json();
+
+      if (data.error) {
+        container.innerHTML = `<div class="alert alert-warning mb-0">${data.error}</div>`;
+        return;
+      }
+
+      if (!data.objectives || data.objectives.length === 0) {
+        container.innerHTML = `
+          <div class="alert alert-info mb-0">
+            <i class="bi bi-info-circle me-2"></i>
+            No objectives have been loaded for this course yet.
+          </div>
+        `;
+        return;
+      }
+
+      // Render the objectives tree
+      container.innerHTML = `
+        <div class="objectives-summary mb-3">
+          <span class="badge bg-primary me-2">${data.total_objectives} objectives</span>
+          <span class="badge bg-secondary">${data.syllabus_code}</span>
+        </div>
+        <div class="objectives-tree">
+          ${renderObjectiveTree(data.objectives)}
+        </div>
+      `;
+
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = `<div class="alert alert-danger mb-0">Error loading objectives: ${err.message}</div>`;
+    } finally {
+      if (triggerBtn) {
+        triggerBtn.disabled = false;
+        triggerBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Reload';
+      }
+    }
+  }
+
+  function attachResourceTabHandlers(courseCard, doc) {
+    courseCard.querySelectorAll('.find-resources-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = this.dataset.target;
+        startResourceSync(this.dataset.authorityId, this.dataset.programId, target, this);
+      });
+    });
+
+    courseCard.querySelectorAll('.load-resources-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = this.dataset.target;
+        fetchResourcesForProgram(this.dataset.programId, target, this);
+      });
+    });
   }
 
   // Escape HTML to prevent XSS
@@ -990,6 +2094,12 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
+    // Require program selection to avoid searching all programs
+    if (selectedPrograms.length === 0) {
+      alert('Please select at least one program from the filter tree before searching.');
+      return;
+    }
+
     resultsContainer.innerHTML = `
       <div class="text-center py-5">
         <span class="spinner-border"></span>
@@ -998,9 +2108,7 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
 
     let params = `q=${encodeURIComponent(query)}`;
-    if (selectedPrograms.length > 0) {
-      params += '&' + selectedPrograms.map(id => `programs=${id}`).join('&');
-    }
+    params += '&' + selectedPrograms.map(id => `programs=${id}`).join('&');
 
     const response = await fetch(`{% url 'core:standards_api_search' %}?${params}`);
     const data = await response.json();
@@ -1042,6 +2150,8 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <span class="badge bg-primary me-2">${result.authority_code}</span>
+                <span class="badge bg-success me-2" title="Program">${result.program_name}</span>
+                ${result.syllabus_code ? `<span class="badge bg-info text-dark me-2" title="Syllabus Code">${result.syllabus_code}</span>` : ''}
                 <span class="badge bg-secondary me-2">${result.node_type}</span>
                 <span class="text-muted small">${result.subject} - ${result.grade_level}</span>
               </div>

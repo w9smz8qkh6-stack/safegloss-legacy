@@ -98,13 +98,12 @@ class Command(BaseCommand):
             self.stdout.write(f"\nProcessing {programme_name} (Ages {age_range})...")
 
             for course in programme["courses"]:
-                course_code = course["code"]
+                syllabus_code = course["syllabus_code"]
                 course_name = course["name"]
                 subject_group = course.get("subject_group", "General")
                 levels = course.get("levels", [])  # For AS/A Level courses
-
-                # Build version label from syllabus code
-                version_label = f"Syllabus {course_code}"
+                version = course.get("version", "Current")  # Validity period e.g., "2024-2026"
+                course_url = course.get("url")  # Course-specific URL if available
 
                 # Build grade level string based on programme
                 if programme_code == "PRIMARY":
@@ -122,11 +121,10 @@ class Command(BaseCommand):
                 else:
                     grade_level = f"Ages {age_range}"
 
-                # Check if document already exists
+                # Check if document already exists (by syllabus_code, which is unique per course)
                 existing = StandardsDocument.objects.filter(
                     authority_program=sub_program,
-                    subject=subject_group,
-                    version_label=version_label,
+                    syllabus_code=syllabus_code,
                 ).first()
 
                 if existing and not force:
@@ -135,7 +133,7 @@ class Command(BaseCommand):
 
                 if dry_run:
                     action = "Would update" if existing else "Would create"
-                    self.stdout.write(f"  {action}: {course_name} ({course_code})")
+                    self.stdout.write(f"  {action}: {course_name} ({syllabus_code})")
                     if existing:
                         updated_count += 1
                     else:
@@ -143,14 +141,18 @@ class Command(BaseCommand):
                     continue
 
                 # Build document defaults
+                # Use course-specific URL if available, otherwise fall back to catalog URL
+                document_url = course_url if course_url else source_data["url"]
+
                 defaults = {
                     "grade_level": grade_level,
+                    "version_label": version,
                     "source_publisher_name": source_data["publisher"],
                     "source_publisher_type": source_data["publisher_type"],
                     "source_title": course_name,
-                    "source_url": source_data["url"],
+                    "source_url": document_url,
                     "acquisition_method": source_data["acquisition_method"],
-                    "acquisition_notes": f"{programme_name} - {course_name} (Syllabus {course_code}). Subject Group: {subject_group}.",
+                    "acquisition_notes": f"{programme_name} - {course_name} (Syllabus {syllabus_code}). Subject Group: {subject_group}.",
                     "is_active": True,
                     "status": "current",
                 }
@@ -169,7 +171,7 @@ class Command(BaseCommand):
                     StandardsDocument.objects.create(
                         authority_program=sub_program,
                         subject=subject_group,
-                        version_label=version_label,
+                        syllabus_code=syllabus_code,
                         **defaults
                     )
                     created_count += 1
