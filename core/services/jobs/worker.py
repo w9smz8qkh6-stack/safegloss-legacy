@@ -385,14 +385,6 @@ def _handle_sync_authority_objectives(job: BackgroundJob) -> dict:
                 grades = provider.list_available_grades(subject)
                 for grade in grades:
                     try:
-                        # Check for existing document
-                        existing = StandardsDocument.objects.filter(
-                            authority_program=program,
-                            subject=subject,
-                            grade_level=grade,
-                            status="current",
-                        ).first()
-
                         # Sync the document
                         new_doc = sync_document(
                             program.code,
@@ -401,8 +393,19 @@ def _handle_sync_authority_objectives(job: BackgroundJob) -> dict:
                             None,  # Let provider determine version
                         )
 
-                        # If there was an existing different document, mark it superseded
-                        if existing and existing.pk != new_doc.pk:
+                        # Provider may return None if no data available
+                        if new_doc is None:
+                            continue  # Skip this combination silently
+
+                        # Check for existing document to supersede
+                        existing = StandardsDocument.objects.filter(
+                            authority_program=program,
+                            subject=subject,
+                            grade_level=grade,
+                            status="current",
+                        ).exclude(pk=new_doc.pk).first()
+
+                        if existing:
                             existing.mark_superseded(new_doc)
                             results["documents_superseded"] += 1
 

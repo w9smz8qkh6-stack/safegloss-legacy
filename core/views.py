@@ -1,7 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
-from django.db.models import Count, Max
+from django.db import models
+from django.db.models import Count, Max, Case, When, IntegerField
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from functools import wraps
@@ -2974,8 +2975,18 @@ def standards_api_results(request):
 
         objective_tree = build_tree()
 
-        # Get resources for this program
-        resources = doc.authority_program.media.filter(is_official=True)[:5]
+        # Get resources for this program - show all tiers
+        resources = doc.authority_program.media.all().order_by(
+            # Order by tier priority: official first, then recommended, then commonly_used
+            models.Case(
+                models.When(recommendation_tier="official", then=0),
+                models.When(recommendation_tier="recommended", then=1),
+                models.When(recommendation_tier="commonly_used", then=2),
+                default=3,
+                output_field=models.IntegerField(),
+            ),
+            "title"
+        )[:15]  # Limit to 15 total resources across all tiers
         resources_data = [
             {
                 "id": media.pk,
@@ -2986,6 +2997,10 @@ def standards_api_results(request):
                 "platform": media.platform,
                 "platform_display": media.get_platform_display(),
                 "is_official": media.is_official,
+                "recommendation_tier": media.recommendation_tier,
+                "recommendation_tier_display": media.get_recommendation_tier_display() if hasattr(media, 'get_recommendation_tier_display') else media.recommendation_tier,
+                "endorsement_notes": media.endorsement_notes,
+                "recommending_organization": media.recommending_organization,
                 "cover_image_url": media.cover_image_url,
                 "source_url": media.source_url,
             }
@@ -3014,7 +3029,7 @@ def standards_api_results(request):
             "objective_count": nodes.count(),
             "objectives": objective_tree,
             "resources": resources_data,
-            "resources_count": doc.authority_program.media.filter(is_official=True).count(),
+            "resources_count": doc.authority_program.media.count(),
         })
 
     return JsonResponse({

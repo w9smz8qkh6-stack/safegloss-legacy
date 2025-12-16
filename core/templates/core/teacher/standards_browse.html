@@ -127,16 +127,67 @@
   }
   /* Resources panel */
   .resources-panel {
-    background: #f0f8ff;
+    background: #f8f9fa;
     border-radius: 0.375rem;
     padding: 0.75rem;
     margin-top: 1rem;
+    border: 1px solid #e9ecef;
+  }
+  .resources-panel h6 {
+    margin-bottom: 0.75rem;
+    color: #495057;
+  }
+  .resource-tier-section {
+    margin-bottom: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    overflow: hidden;
+  }
+  .resource-tier-section:last-child {
+    margin-bottom: 0;
+  }
+  .resource-tier-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .resource-tier-header:hover {
+    opacity: 0.9;
+  }
+  .resource-tier-official .resource-tier-header {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    color: white;
+  }
+  .resource-tier-recommended .resource-tier-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
+    color: white;
+  }
+  .resource-tier-commonly_used .resource-tier-header {
+    background: linear-gradient(135deg, #6c757d 0%, #5c636a 100%);
+    color: white;
+  }
+  .resource-tier-content {
+    background: white;
+    padding: 0.5rem;
+  }
+  .resource-tier-content.collapsed {
+    display: none;
+  }
+  .resource-tier-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    background: rgba(255,255,255,0.2);
   }
   .resource-card {
     display: flex;
     gap: 0.5rem;
     padding: 0.5rem;
-    background: white;
+    background: #f8f9fa;
     border-radius: 0.25rem;
     margin-bottom: 0.5rem;
     border: 1px solid #e9ecef;
@@ -150,6 +201,7 @@
     object-fit: cover;
     border-radius: 0.25rem;
     background: #dee2e6;
+    flex-shrink: 0;
   }
   .resource-info {
     flex: 1;
@@ -163,9 +215,27 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .resource-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .resource-title a:hover {
+    color: #0d6efd;
+  }
   .resource-meta {
     font-size: 0.75rem;
     color: #6c757d;
+  }
+  .resource-endorsement {
+    font-size: 0.7rem;
+    color: #198754;
+    font-style: italic;
+  }
+  .resource-tier-header .collapse-icon {
+    transition: transform 0.2s;
+  }
+  .resource-tier-header.collapsed .collapse-icon {
+    transform: rotate(-90deg);
   }
   /* Toast notifications */
   .sync-toast {
@@ -611,7 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
         documentsList.appendChild(tierSection);
       });
 
-      // Add collapse handlers
+      // Add collapse handlers for document tiers
       document.querySelectorAll('.tier-header').forEach(header => {
         header.addEventListener('click', function() {
           const tier = this.dataset.tier;
@@ -626,6 +696,21 @@ document.addEventListener('DOMContentLoaded', function() {
         documentsList.innerHTML += renderDocument(doc);
       });
     }
+
+    // Add collapse handlers for resource tiers (using event delegation)
+    document.querySelectorAll('.resource-tier-header').forEach(header => {
+      header.addEventListener('click', function() {
+        const tier = this.dataset.tier;
+        const content = this.nextElementSibling;
+        this.classList.toggle('collapsed');
+        content.classList.toggle('collapsed');
+        // Rotate the chevron icon
+        const icon = this.querySelector('.collapse-icon');
+        if (icon) {
+          icon.style.transform = this.classList.contains('collapsed') ? 'rotate(-90deg)' : '';
+        }
+      });
+    });
 
   });
 
@@ -683,32 +768,110 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
   }
 
-  // Render resources panel
+  // Render resources panel with three tiers
   function renderResources(resources) {
     if (!resources || resources.length === 0) {
       return '';
     }
-    const resourceCards = resources.map(r => `
-      <div class="resource-card">
-        ${r.cover_image_url ? `<img src="${r.cover_image_url}" class="resource-cover" alt="">` : '<div class="resource-cover d-flex align-items-center justify-content-center"><i class="bi bi-book text-muted"></i></div>'}
-        <div class="resource-info">
-          <div class="resource-title" title="${r.title}">${r.title}</div>
-          <div class="resource-meta">
-            ${r.author ? `${r.author} &bull; ` : ''}
-            <span class="badge bg-light text-dark">${r.media_type}</span>
-            ${r.is_official ? '<span class="badge bg-success ms-1">Official</span>' : ''}
+
+    // Group resources by tier
+    const tierOrder = ['official', 'recommended', 'commonly_used'];
+    const tierLabels = {
+      'official': 'Official',
+      'recommended': 'Recommended',
+      'commonly_used': 'Commonly Used'
+    };
+    const tierIcons = {
+      'official': 'bi-patch-check-fill',
+      'recommended': 'bi-star-fill',
+      'commonly_used': 'bi-people-fill'
+    };
+    const tierDescriptions = {
+      'official': 'Published or endorsed by the standards authority',
+      'recommended': 'Recommended by professional organizations',
+      'commonly_used': 'Found on district and school websites'
+    };
+
+    const resourcesByTier = {};
+    resources.forEach(r => {
+      const tier = r.recommendation_tier || (r.is_official ? 'official' : 'commonly_used');
+      if (!resourcesByTier[tier]) resourcesByTier[tier] = [];
+      resourcesByTier[tier].push(r);
+    });
+
+    // Build tier sections
+    const tierSections = tierOrder
+      .filter(tier => resourcesByTier[tier] && resourcesByTier[tier].length > 0)
+      .map(tier => {
+        const tierResources = resourcesByTier[tier];
+        const resourceCards = tierResources.map(r => renderResourceCard(r)).join('');
+
+        return `
+          <div class="resource-tier-section resource-tier-${tier}">
+            <div class="resource-tier-header" data-tier="${tier}">
+              <i class="bi ${tierIcons[tier]}"></i>
+              <span>${tierLabels[tier]}</span>
+              <span class="resource-tier-badge">${tierResources.length}</span>
+              <i class="bi bi-chevron-down ms-auto collapse-icon"></i>
+            </div>
+            <div class="resource-tier-content" data-tier="${tier}">
+              <small class="text-muted d-block mb-2">${tierDescriptions[tier]}</small>
+              ${resourceCards}
+            </div>
           </div>
-        </div>
-        ${r.source_url ? `<a href="${r.source_url}" target="_blank" class="btn btn-sm btn-link"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}
-      </div>
-    `).join('');
+        `;
+      }).join('');
+
+    if (!tierSections) {
+      return '';
+    }
 
     return `
       <div class="resources-panel">
         <h6><i class="bi bi-book me-2"></i>Supporting Resources (${resources.length})</h6>
-        ${resourceCards}
+        ${tierSections}
       </div>
     `;
+  }
+
+  // Render a single resource card
+  function renderResourceCard(r) {
+    const endorsement = r.endorsement_notes || r.recommending_organization
+      ? `<div class="resource-endorsement">
+          ${r.endorsement_notes || `Recommended by ${r.recommending_organization}`}
+        </div>`
+      : '';
+
+    return `
+      <div class="resource-card">
+        ${r.cover_image_url
+          ? `<img src="${r.cover_image_url}" class="resource-cover" alt="">`
+          : '<div class="resource-cover d-flex align-items-center justify-content-center"><i class="bi bi-book text-muted"></i></div>'
+        }
+        <div class="resource-info">
+          <div class="resource-title" title="${escapeHtml(r.title)}">
+            ${r.source_url
+              ? `<a href="${r.source_url}" target="_blank">${escapeHtml(r.title)}</a>`
+              : escapeHtml(r.title)
+            }
+          </div>
+          <div class="resource-meta">
+            ${r.author ? `${escapeHtml(r.author)} &bull; ` : ''}
+            <span class="badge bg-light text-dark">${r.media_type}</span>
+            ${r.platform ? `<span class="badge bg-secondary ms-1">${r.platform}</span>` : ''}
+          </div>
+          ${endorsement}
+        </div>
+      </div>
+    `;
+  }
+
+  // Escape HTML to prevent XSS
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
   // Render objective tree recursively
@@ -870,11 +1033,56 @@ document.addEventListener('DOMContentLoaded', function() {
     return toastId;
   }
 
-  // Poll job status
+  // Poll job status with verbose progress
   async function pollJobStatus(jobId, button, onComplete) {
-    const pollInterval = 2000;
-    const maxPolls = 60; // 2 minutes max
+    const pollInterval = 1500;  // Poll every 1.5 seconds
+    const maxPolls = 120; // 3 minutes max
     let pollCount = 0;
+    let progressToastId = null;
+
+    // Show persistent progress toast
+    function updateProgressToast(message, pct) {
+      const progressBar = pct > 0 ? `
+        <div class="progress mt-2" style="height: 6px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated"
+               role="progressbar" style="width: ${pct}%"
+               aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+        <small class="text-white-50">${pct}% complete</small>
+      ` : '';
+
+      if (progressToastId) {
+        const existingToast = document.getElementById(progressToastId);
+        if (existingToast) {
+          existingToast.querySelector('.toast-body').innerHTML = `
+            <div><i class="bi bi-arrow-repeat spin me-2"></i>${message}</div>
+            ${progressBar}
+          `;
+          return;
+        }
+      }
+
+      // Create new progress toast
+      progressToastId = 'progress-toast-' + Date.now();
+      const toastHtml = `
+        <div id="${progressToastId}" class="toast show align-items-center text-white bg-primary border-0 mb-2" role="alert">
+          <div class="d-flex">
+            <div class="toast-body" style="min-width: 250px;">
+              <div><i class="bi bi-arrow-repeat spin me-2"></i>${message}</div>
+              ${progressBar}
+            </div>
+          </div>
+        </div>
+      `;
+      toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+    }
+
+    function removeProgressToast() {
+      if (progressToastId) {
+        document.getElementById(progressToastId)?.remove();
+        progressToastId = null;
+      }
+    }
 
     const poll = async () => {
       try {
@@ -882,36 +1090,59 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = await response.json();
 
         if (data.status === 'completed') {
+          removeProgressToast();
           button.classList.remove('syncing');
           button.querySelector('i').classList.remove('spin');
-          showToast(data.result?.message || 'Sync completed successfully!', 'success');
+
+          // Show detailed completion message
+          const result = data.result || {};
+          const msg = result.documents_synced
+            ? `Synced ${result.documents_synced} document(s) for ${result.authority_name || 'authority'}`
+            : (result.message || 'Sync completed successfully!');
+          showToast(msg, 'success', 8000);
+
+          // Log errors if any
+          if (result.errors && result.errors.length > 0) {
+            console.warn('Sync completed with errors:', result.errors);
+            showToast(`${result.errors.length} warning(s) - check console`, 'warning', 5000);
+          }
+
           if (onComplete) onComplete(data);
           return;
         }
 
         if (data.status === 'failed') {
+          removeProgressToast();
           button.classList.remove('syncing');
           button.querySelector('i').classList.remove('spin');
-          showToast(data.result?.error || 'Sync failed. Please try again.', 'error');
+          showToast(data.error_message || 'Sync failed. Please try again.', 'error', 10000);
           return;
         }
 
-        // Still running
+        // Still running - update progress
+        const progressMsg = data.progress_message || 'Processing...';
+        const progressPct = data.progress_pct || 0;
+        updateProgressToast(progressMsg, progressPct);
+
         pollCount++;
         if (pollCount < maxPolls) {
           setTimeout(poll, pollInterval);
         } else {
+          removeProgressToast();
           button.classList.remove('syncing');
           button.querySelector('i').classList.remove('spin');
-          showToast('Sync is taking longer than expected. Check back later.', 'warning');
+          showToast('Sync is taking longer than expected. Job ID: ' + jobId, 'warning');
         }
       } catch (err) {
+        removeProgressToast();
         button.classList.remove('syncing');
         button.querySelector('i').classList.remove('spin');
         showToast('Error checking sync status: ' + err.message, 'error');
       }
     };
 
+    // Start with initial message
+    updateProgressToast('Starting sync...', 0);
     poll();
   }
 
@@ -926,7 +1157,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
       this.classList.add('syncing');
       this.querySelector('i').classList.add('spin');
-      showToast('Starting objectives sync...', 'info', 3000);
 
       try {
         const response = await fetch('{% url "core:standards_api_sync_objectives" %}', {
@@ -967,7 +1197,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
       this.classList.add('syncing');
       this.querySelector('i').classList.add('spin');
-      showToast('Starting resources sync...', 'info', 3000);
 
       try {
         const response = await fetch('{% url "core:standards_api_sync_resources" %}', {

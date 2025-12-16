@@ -870,33 +870,51 @@ class ObjectiveCodeMap(models.Model):
 
 class AuthorityProgramMedia(models.Model):
     """
-    Official media and endorsed courses for an authority/program.
+    Educational resources for an authority/program.
     Includes textbooks, guides, exam prep materials, and platform courses.
+
+    Resources are categorized by recommendation tier:
+    - official: Published/endorsed by the standards authority itself
+    - recommended: Recommended by professional organizations or experts
+    - commonly_used: Found on school district/school websites
     """
     MEDIA_TYPES = [
         ("book", "Book"),
         ("guide", "Guide"),
+        ("curriculum", "Curriculum"),
         ("practice_tests", "Practice Tests"),
         ("video_series", "Video Series"),
         ("course", "Course"),
+        ("website", "Website"),
     ]
 
     PLATFORMS = [
         ("print", "Print"),
+        ("authority", "Authority Website"),
         ("google_books", "Google Books"),
         ("amazon", "Amazon"),
         ("khan_academy", "Khan Academy"),
         ("udemy", "Udemy"),
         ("coursera", "Coursera"),
         ("youtube", "YouTube"),
+        ("district", "School District"),
+        ("publisher", "Publisher"),
         ("other", "Other"),
     ]
 
     RETRIEVAL_SOURCES = [
-        ("google_books", "Google Books API"),
-        ("amazon", "Amazon"),
+        ("authority_website", "Authority Website"),
+        ("professional_org", "Professional Organization"),
+        ("district_website", "School District Website"),
+        ("ai_discovery", "AI-Assisted Discovery"),
+        ("google_books_enrichment", "Google Books (Metadata)"),
         ("manual", "Manual Entry"),
-        ("platform_scrape", "Platform Scrape"),
+    ]
+
+    RECOMMENDATION_TIERS = [
+        ("official", "Official"),
+        ("recommended", "Recommended"),
+        ("commonly_used", "Commonly Used"),
     ]
 
     authority_program = models.ForeignKey(
@@ -921,16 +939,36 @@ class AuthorityProgramMedia(models.Model):
     media_type = models.CharField(max_length=20, choices=MEDIA_TYPES)
     platform = models.CharField(max_length=20, choices=PLATFORMS)
 
-    # Official/endorsement status
+    # Recommendation tier (replaces is_official/is_unofficial)
+    recommendation_tier = models.CharField(
+        max_length=20,
+        choices=RECOMMENDATION_TIERS,
+        default="commonly_used",
+        help_text="How authoritative is this resource?"
+    )
+
+    # Legacy fields (for backwards compatibility during migration)
     is_official = models.BooleanField(
         default=False,
-        help_text="True if published/endorsed by the authority"
+        help_text="DEPRECATED: Use recommendation_tier='official' instead"
     )
     is_unofficial = models.BooleanField(
         default=False,
-        help_text="True for relevant but unofficial resources"
+        help_text="DEPRECATED: Use recommendation_tier instead"
     )
     endorsement_notes = models.TextField(blank=True)
+
+    # Discovery provenance
+    discovered_from_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        help_text="URL where this resource was discovered"
+    )
+    recommending_organization = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Organization that recommended this resource"
+    )
 
     # Features (JSON for flexibility)
     features = models.JSONField(
@@ -940,7 +978,7 @@ class AuthorityProgramMedia(models.Model):
     )
 
     # Metadata retrieval
-    retrieved_from = models.CharField(max_length=20, choices=RETRIEVAL_SOURCES, blank=True)
+    retrieved_from = models.CharField(max_length=30, choices=RETRIEVAL_SOURCES, blank=True)
     retrieved_at = models.DateTimeField(null=True, blank=True)
     metadata_raw = models.JSONField(
         default=dict,
@@ -961,9 +999,9 @@ class AuthorityProgramMedia(models.Model):
 
     class Meta:
         verbose_name_plural = "Authority program media"
-        ordering = ["-is_official", "title"]
+        ordering = ["recommendation_tier", "title"]
         indexes = [
-            models.Index(fields=["authority_program", "is_official"]),
+            models.Index(fields=["authority_program", "recommendation_tier"]),
             models.Index(fields=["isbn_13"]),
         ]
 

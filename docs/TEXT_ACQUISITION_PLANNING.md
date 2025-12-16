@@ -72,6 +72,7 @@ This document describes how Safegloss can discover, acquire (legally), and link 
 - **Borrow / Place Hold / Open in Provider** (deep-link)
 - **Save Link to Course** (stores a TextLocation/URL + access method)
 - **Request purchase** (admin workflow) / “Ask librarian” (template email)
+- **Open purchase link** with price where available (marketplace/publisher direct)
 
 ---
 
@@ -212,11 +213,49 @@ Safegloss should support **multiple acquisition pathways**:
 2) **University library vendor platforms** (Ebook Central, EBSCOhost eBooks, JSTOR, SpringerLink, Cambridge Core, Oxford Academic)
 3) **Open repositories** (OpenStax, LibreTexts, OER Commons, DOAB)
 4) **Indexes/metadata APIs** (WorldCat Search API (if licensed), Crossref, OpenAlex, Google Books metadata)
+5) **Commercial marketplaces** for purchase links (Amazon, publisher-direct stores, other mainstream retailers) with price capture
 
 Safegloss should also record **“purchase-only”** options as a last resort, but acquisition should remain link-based.
 
 ---
 
+## Purchase Link Routine (Commercial)
+
+Goal: provide a **reliable, current purchase link + price** when no borrow/read option is available.
+
+- **Smart search order**: ISBN-13 → ISBN-10 → title+author.
+- **Providers to scan**: Amazon (books), publisher-direct storefronts (when detected by publisher name), and at least one secondary marketplace (e.g., Bookshop or Barnes & Noble) for redundancy.
+- **Detection heuristic**:
+  - Prefer exact ISBN landing pages; fallback to title+author with edition/year match.
+  - Avoid affiliate/deep redirects; use canonical product URLs.
+  - Reject obviously stale/out-of-stock pages (mark status).
+- **Captured fields**: canonical URL, price (currency + amount), availability note (in stock / preorder / out of stock), fetched_at timestamp, provider name.
+- **Caching**: short TTL (e.g., 6–12 hours) to keep prices fresh; force-refresh option in Acquire flow.
+- **Labeling**: mark as `PurchaseOnly` access_type, shown after borrow/read/open options.
+
+---
+
+# Current Connector & Orchestration Status (Scaffolded)
+
+- Connectors implemented (MVP-level):
+  - **Google Books**: metadata/preview; uses Google Books API; returns read_online or purchase_only (with price when available).
+  - **Open Library**: ISBN lookup; returns borrow/read links when available.
+  - **UVA Resolver**: constructs OpenURL resolver link (login_required); uses `UVA_RESOLVER_BASE_URL` setting.
+  - **NYPL Catalog**: builds Encore catalog deep links (login_required).
+  - **Marketplace Purchase**: reuses Google Books saleInfo for purchase-only links with price capture.
+- Connector registry auto-initializes default connectors; seed command populates TextSource rows.
+- Orchestration:
+  - `manage.py acquire_text --course <id> --actor <user_id> --role ... [--force]`
+  - TTL caching: skips re-query within `ACQUIRE_TEXT_TTL_HOURS` (default 24h) unless `--force`.
+  - Candidates are upserted per text/source/URL with match signals (ISBN-aware) and stored availability/price snapshots.
+  - Audit logs record actor_role, source, and candidate counts.
+
+Next to implement:
+- Deeper availability checks (NYPL/vendor, UVA Primo), holds/borrow where APIs allow.
+- Stronger matching/ranking (title/author similarity, edition/year).
+- UI surfacing on Course page and Acquire Text page; credential vault UI and scopes.
+
+---
 ## Initial Provider List (Phase 1)
 
 ### Public Libraries

@@ -210,9 +210,67 @@ This export is the authoritative answer to:
 #### Step 7 — Validation Gate (Non-Negotiable)
 - If provenance is missing, incomplete, or invalid:
   - **do not import** the standards document
-  - surface a clear error in logs/admin UI
+- surface a clear error in logs/admin UI
 
 This gate prevents undocumented or legally ambiguous curriculum data from entering the system.
+
+---
+
+## 19) “Check Before Sync” Routine (Staleness Guard)
+
+Purpose: before running a full sync/re-population for an authority/program, perform a lightweight check to determine if the local cache is stale. Only prompt/execute re-sync when we have evidence of change.
+
+### 19.1 Signals that mark data as “stale”
+- Remote `version_label` differs from the local active `StandardsDocument` for the authority/program/subject/grade.
+- Remote `effective_from`/published date is newer than local `source_accessed_at`.
+- Remote course/catalog list hash differs from stored local `catalog_hash` (sorted course IDs/titles).
+- Local document is `draft` or `superseded` and there is no recorded newer active document.
+
+### 19.2 Metadata to store per authority/program
+- `remote_version_label`
+- `remote_effective_from`
+- `remote_catalog_hash` (sorted, stable hash of course IDs/titles)
+- `last_checked_at`
+- `last_sync_at`
+- `last_sync_result`
+
+### 19.3 Flow
+1) Fetch remote metadata list (official API preferred; otherwise official page checksum/version label).
+2) Compute remote course list hash; compare to stored `remote_catalog_hash`.
+3) If any stale signal is true, surface a prompt to the user/admin summarizing changes (version change, +N/-M courses) and request approval.
+4) On approval: enqueue full re-population/sync; update `last_sync_at` and `remote_*` fields.
+5) On deny or failure: log skip with reason; do not mutate local data.
+
+### 19.4 UI copy (admin/teacher)
+- “Detected updates from <authority/program>: version changed from X → Y; courses +N / -M. Re-sync now?” [Yes/No]
+
+### 19.5 Fail-safes
+- If remote fetch fails, keep local as-is and log “check failed”.
+- If remote list is empty, treat as error (not as removal) unless explicitly confirmed by the user.
+
+### 19.6 Helper stub (implementation note)
+- Add `check_before_sync(authority_program_id)` helper:
+  - Reads stored metadata, fetches remote summary, computes hashes, returns a status object `{is_stale: bool, changes: {...}, prompt_copy: str}`.
+  - Called by admin UI and scheduled sync jobs in “check-only” mode before enqueuing re-sync.
+
+---
+
+## Implementation Status (snapshot)
+
+**Done / in code**
+- Provenance fields on `StandardsDocument` (publisher, source URLs, acquisition_method, evidence hashes).
+- Authority → Program hierarchy and models exist; seed data partially present.
+- AI extraction via OpenRouter fallback in `core/services/standards/discovery.py` (basic).
+- “Check Before Sync” routine defined (documentation; not yet coded).
+
+**Outstanding**
+- Enforce controlled `acquisition_method` + provenance validation gate on import/sync (fail closed).
+- Provider contract: ensure `fetch_objectives()` returns provenance; error if missing.
+- UI: Source panel (publisher/version/method/verified) on teacher standards view.
+- Admin export for provenance report (CSV/JSON).
+- Mapping audit: `ObjectiveCodeMap` population + export.
+- “Check Before Sync” helper + admin prompt + scheduled job integration.
+- Authority/program seed completeness verification and discovery job wiring.
 
 
 ## 18) Definition of Done
@@ -312,6 +370,11 @@ This section defines the **canonical seed data** for Standards Authorities and t
 - Programs:
   - `CAM_IGCSE` — IGCSE
   - `CAM_STARTERS` — Cambridge Starters
+
+**WIDA (English Language Development)**
+- Authority code: `WIDA`
+- Programs:
+  - `WIDA_ACCESS` — ACCESS for ELLs (English Language Development standards)
 
 **British Council**
 - Authority code: `BC`

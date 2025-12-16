@@ -262,7 +262,7 @@ def sync_document(
     subject: str,
     grade_level: str,
     version: Optional[str] = None,
-) -> StandardsDocument:
+) -> Optional[StandardsDocument]:
     """
     Sync a document using the registered provider.
 
@@ -278,7 +278,7 @@ def sync_document(
         version: Optional version; defaults to latest
 
     Returns:
-        The synced StandardsDocument
+        The synced StandardsDocument, or None if no data available
 
     Raises:
         ImportError: If no provider is registered or sync fails
@@ -289,6 +289,10 @@ def sync_document(
 
     provider = provider_cls()
     fetch_result = provider.fetch_objectives(subject, grade_level, version)
+
+    # Provider may return None if no data available for this combination
+    if fetch_result is None:
+        return None
 
     return import_standards_document(fetch_result)
 

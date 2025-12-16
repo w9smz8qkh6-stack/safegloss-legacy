@@ -3,6 +3,19 @@ Texas Resource Provider.
 
 Discovers educational resources that support Texas TEKS
 (Texas Essential Knowledge and Skills) learning objectives.
+
+DISCOVERY STRATEGY:
+==================
+1. Official resources from TEA (Texas Education Agency):
+   - TEA Instructional Materials page
+   - Texas Resource Review
+
+2. Commonly used resources from major districts:
+   - Houston ISD curriculum
+   - Dallas ISD curriculum
+   - Austin ISD curriculum
+
+3. Metadata enrichment via Google Books (ISBNs, covers only)
 """
 
 import logging
@@ -16,9 +29,13 @@ from core.services.resources import (
 )
 from core.services.resources.discovery import (
     get_curated_resources,
-    search_google_books,
     normalize_subject,
     grade_matches,
+    discover_from_authority_website,
+    discover_from_district_website,
+    enrich_resources_batch,
+    AUTHORITY_RESOURCE_PAGES,
+    DISTRICT_CURRICULUM_PAGES,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,15 +91,6 @@ class TexasResourceProvider(BaseResourceProvider):
         "https://www.austinisd.org/academics",
     ]
 
-    # Subject-specific search terms for Google Books
-    SUBJECT_SEARCH_TERMS = {
-        "english language arts": "Texas TEKS English Language Arts textbook",
-        "mathematics": "Texas TEKS Mathematics textbook",
-        "science": "Texas TEKS Science textbook",
-        "social studies": "Texas TEKS Social Studies textbook",
-        "technology applications": "Texas TEKS Technology textbook",
-    }
-
     @property
     def authority_code(self) -> str:
         return "US_STATES"
@@ -99,47 +107,80 @@ class TexasResourceProvider(BaseResourceProvider):
         """
         Discover resources for Texas TEKS.
 
-        Combines:
-        - Curated TEA official resources
-        - Google Books search for TEKS-aligned textbooks
+        Uses tiered discovery:
+        1. Official: TEA authority pages (curated + AI discovery)
+        2. Commonly Used: Major district curriculum pages
+        3. Metadata enrichment via Google Books (ISBNs, covers)
         """
         resources = []
         sources_checked = list(self.SOURCE_URLS)
         discovery_notes = []
 
-        # 1. Get curated resources
+        # 1. Get curated official resources (fast, no API calls)
         curated = get_curated_resources(self.program_code, subject)
         resources.extend(curated)
         if curated:
             discovery_notes.append(f"Found {len(curated)} curated official resources.")
 
-        # 2. Search Google Books for textbooks
-        normalized_subject = normalize_subject(subject)
-        search_term = self.SUBJECT_SEARCH_TERMS.get(
-            normalized_subject,
-            f"Texas TEKS {subject} {grade_level} textbook"
-        )
+        # 2. Discover official resources from TEA authority pages
+        authority_info = AUTHORITY_RESOURCE_PAGES.get(self.program_code)
+        if authority_info:
+            for page_url in authority_info.get("official_pages", []):
+                try:
+                    official = discover_from_authority_website(
+                        authority_url=page_url,
+                        authority_name=authority_info["name"],
+                        subject=subject,
+                        grade_level=grade_level,
+                    )
+                    # Deduplicate by title
+                    existing_titles = {r.title.lower() for r in resources}
+                    for r in official:
+                        if r.title.lower() not in existing_titles:
+                            resources.append(r)
+                            existing_titles.add(r.title.lower())
 
-        # Add grade to search if specific
-        if grade_level and "grades" not in grade_level.lower():
-            search_term = f"{search_term} {grade_level}"
+                    if official:
+                        discovery_notes.append(
+                            f"Found {len(official)} resources from {page_url}."
+                        )
+                except Exception as e:
+                    logger.warning(f"Authority discovery failed for {page_url}: {e}")
+                    discovery_notes.append(f"Authority discovery failed: {e}")
 
-        try:
-            book_results = search_google_books(search_term, max_results=5)
-            sources_checked.append("https://www.googleapis.com/books/v1/volumes")
+        # 3. Discover commonly used resources from major district websites
+        districts = DISTRICT_CURRICULUM_PAGES.get(self.program_code, [])
+        for district in districts:
+            try:
+                district_resources = discover_from_district_website(
+                    district_url=district["url"],
+                    district_name=district["name"],
+                    subject=subject,
+                    grade_level=grade_level,
+                )
+                # Deduplicate by title
+                existing_titles = {r.title.lower() for r in resources}
+                for r in district_resources:
+                    if r.title.lower() not in existing_titles:
+                        resources.append(r)
+                        existing_titles.add(r.title.lower())
 
-            # Filter to likely educational books
-            for book in book_results:
-                # Skip if title doesn't seem educational
-                title_lower = book.title.lower()
-                if any(term in title_lower for term in ["texas", "teks", subject.lower()[:4]]):
-                    resources.append(book)
+                if district_resources:
+                    discovery_notes.append(
+                        f"Found {len(district_resources)} resources from {district['name']}."
+                    )
+                sources_checked.append(district["url"])
+            except Exception as e:
+                logger.warning(f"District discovery failed for {district['name']}: {e}")
+                discovery_notes.append(f"District discovery failed: {e}")
 
-            if book_results:
-                discovery_notes.append(f"Searched Google Books: found {len(book_results)} results.")
-        except Exception as e:
-            logger.warning(f"Google Books search failed: {e}")
-            discovery_notes.append(f"Google Books search failed: {e}")
+        # 4. Enrich resources with Google Books metadata (ISBNs, covers)
+        if resources:
+            try:
+                enrich_resources_batch(resources)
+                discovery_notes.append("Enriched metadata via Google Books.")
+            except Exception as e:
+                logger.warning(f"Metadata enrichment failed: {e}")
 
         return DiscoveryResult(
             authority_code=self.authority_code,

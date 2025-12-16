@@ -19,8 +19,8 @@ class ResourceData:
     """Data class for a discovered resource."""
     title: str
     source_url: str
-    media_type: str  # book, guide, practice_tests, video_series, course
-    platform: str  # print, google_books, amazon, khan_academy, etc.
+    media_type: str  # book, guide, curriculum, practice_tests, video_series, course, website
+    platform: str  # print, authority, google_books, amazon, khan_academy, district, publisher, etc.
 
     # Optional metadata
     author: str = ""
@@ -30,15 +30,29 @@ class ResourceData:
     isbn_13: str = ""
     cover_image_url: str = ""
 
-    # Official status
-    is_official: bool = False
+    # Recommendation tier: official, recommended, commonly_used
+    recommendation_tier: str = "commonly_used"
     endorsement_notes: str = ""
+
+    # Discovery provenance
+    discovered_from_url: str = ""
+    recommending_organization: str = ""
+
+    # Legacy field for backwards compatibility
+    is_official: bool = False
 
     # Features (JSON-compatible dict)
     features: dict = field(default_factory=dict)
 
     # Objective alignment (list of native codes)
     aligned_objective_codes: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Sync is_official with recommendation_tier for backwards compatibility."""
+        if self.is_official and self.recommendation_tier == "commonly_used":
+            self.recommendation_tier = "official"
+        elif self.recommendation_tier == "official":
+            self.is_official = True
 
 
 @dataclass

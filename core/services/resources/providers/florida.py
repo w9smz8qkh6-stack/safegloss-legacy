@@ -3,6 +3,18 @@ Florida Resource Provider.
 
 Discovers educational resources that support Florida B.E.S.T.
 (Benchmarks for Excellent Student Thinking) standards.
+
+DISCOVERY STRATEGY:
+==================
+1. Official resources from FLDOE:
+   - FLDOE Instructional Materials page
+   - CPALMS standards portal
+
+2. Commonly used resources from major districts:
+   - Miami-Dade County Public Schools
+   - Broward County Public Schools
+
+3. Metadata enrichment via Google Books (ISBNs, covers only)
 """
 
 import logging
@@ -16,8 +28,12 @@ from core.services.resources import (
 )
 from core.services.resources.discovery import (
     get_curated_resources,
-    search_google_books,
     normalize_subject,
+    discover_from_authority_website,
+    discover_from_district_website,
+    enrich_resources_batch,
+    AUTHORITY_RESOURCE_PAGES,
+    DISTRICT_CURRICULUM_PAGES,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,15 +97,16 @@ class FloridaResourceProvider(BaseResourceProvider):
         """
         Discover resources for Florida B.E.S.T. standards.
 
-        Combines:
-        - Curated official FLDOE resources
-        - Google Books search for Florida-aligned textbooks
+        Uses tiered discovery:
+        1. Official: FLDOE authority pages (curated + AI discovery)
+        2. Commonly Used: Major district curriculum pages
+        3. Metadata enrichment via Google Books (ISBNs, covers)
         """
         resources = []
         sources_checked = list(self.SOURCE_URLS)
         discovery_notes = []
 
-        # 1. Get curated resources
+        # 1. Get curated official resources (fast, no API calls)
         curated = get_curated_resources(self.program_code, subject)
         resources.extend(curated)
         if curated:
@@ -104,8 +121,9 @@ class FloridaResourceProvider(BaseResourceProvider):
                 platform="cpalms",
                 publisher="Florida Department of Education",
                 description="Official Florida B.E.S.T. standards, lesson plans, and resources",
-                is_official=True,
+                recommendation_tier="official",
                 endorsement_notes="Official FLDOE resource platform",
+                recommending_organization="Florida Department of Education",
             ),
             ResourceData(
                 title="Florida Virtual School (FLVS)",
@@ -114,30 +132,72 @@ class FloridaResourceProvider(BaseResourceProvider):
                 platform="flvs",
                 publisher="Florida Virtual School",
                 description="Free online courses aligned to Florida standards",
-                is_official=True,
+                recommendation_tier="official",
                 endorsement_notes="Florida's official virtual school",
+                recommending_organization="Florida Department of Education",
             ),
         ]
         resources.extend(florida_resources)
 
-        # 3. Search Google Books for Florida-specific textbooks
-        normalized_subject = normalize_subject(subject)
-        search_term = f"Florida B.E.S.T. {subject} {grade_level} textbook"
+        # 3. Discover official resources from FLDOE authority pages
+        authority_info = AUTHORITY_RESOURCE_PAGES.get(self.program_code)
+        if authority_info:
+            for page_url in authority_info.get("official_pages", []):
+                try:
+                    official = discover_from_authority_website(
+                        authority_url=page_url,
+                        authority_name=authority_info["name"],
+                        subject=subject,
+                        grade_level=grade_level,
+                    )
+                    # Deduplicate by title
+                    existing_titles = {r.title.lower() for r in resources}
+                    for r in official:
+                        if r.title.lower() not in existing_titles:
+                            resources.append(r)
+                            existing_titles.add(r.title.lower())
 
-        try:
-            book_results = search_google_books(search_term, max_results=5)
-            sources_checked.append("https://www.googleapis.com/books/v1/volumes")
+                    if official:
+                        discovery_notes.append(
+                            f"Found {len(official)} resources from {page_url}."
+                        )
+                except Exception as e:
+                    logger.warning(f"Authority discovery failed for {page_url}: {e}")
+                    discovery_notes.append(f"Authority discovery failed: {e}")
 
-            for book in book_results:
-                title_lower = book.title.lower()
-                if any(term in title_lower for term in ["florida", "best", subject.lower()[:4]]):
-                    resources.append(book)
+        # 4. Discover commonly used resources from major district websites
+        districts = DISTRICT_CURRICULUM_PAGES.get(self.program_code, [])
+        for district in districts:
+            try:
+                district_resources = discover_from_district_website(
+                    district_url=district["url"],
+                    district_name=district["name"],
+                    subject=subject,
+                    grade_level=grade_level,
+                )
+                # Deduplicate by title
+                existing_titles = {r.title.lower() for r in resources}
+                for r in district_resources:
+                    if r.title.lower() not in existing_titles:
+                        resources.append(r)
+                        existing_titles.add(r.title.lower())
 
-            if book_results:
-                discovery_notes.append(f"Searched Google Books: found {len(book_results)} results.")
-        except Exception as e:
-            logger.warning(f"Google Books search failed: {e}")
-            discovery_notes.append(f"Google Books search failed: {e}")
+                if district_resources:
+                    discovery_notes.append(
+                        f"Found {len(district_resources)} resources from {district['name']}."
+                    )
+                sources_checked.append(district["url"])
+            except Exception as e:
+                logger.warning(f"District discovery failed for {district['name']}: {e}")
+                discovery_notes.append(f"District discovery failed: {e}")
+
+        # 5. Enrich resources with Google Books metadata (ISBNs, covers)
+        if resources:
+            try:
+                enrich_resources_batch(resources)
+                discovery_notes.append("Enriched metadata via Google Books.")
+            except Exception as e:
+                logger.warning(f"Metadata enrichment failed: {e}")
 
         return DiscoveryResult(
             authority_code=self.authority_code,
