@@ -503,3 +503,309 @@ class ReadingEvent(models.Model):
     event_type = models.CharField(max_length=20, choices=EVENT_TYPES)
     event_payload = models.JSONField(blank=True, default=dict)
     created_at = models.DateTimeField(default=timezone.now)
+
+
+# =============================================================================
+# Standards & Learning Objectives Models
+# =============================================================================
+
+class StandardsAuthority(models.Model):
+    """
+    Top-level standards authority (e.g., IB, Cambridge, College Board, U.S. States).
+    """
+    name = models.CharField(max_length=255, help_text="e.g., 'International Baccalaureate'")
+    code = models.CharField(max_length=50, unique=True, help_text="Stable key, e.g., 'IB', 'CAMBRIDGE'")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name_plural = "Standards authorities"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class AuthorityProgram(models.Model):
+    """
+    Sub-category/framework within an authority (e.g., MYP, IGCSE, Texas).
+    All downstream entities reference AuthorityProgram, not Authority directly.
+    """
+    authority = models.ForeignKey(
+        StandardsAuthority,
+        on_delete=models.CASCADE,
+        related_name="programs"
+    )
+    name = models.CharField(max_length=255, help_text="e.g., 'Middle Years Programme'")
+    code = models.CharField(max_length=50, help_text="Stable key, e.g., 'IB_MYP', 'STATE_TX'")
+    description = models.TextField(blank=True)
+    provider_key = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Maps to provider/parser implementation"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ("authority", "code")
+        ordering = ["authority", "name"]
+
+    def __str__(self):
+        return f"{self.authority.code} - {self.name}"
+
+
+class StandardsArtifact(models.Model):
+    """
+    Raw evidence snapshot (downloaded PDF, HTML, JSON) for audit trail.
+    """
+    CONTENT_TYPES = [
+        ("html", "HTML"),
+        ("pdf", "PDF"),
+        ("json", "JSON"),
+        ("docx", "DOCX"),
+        ("zip", "ZIP"),
+        ("other", "Other"),
+    ]
+
+    file_path = models.CharField(max_length=500)
+    content_type = models.CharField(max_length=20, choices=CONTENT_TYPES)
+    sha256_hash = models.CharField(max_length=64)
+    file_size_bytes = models.PositiveIntegerField(null=True, blank=True)
+    original_filename = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(blank=True, default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"{self.original_filename or self.file_path} ({self.content_type})"
+
+
+class StandardsDocument(models.Model):
+    """
+    A versioned document containing learning objectives for a specific
+    program/subject/grade combination. Includes full provenance tracking.
+    """
+    # Controlled vocabulary for acquisition methods
+    ACQUISITION_METHODS = [
+        ("official_api", "Official API"),
+        ("official_web_page", "Official Web Page"),
+        ("official_pdf", "Official PDF"),
+        ("official_download_bundle", "Official Download Bundle"),
+        ("publisher_portal_reference_only", "Publisher Portal (Reference Only)"),
+        ("third_party_mirror_reference", "Third Party Mirror (Reference)"),
+        ("teacher_provided_upload", "Teacher Provided Upload"),
+        ("manual_curated", "Manual Curated"),
+        ("hybrid", "Hybrid"),
+    ]
+
+    PUBLISHER_TYPES = [
+        ("government", "Government"),
+        ("nonprofit", "Non-Profit"),
+        ("publisher", "Publisher"),
+        ("testing_org", "Testing Organization"),
+        ("other", "Other"),
+    ]
+
+    CONTENT_TYPES = [
+        ("html", "HTML"),
+        ("pdf", "PDF"),
+        ("json", "JSON"),
+        ("docx", "DOCX"),
+        ("api", "API"),
+    ]
+
+    # Core identification
+    authority_program = models.ForeignKey(
+        AuthorityProgram,
+        on_delete=models.CASCADE,
+        related_name="standards_documents"
+    )
+    subject = models.CharField(max_length=100, help_text="e.g., 'Mathematics', 'Technology Applications'")
+    grade_level = models.CharField(max_length=50, help_text="e.g., 'Grade 6', 'Grades 6-8', 'HL'")
+    version_label = models.CharField(max_length=100, help_text="e.g., 'Adopted 2022', 'Syllabus 2025-2027'")
+
+    # Provenance fields (Section 17.1)
+    source_publisher_name = models.CharField(max_length=255, help_text="e.g., 'Texas Education Agency'")
+    source_publisher_type = models.CharField(max_length=20, choices=PUBLISHER_TYPES, blank=True)
+    source_title = models.CharField(max_length=500, help_text="Human-readable doc title")
+    source_url = models.URLField(max_length=1000, help_text="Primary official URL")
+    source_url_canonical = models.URLField(max_length=1000, blank=True, help_text="Clean landing page URL")
+    source_accessed_at = models.DateTimeField(null=True, blank=True, help_text="When source was fetched/verified")
+    source_content_type = models.CharField(max_length=20, choices=CONTENT_TYPES, blank=True)
+    source_version_label = models.CharField(max_length=100, blank=True)
+    source_effective_from = models.DateField(null=True, blank=True)
+    source_effective_until = models.DateField(null=True, blank=True)
+    source_license_notes = models.TextField(blank=True, help_text="Redistribution restrictions")
+
+    # Acquisition method (required - Section 17.2)
+    acquisition_method = models.CharField(
+        max_length=50,
+        choices=ACQUISITION_METHODS,
+        help_text="How objectives were obtained"
+    )
+    acquisition_notes = models.TextField(blank=True, help_text="Brief explanation of acquisition process")
+
+    # Evidence tracking
+    evidence_artifact = models.ForeignKey(
+        StandardsArtifact,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
+        help_text="Raw downloaded file snapshot"
+    )
+    evidence_sha256_raw = models.CharField(max_length=64, blank=True)
+    evidence_sha256_canonical = models.CharField(max_length=64, blank=True)
+
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_reference_only = models.BooleanField(
+        default=False,
+        help_text="True if only codes/structure stored due to licensing"
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["authority_program", "subject", "grade_level", "-version_label"]
+        indexes = [
+            models.Index(fields=["authority_program", "subject", "grade_level"]),
+        ]
+
+    def __str__(self):
+        return f"{self.authority_program.code} - {self.subject} ({self.grade_level}) [{self.version_label}]"
+
+
+class ObjectiveNode(models.Model):
+    """
+    Tree structure for learning objectives within a StandardsDocument.
+    Supports native codes and internal numbering for cross-authority search.
+    """
+    NODE_TYPES = [
+        ("strand", "Strand"),
+        ("substrand", "Substrand"),
+        ("objective", "Objective"),
+        ("note", "Note"),
+    ]
+
+    document = models.ForeignKey(
+        StandardsDocument,
+        on_delete=models.CASCADE,
+        related_name="objective_nodes"
+    )
+    parent = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="children"
+    )
+    node_type = models.CharField(max_length=20, choices=NODE_TYPES)
+
+    # Native authority code (stored exactly as published)
+    code = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Native authority code, e.g., '(6)(1)(A)', 'CCSS.MATH.CONTENT.6.RP.A.1'"
+    )
+    text = models.TextField(help_text="Objective wording (may be short if reference-only)")
+
+    # Internal numbering for cross-authority consistency
+    internal_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Internal numbering, e.g., '1', '1.1', '1.1.1'"
+    )
+    internal_path = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Full path, e.g., '1/1.1/1.1.1'"
+    )
+    internal_sort_key = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Stable ordering key"
+    )
+
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["document", "sort_order"]
+        indexes = [
+            models.Index(fields=["document", "parent", "sort_order"]),
+            models.Index(fields=["document", "code"]),
+            models.Index(fields=["document", "internal_code"]),
+        ]
+
+    def __str__(self):
+        code_display = self.code or self.internal_code or f"#{self.sort_order}"
+        return f"[{code_display}] {self.text[:50]}..."
+
+    def get_ancestors(self):
+        """Return list of ancestors from root to parent."""
+        ancestors = []
+        node = self.parent
+        while node:
+            ancestors.insert(0, node)
+            node = node.parent
+        return ancestors
+
+
+class ObjectiveCodeMap(models.Model):
+    """
+    Audit log mapping native codes to internal numbering.
+    Separate from standards provenance for reporting.
+    """
+    MAPPING_METHODS = [
+        ("algorithmic", "Algorithmic"),
+        ("manual_curated", "Manual Curated"),
+        ("hybrid", "Hybrid"),
+    ]
+
+    objective_node = models.OneToOneField(
+        ObjectiveNode,
+        on_delete=models.CASCADE,
+        related_name="code_map"
+    )
+    native_code = models.CharField(max_length=100, blank=True)
+    internal_code = models.CharField(max_length=50)
+    mapping_method = models.CharField(max_length=20, choices=MAPPING_METHODS)
+    mapped_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="code_mappings"
+    )
+    mapped_at = models.DateTimeField(default=timezone.now)
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.native_code} → {self.internal_code}"
+
+
+class TeacherStandardsSelection(models.Model):
+    """
+    Teacher's saved selection of standards documents for their library.
+    """
+    teacher = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="standards_selections"
+    )
+    document = models.ForeignKey(
+        StandardsDocument,
+        on_delete=models.CASCADE,
+        related_name="teacher_selections"
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        unique_together = ("teacher", "document")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.teacher.username} - {self.document}"

@@ -18,7 +18,10 @@ from .models import (
     Lesson, LessonProgress, RosterMembership, Term, GlossClickLog, ReadingEvent,
     Story, StorySegment, Glossary, Quiz, QuizQuestion, QuizSubmission, QuizSubmissionAnswer,
     ItemBankQuestion, ItemBankChoice, Roster, Site,
-    Unit, UnitLesson, Course, CourseUnit, ExternalBookmark
+    Unit, UnitLesson, Course, CourseUnit, ExternalBookmark,
+    # Standards models
+    StandardsAuthority, AuthorityProgram, StandardsDocument, ObjectiveNode,
+    TeacherStandardsSelection,
 )
 
 
@@ -2744,3 +2747,266 @@ def glossary_generate_save(request, story_pk):
         return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+# =============================================================================
+# STANDARDS & LEARNING OBJECTIVES VIEWS
+# =============================================================================
+
+@login_required
+@teacher_required
+def standards_browse(request):
+    """
+    Main standards browsing page with cascading filters.
+    Teacher can filter by Authority → Program → Grade → Subject.
+    """
+    authorities = StandardsAuthority.objects.filter(is_active=True).order_by("name")
+
+    # Get teacher's saved selections count
+    saved_count = TeacherStandardsSelection.objects.filter(teacher=request.user).count()
+
+    return render(request, "core/teacher/standards_browse.html", {
+        "authorities": authorities,
+        "saved_count": saved_count,
+        "title": "Browse Learning Standards",
+    })
+
+
+@login_required
+@teacher_required
+def standards_api_authorities(request):
+    """API endpoint: return all active authorities as JSON."""
+    authorities = StandardsAuthority.objects.filter(is_active=True).order_by("name")
+    data = [
+        {"id": a.pk, "code": a.code, "name": a.name}
+        for a in authorities
+    ]
+    return JsonResponse({"authorities": data})
+
+
+@login_required
+@teacher_required
+def standards_api_programs(request):
+    """API endpoint: return programs for selected authorities."""
+    authority_ids = request.GET.getlist("authorities")
+
+    if not authority_ids:
+        return JsonResponse({"programs": []})
+
+    programs = AuthorityProgram.objects.filter(
+        authority_id__in=authority_ids,
+        is_active=True
+    ).select_related("authority").order_by("authority__name", "name")
+
+    data = [
+        {
+            "id": p.pk,
+            "code": p.code,
+            "name": p.name,
+            "authority_code": p.authority.code,
+            "authority_name": p.authority.name,
+        }
+        for p in programs
+    ]
+    return JsonResponse({"programs": data})
+
+
+@login_required
+@teacher_required
+def standards_api_grades(request):
+    """API endpoint: return distinct grade levels for selected programs."""
+    program_ids = request.GET.getlist("programs")
+
+    if not program_ids:
+        return JsonResponse({"grades": []})
+
+    # Get distinct grade levels from documents
+    grades = (
+        StandardsDocument.objects
+        .filter(authority_program_id__in=program_ids, is_active=True)
+        .values_list("grade_level", flat=True)
+        .distinct()
+        .order_by("grade_level")
+    )
+
+    data = [{"value": g, "label": g} for g in grades if g]
+    return JsonResponse({"grades": data})
+
+
+@login_required
+@teacher_required
+def standards_api_subjects(request):
+    """API endpoint: return distinct subjects for selected programs."""
+    program_ids = request.GET.getlist("programs")
+
+    if not program_ids:
+        return JsonResponse({"subjects": []})
+
+    # Get distinct subjects from documents
+    subjects = (
+        StandardsDocument.objects
+        .filter(authority_program_id__in=program_ids, is_active=True)
+        .values_list("subject", flat=True)
+        .distinct()
+        .order_by("subject")
+    )
+
+    data = [{"value": s, "label": s} for s in subjects if s]
+    return JsonResponse({"subjects": data})
+
+
+@login_required
+@teacher_required
+def standards_api_results(request):
+    """
+    API endpoint: return standards documents and objectives tree
+    based on filter criteria.
+    """
+    program_ids = request.GET.getlist("programs")
+    grades = request.GET.getlist("grades")
+    subjects = request.GET.getlist("subjects")
+    show_internal_codes = request.GET.get("internal_codes", "false") == "true"
+
+    if not program_ids:
+        return JsonResponse({"documents": [], "message": "Please select at least one program."})
+
+    # Build query
+    queryset = StandardsDocument.objects.filter(
+        authority_program_id__in=program_ids,
+        is_active=True
+    ).select_related("authority_program__authority")
+
+    if grades:
+        queryset = queryset.filter(grade_level__in=grades)
+    if subjects:
+        queryset = queryset.filter(subject__in=subjects)
+
+    queryset = queryset.order_by(
+        "authority_program__authority__name",
+        "authority_program__name",
+        "subject",
+        "grade_level"
+    )
+
+    documents_data = []
+    for doc in queryset:
+        # Get objectives tree for this document
+        nodes = ObjectiveNode.objects.filter(document=doc).order_by("sort_order")
+
+        # Build nested tree structure
+        def build_tree(parent_id=None):
+            children = []
+            for node in nodes:
+                if node.parent_id == parent_id:
+                    code_display = node.internal_code if show_internal_codes else node.code
+                    children.append({
+                        "id": node.pk,
+                        "code": code_display or "",
+                        "native_code": node.code,
+                        "internal_code": node.internal_code,
+                        "text": node.text,
+                        "node_type": node.node_type,
+                        "children": build_tree(node.pk),
+                    })
+            return children
+
+        objective_tree = build_tree()
+
+        documents_data.append({
+            "id": doc.pk,
+            "authority_name": doc.authority_program.authority.name,
+            "authority_code": doc.authority_program.authority.code,
+            "program_name": doc.authority_program.name,
+            "program_code": doc.authority_program.code,
+            "subject": doc.subject,
+            "grade_level": doc.grade_level,
+            "version_label": doc.version_label,
+            "source_publisher_name": doc.source_publisher_name,
+            "source_url": doc.source_url,
+            "source_accessed_at": doc.source_accessed_at.isoformat() if doc.source_accessed_at else None,
+            "acquisition_method": doc.get_acquisition_method_display(),
+            "is_reference_only": doc.is_reference_only,
+            "objective_count": nodes.count(),
+            "objectives": objective_tree,
+        })
+
+    return JsonResponse({
+        "documents": documents_data,
+        "total_documents": len(documents_data),
+        "show_internal_codes": show_internal_codes,
+    })
+
+
+@login_required
+@teacher_required
+def standards_save_selection(request):
+    """Save a standards document to teacher's library."""
+    import json
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        document_id = data.get("document_id")
+        notes = data.get("notes", "")
+
+        if not document_id:
+            return JsonResponse({"error": "document_id required"}, status=400)
+
+        document = get_object_or_404(StandardsDocument, pk=document_id, is_active=True)
+
+        selection, created = TeacherStandardsSelection.objects.get_or_create(
+            teacher=request.user,
+            document=document,
+            defaults={"notes": notes}
+        )
+
+        if not created and notes:
+            selection.notes = notes
+            selection.save()
+
+        return JsonResponse({
+            "success": True,
+            "created": created,
+            "selection_id": selection.pk,
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+
+@login_required
+@teacher_required
+def standards_my_library(request):
+    """View teacher's saved standards selections."""
+    selections = (
+        TeacherStandardsSelection.objects
+        .filter(teacher=request.user)
+        .select_related(
+            "document__authority_program__authority"
+        )
+        .order_by("-created_at")
+    )
+
+    return render(request, "core/teacher/standards_library.html", {
+        "selections": selections,
+        "title": "My Standards Library",
+    })
+
+
+@login_required
+@teacher_required
+def standards_remove_selection(request, pk):
+    """Remove a standards document from teacher's library."""
+    selection = get_object_or_404(
+        TeacherStandardsSelection,
+        pk=pk,
+        teacher=request.user
+    )
+
+    if request.method == "POST":
+        selection.delete()
+        messages.success(request, "Removed from your library.")
+
+    return redirect("core:standards_my_library")

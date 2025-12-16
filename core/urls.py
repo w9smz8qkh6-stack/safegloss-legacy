@@ -91,4 +91,15 @@ urlpatterns = [
     path("teacher/rosters/<int:pk>/", views.roster_edit, name="roster_edit"),
     path("teacher/rosters/<int:pk>/add-student/", views.roster_add_student, name="roster_add_student"),
     path("teacher/rosters/<int:pk>/remove-student/<int:student_id>/", views.roster_remove_student, name="roster_remove_student"),
+
+    # Standards & Learning Objectives
+    path("teacher/standards/", views.standards_browse, name="standards_browse"),
+    path("teacher/standards/api/authorities/", views.standards_api_authorities, name="standards_api_authorities"),
+    path("teacher/standards/api/programs/", views.standards_api_programs, name="standards_api_programs"),
+    path("teacher/standards/api/grades/", views.standards_api_grades, name="standards_api_grades"),
+    path("teacher/standards/api/subjects/", views.standards_api_subjects, name="standards_api_subjects"),
+    path("teacher/standards/api/results/", views.standards_api_results, name="standards_api_results"),
+    path("teacher/standards/save/", views.standards_save_selection, name="standards_save_selection"),
+    path("teacher/standards/my-library/", views.standards_my_library, name="standards_my_library"),
+    path("teacher/standards/my-library/<int:pk>/remove/", views.standards_remove_selection, name="standards_remove_selection"),
 ]

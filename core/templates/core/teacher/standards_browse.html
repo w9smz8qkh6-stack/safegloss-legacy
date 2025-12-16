@@ -1,0 +1,490 @@
+{% extends "core/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filter-section {
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+  }
+  .filter-group {
+    margin-bottom: 1rem;
+  }
+  .filter-group:last-child {
+    margin-bottom: 0;
+  }
+  .filter-label {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+  .checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.5rem;
+  }
+  .checkbox-item {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .checkbox-item:hover {
+    background: #e9ecef;
+  }
+  .checkbox-item.selected {
+    background: #cfe2ff;
+    border-color: #0d6efd;
+  }
+  .document-card {
+    border-left: 4px solid #0d6efd;
+    margin-bottom: 1.5rem;
+  }
+  .source-panel {
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+  }
+  .source-panel .badge {
+    font-weight: 500;
+  }
+  .objectives-tree {
+    font-size: 0.9rem;
+  }
+  .objectives-tree ul {
+    list-style: none;
+    padding-left: 1.5rem;
+    margin: 0;
+  }
+  .objectives-tree > ul {
+    padding-left: 0;
+  }
+  .objective-node {
+    padding: 0.375rem 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .objective-node:last-child {
+    border-bottom: none;
+  }
+  .objective-code {
+    font-family: monospace;
+    font-weight: 600;
+    color: #0d6efd;
+    margin-right: 0.5rem;
+  }
+  .node-type-strand {
+    font-weight: 600;
+    color: #495057;
+  }
+  .node-type-substrand {
+    font-weight: 500;
+    color: #6c757d;
+  }
+  .node-type-objective {
+    color: #212529;
+  }
+  .node-type-note {
+    color: #6c757d;
+    font-style: italic;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+  }
+  .results-header {
+    background: #e9ecef;
+    padding: 0.75rem 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+  }
+  .loading-spinner {
+    display: none;
+  }
+  .loading .loading-spinner {
+    display: inline-block;
+  }
+  .loading .results-content {
+    opacity: 0.5;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-0">
+      <i class="bi bi-award me-2"></i>{{ title }}
+    </h1>
+    <small class="text-muted">Filter and browse learning objectives from multiple standards authorities</small>
+  </div>
+  <a href="{% url 'core:standards_my_library' %}" class="btn btn-outline-primary">
+    <i class="bi bi-bookmark me-2"></i>My Library
+    {% if saved_count %}<span class="badge bg-primary ms-1">{{ saved_count }}</span>{% endif %}
+  </a>
+</div>
+
+<div class="row">
+  <!-- Filters Panel -->
+  <div class="col-lg-4 col-xl-3 mb-4">
+    <div class="filter-section">
+      <h5 class="mb-3"><i class="bi bi-funnel me-2"></i>Filters</h5>
+
+      <!-- Authority Filter -->
+      <div class="filter-group">
+        <label class="filter-label">
+          <i class="bi bi-building me-1"></i>Authority
+        </label>
+        <div id="authority-list" class="checkbox-grid">
+          {% for auth in authorities %}
+          <label class="checkbox-item d-flex align-items-center">
+            <input type="checkbox" class="form-check-input me-2 authority-checkbox"
+                   value="{{ auth.pk }}" data-code="{{ auth.code }}">
+            <span class="small">{{ auth.name }}</span>
+          </label>
+          {% empty %}
+          <p class="text-muted small mb-0">No authorities available</p>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Program Filter -->
+      <div class="filter-group">
+        <label class="filter-label">
+          <i class="bi bi-diagram-3 me-1"></i>Program
+        </label>
+        <div id="program-list" class="checkbox-grid">
+          <p class="text-muted small mb-0">Select an authority first</p>
+        </div>
+      </div>
+
+      <!-- Grade Filter -->
+      <div class="filter-group">
+        <label class="filter-label">
+          <i class="bi bi-mortarboard me-1"></i>Grade Level
+        </label>
+        <div id="grade-list" class="checkbox-grid">
+          <p class="text-muted small mb-0">Select a program first</p>
+        </div>
+      </div>
+
+      <!-- Subject Filter -->
+      <div class="filter-group">
+        <label class="filter-label">
+          <i class="bi bi-book me-1"></i>Subject
+        </label>
+        <div id="subject-list" class="checkbox-grid">
+          <p class="text-muted small mb-0">Select a program first</p>
+        </div>
+      </div>
+
+      <hr class="my-3">
+
+      <!-- Options -->
+      <div class="filter-group">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="show-internal-codes">
+          <label class="form-check-label small" for="show-internal-codes">
+            Show internal numbering
+          </label>
+        </div>
+      </div>
+
+      <button id="search-btn" class="btn btn-primary w-100 mt-3">
+        <i class="bi bi-search me-2"></i>Search Standards
+      </button>
+    </div>
+  </div>
+
+  <!-- Results Panel -->
+  <div class="col-lg-8 col-xl-9">
+    <div id="results-container">
+      <div class="empty-state">
+        <i class="bi bi-search fs-1 d-block mb-3"></i>
+        <h5>Search for Standards</h5>
+        <p class="mb-0">Select filters on the left and click "Search Standards" to view learning objectives.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const authorityCheckboxes = document.querySelectorAll('.authority-checkbox');
+  const programList = document.getElementById('program-list');
+  const gradeList = document.getElementById('grade-list');
+  const subjectList = document.getElementById('subject-list');
+  const resultsContainer = document.getElementById('results-container');
+  const searchBtn = document.getElementById('search-btn');
+  const showInternalCodes = document.getElementById('show-internal-codes');
+
+  // Track selections
+  let selectedAuthorities = [];
+  let selectedPrograms = [];
+  let selectedGrades = [];
+  let selectedSubjects = [];
+
+  // Authority selection change
+  authorityCheckboxes.forEach(cb => {
+    cb.addEventListener('change', function() {
+      this.closest('.checkbox-item').classList.toggle('selected', this.checked);
+      selectedAuthorities = Array.from(document.querySelectorAll('.authority-checkbox:checked'))
+        .map(c => c.value);
+      loadPrograms();
+    });
+  });
+
+  // Load programs for selected authorities
+  async function loadPrograms() {
+    if (selectedAuthorities.length === 0) {
+      programList.innerHTML = '<p class="text-muted small mb-0">Select an authority first</p>';
+      gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+      subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+      selectedPrograms = [];
+      selectedGrades = [];
+      selectedSubjects = [];
+      return;
+    }
+
+    programList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
+
+    const params = selectedAuthorities.map(id => `authorities=${id}`).join('&');
+    const response = await fetch(`{% url 'core:standards_api_programs' %}?${params}`);
+    const data = await response.json();
+
+    if (data.programs.length === 0) {
+      programList.innerHTML = '<p class="text-muted small mb-0">No programs found</p>';
+      return;
+    }
+
+    programList.innerHTML = data.programs.map(p => `
+      <label class="checkbox-item d-flex align-items-center">
+        <input type="checkbox" class="form-check-input me-2 program-checkbox"
+               value="${p.id}" data-code="${p.code}">
+        <span class="small">${p.name}</span>
+      </label>
+    `).join('');
+
+    // Add event listeners to new program checkboxes
+    document.querySelectorAll('.program-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        this.closest('.checkbox-item').classList.toggle('selected', this.checked);
+        selectedPrograms = Array.from(document.querySelectorAll('.program-checkbox:checked'))
+          .map(c => c.value);
+        loadGradesAndSubjects();
+      });
+    });
+
+    // Reset downstream filters
+    selectedPrograms = [];
+    gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+    subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+    selectedGrades = [];
+    selectedSubjects = [];
+  }
+
+  // Load grades and subjects for selected programs
+  async function loadGradesAndSubjects() {
+    if (selectedPrograms.length === 0) {
+      gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+      subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+      selectedGrades = [];
+      selectedSubjects = [];
+      return;
+    }
+
+    const params = selectedPrograms.map(id => `programs=${id}`).join('&');
+
+    // Load grades
+    gradeList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
+    const gradesResponse = await fetch(`{% url 'core:standards_api_grades' %}?${params}`);
+    const gradesData = await gradesResponse.json();
+
+    if (gradesData.grades.length === 0) {
+      gradeList.innerHTML = '<p class="text-muted small mb-0">No grades found</p>';
+    } else {
+      gradeList.innerHTML = gradesData.grades.map(g => `
+        <label class="checkbox-item d-flex align-items-center">
+          <input type="checkbox" class="form-check-input me-2 grade-checkbox" value="${g.value}">
+          <span class="small">${g.label}</span>
+        </label>
+      `).join('');
+
+      document.querySelectorAll('.grade-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+          this.closest('.checkbox-item').classList.toggle('selected', this.checked);
+          selectedGrades = Array.from(document.querySelectorAll('.grade-checkbox:checked'))
+            .map(c => c.value);
+        });
+      });
+    }
+
+    // Load subjects
+    subjectList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading...';
+    const subjectsResponse = await fetch(`{% url 'core:standards_api_subjects' %}?${params}`);
+    const subjectsData = await subjectsResponse.json();
+
+    if (subjectsData.subjects.length === 0) {
+      subjectList.innerHTML = '<p class="text-muted small mb-0">No subjects found</p>';
+    } else {
+      subjectList.innerHTML = subjectsData.subjects.map(s => `
+        <label class="checkbox-item d-flex align-items-center">
+          <input type="checkbox" class="form-check-input me-2 subject-checkbox" value="${s.value}">
+          <span class="small">${s.label}</span>
+        </label>
+      `).join('');
+
+      document.querySelectorAll('.subject-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+          this.closest('.checkbox-item').classList.toggle('selected', this.checked);
+          selectedSubjects = Array.from(document.querySelectorAll('.subject-checkbox:checked'))
+            .map(c => c.value);
+        });
+      });
+    }
+
+    selectedGrades = [];
+    selectedSubjects = [];
+  }
+
+  // Search button
+  searchBtn.addEventListener('click', async function() {
+    if (selectedPrograms.length === 0) {
+      alert('Please select at least one program.');
+      return;
+    }
+
+    resultsContainer.innerHTML = `
+      <div class="text-center py-5">
+        <span class="spinner-border"></span>
+        <p class="mt-2">Loading standards...</p>
+      </div>
+    `;
+
+    let params = selectedPrograms.map(id => `programs=${id}`).join('&');
+    if (selectedGrades.length > 0) {
+      params += '&' + selectedGrades.map(g => `grades=${encodeURIComponent(g)}`).join('&');
+    }
+    if (selectedSubjects.length > 0) {
+      params += '&' + selectedSubjects.map(s => `subjects=${encodeURIComponent(s)}`).join('&');
+    }
+    if (showInternalCodes.checked) {
+      params += '&internal_codes=true';
+    }
+
+    const response = await fetch(`{% url 'core:standards_api_results' %}?${params}`);
+    const data = await response.json();
+
+    if (data.documents.length === 0) {
+      resultsContainer.innerHTML = `
+        <div class="empty-state">
+          <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+          <h5>No Standards Found</h5>
+          <p class="mb-0">No standards documents match your filters. Try adjusting your selection.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Render results
+    resultsContainer.innerHTML = `
+      <div class="results-header d-flex justify-content-between align-items-center">
+        <span><strong>${data.total_documents}</strong> document(s) found</span>
+        <span class="text-muted small">
+          ${data.show_internal_codes ? 'Showing internal codes' : 'Showing native codes'}
+        </span>
+      </div>
+      <div id="documents-list"></div>
+    `;
+
+    const documentsList = document.getElementById('documents-list');
+    data.documents.forEach(doc => {
+      documentsList.innerHTML += renderDocument(doc);
+    });
+
+    // Add save button handlers
+    document.querySelectorAll('.save-btn').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const docId = this.dataset.documentId;
+        const response = await fetch('{% url "core:standards_save_selection" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({ document_id: docId })
+        });
+        const result = await response.json();
+        if (result.success) {
+          this.innerHTML = '<i class="bi bi-bookmark-fill me-1"></i>Saved';
+          this.classList.remove('btn-outline-primary');
+          this.classList.add('btn-success');
+          this.disabled = true;
+        }
+      });
+    });
+  });
+
+  // Render a document card
+  function renderDocument(doc) {
+    const objectivesHtml = renderObjectiveTree(doc.objectives);
+    return `
+      <div class="card document-card">
+        <div class="card-header d-flex justify-content-between align-items-start">
+          <div>
+            <h5 class="mb-1">${doc.subject} - ${doc.grade_level}</h5>
+            <small class="text-muted">${doc.authority_name} &rarr; ${doc.program_name}</small>
+          </div>
+          <button class="btn btn-sm btn-outline-primary save-btn" data-document-id="${doc.id}">
+            <i class="bi bi-bookmark me-1"></i>Save
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="source-panel mb-3">
+            <div class="row">
+              <div class="col-md-6">
+                <strong>Publisher:</strong> ${doc.source_publisher_name || 'Unknown'}<br>
+                <strong>Version:</strong> ${doc.version_label}
+              </div>
+              <div class="col-md-6 text-md-end">
+                <span class="badge bg-secondary me-2">${doc.acquisition_method}</span>
+                ${doc.is_reference_only ? '<span class="badge bg-warning text-dark">Reference Only</span>' : ''}
+                ${doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-link">View Source</a>` : ''}
+              </div>
+            </div>
+          </div>
+          <div class="objectives-tree">
+            <h6><i class="bi bi-list-nested me-2"></i>Objectives (${doc.objective_count})</h6>
+            ${objectivesHtml || '<p class="text-muted small">No objectives imported yet.</p>'}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Render objective tree recursively
+  function renderObjectiveTree(nodes, depth = 0) {
+    if (!nodes || nodes.length === 0) return '';
+    let html = '<ul>';
+    nodes.forEach(node => {
+      const typeClass = `node-type-${node.node_type}`;
+      html += `
+        <li class="objective-node ${typeClass}">
+          ${node.code ? `<span class="objective-code">${node.code}</span>` : ''}
+          <span>${node.text}</span>
+          ${renderObjectiveTree(node.children, depth + 1)}
+        </li>
+      `;
+    });
+    html += '</ul>';
+    return html;
+  }
+});
+</script>
+{% endblock %}
