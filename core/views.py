@@ -2859,6 +2859,45 @@ def standards_api_subjects(request):
     return JsonResponse({"subjects": data})
 
 
+@login_required
+@teacher_required
+def standards_api_courses(request):
+    """API endpoint: return distinct courses for selected programs and subjects."""
+    program_ids = request.GET.getlist("programs")
+    subjects = request.GET.getlist("subjects")
+
+    if not program_ids:
+        return JsonResponse({"courses": []})
+
+    # Get documents (courses) filtered by program and optionally subject
+    queryset = (
+        StandardsDocument.objects
+        .filter(authority_program_id__in=program_ids, is_active=True)
+    )
+
+    if subjects:
+        queryset = queryset.filter(subject__in=subjects)
+
+    # Return course info with ID, name (source_title), and version_label
+    courses = (
+        queryset
+        .values("id", "source_title", "version_label", "grade_level", "subject")
+        .order_by("subject", "grade_level", "source_title")
+    )
+
+    data = [
+        {
+            "id": c["id"],
+            "name": c["source_title"] or c["version_label"],
+            "version_label": c["version_label"],
+            "grade_level": c["grade_level"],
+            "subject": c["subject"],
+        }
+        for c in courses
+    ]
+    return JsonResponse({"courses": data})
+
+
 def _expand_grade_levels(selected_grades: list[str]) -> set[str]:
     """
     Expand grade level selections to include hierarchical matches.
@@ -2925,6 +2964,7 @@ def standards_api_results(request):
     program_ids = request.GET.getlist("programs")
     grades = request.GET.getlist("grades")
     subjects = request.GET.getlist("subjects")
+    course_ids = request.GET.getlist("courses")
     show_internal_codes = request.GET.get("internal_codes", "false") == "true"
 
     if not program_ids:
@@ -2942,6 +2982,8 @@ def standards_api_results(request):
         queryset = queryset.filter(grade_level__in=expanded_grades)
     if subjects:
         queryset = queryset.filter(subject__in=subjects)
+    if course_ids:
+        queryset = queryset.filter(id__in=course_ids)
 
     queryset = queryset.order_by(
         "authority_program__authority__name",

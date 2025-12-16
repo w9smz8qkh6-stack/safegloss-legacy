@@ -98,6 +98,7 @@ urlpatterns = [
     path("teacher/standards/api/programs/", views.standards_api_programs, name="standards_api_programs"),
     path("teacher/standards/api/grades/", views.standards_api_grades, name="standards_api_grades"),
     path("teacher/standards/api/subjects/", views.standards_api_subjects, name="standards_api_subjects"),
+    path("teacher/standards/api/courses/", views.standards_api_courses, name="standards_api_courses"),
     path("teacher/standards/api/results/", views.standards_api_results, name="standards_api_results"),
     path("teacher/standards/api/search/", views.standards_api_search, name="standards_api_search"),
     path("teacher/standards/api/media/", views.standards_api_media, name="standards_api_media"),

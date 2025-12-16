@@ -407,6 +407,17 @@
         </div>
       </div>
 
+      <!-- Course Filter -->
+      <div class="filter-group">
+        <label class="filter-label">
+          <i class="bi bi-journal-text me-1"></i>Course
+          <small class="text-muted fw-normal">(optional)</small>
+        </label>
+        <div id="course-list" class="checkbox-grid" style="max-height: 250px; overflow-y: auto;">
+          <p class="text-muted small mb-0">Select a subject to filter courses</p>
+        </div>
+      </div>
+
       <hr class="my-3">
 
       <!-- Options -->
@@ -447,6 +458,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const programList = document.getElementById('program-list');
   const gradeList = document.getElementById('grade-list');
   const subjectList = document.getElementById('subject-list');
+  const courseList = document.getElementById('course-list');
   const resultsContainer = document.getElementById('results-container');
   const searchBtn = document.getElementById('search-btn');
   const showInternalCodes = document.getElementById('show-internal-codes');
@@ -456,6 +468,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let selectedPrograms = [];
   let selectedGrades = [];
   let selectedSubjects = [];
+  let selectedCourses = [];
 
   // Authority selection change
   authorityCheckboxes.forEach(cb => {
@@ -473,9 +486,11 @@ document.addEventListener('DOMContentLoaded', function() {
       programList.innerHTML = '<p class="text-muted small mb-0">Select an authority first</p>';
       gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
       subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+      courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
       selectedPrograms = [];
       selectedGrades = [];
       selectedSubjects = [];
+      selectedCourses = [];
       return;
     }
 
@@ -512,8 +527,10 @@ document.addEventListener('DOMContentLoaded', function() {
     selectedPrograms = [];
     gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
     subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+    courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
     selectedGrades = [];
     selectedSubjects = [];
+    selectedCourses = [];
   }
 
   // Load grades and subjects for selected programs
@@ -521,8 +538,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectedPrograms.length === 0) {
       gradeList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
       subjectList.innerHTML = '<p class="text-muted small mb-0">Select a program first</p>';
+      courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
       selectedGrades = [];
       selectedSubjects = [];
+      selectedCourses = [];
       return;
     }
 
@@ -572,12 +591,76 @@ document.addEventListener('DOMContentLoaded', function() {
           this.closest('.checkbox-item').classList.toggle('selected', this.checked);
           selectedSubjects = Array.from(document.querySelectorAll('.subject-checkbox:checked'))
             .map(c => c.value);
+          loadCourses();
         });
       });
     }
 
     selectedGrades = [];
     selectedSubjects = [];
+    selectedCourses = [];
+    courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
+  }
+
+  // Load courses for selected programs and subjects
+  async function loadCourses() {
+    if (selectedPrograms.length === 0) {
+      courseList.innerHTML = '<p class="text-muted small mb-0">Select a subject to filter courses</p>';
+      selectedCourses = [];
+      return;
+    }
+
+    courseList.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Loading courses...';
+
+    let params = selectedPrograms.map(id => `programs=${id}`).join('&');
+    if (selectedSubjects.length > 0) {
+      params += '&' + selectedSubjects.map(s => `subjects=${encodeURIComponent(s)}`).join('&');
+    }
+
+    const response = await fetch(`{% url 'core:standards_api_courses' %}?${params}`);
+    const data = await response.json();
+
+    if (data.courses.length === 0) {
+      courseList.innerHTML = '<p class="text-muted small mb-0">No courses found</p>';
+      selectedCourses = [];
+      return;
+    }
+
+    // Group courses by subject for better display
+    const coursesBySubject = {};
+    data.courses.forEach(c => {
+      const subj = c.subject || 'Other';
+      if (!coursesBySubject[subj]) coursesBySubject[subj] = [];
+      coursesBySubject[subj].push(c);
+    });
+
+    let html = '';
+    for (const [subject, courses] of Object.entries(coursesBySubject)) {
+      if (Object.keys(coursesBySubject).length > 1) {
+        html += `<div class="w-100 mt-2 mb-1"><small class="text-muted fw-bold">${subject}</small></div>`;
+      }
+      courses.forEach(c => {
+        html += `
+          <label class="checkbox-item d-flex align-items-center">
+            <input type="checkbox" class="form-check-input me-2 course-checkbox"
+                   value="${c.id}" data-name="${escapeHtml(c.name)}">
+            <span class="small" title="${escapeHtml(c.name)} (${c.grade_level})">${escapeHtml(c.name)}</span>
+          </label>
+        `;
+      });
+    }
+    courseList.innerHTML = html;
+
+    // Add event listeners to course checkboxes
+    document.querySelectorAll('.course-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        this.closest('.checkbox-item').classList.toggle('selected', this.checked);
+        selectedCourses = Array.from(document.querySelectorAll('.course-checkbox:checked'))
+          .map(c => c.value);
+      });
+    });
+
+    selectedCourses = [];
   }
 
   // Search button
@@ -600,6 +683,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (selectedSubjects.length > 0) {
       params += '&' + selectedSubjects.map(s => `subjects=${encodeURIComponent(s)}`).join('&');
+    }
+    if (selectedCourses.length > 0) {
+      params += '&' + selectedCourses.map(c => `courses=${c}`).join('&');
     }
     if (showInternalCodes.checked) {
       params += '&internal_codes=true';
