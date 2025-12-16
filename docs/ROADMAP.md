@@ -508,6 +508,69 @@ Show teachers:
 
 (Primary references: AI_QUIZ_GENERATION_AND_VALIDATION.md, QUIZ_TO_LEARNING_OBJECTIVES_AND_STANDARDS.md, QUIZ_VALIDATION_AND_ANALYTICS.md, STANDARDS_ALIGNED_ASSESSMENT_CORPORA.md)
 
+## Milestone J — Quiz & Lesson Delivery Experience ✅ COMPLETE
+
+**Completed:** 2025-12-16
+
+**Implementation:**
+
+### Instructor Quiz Management
+
+- `core/models.py` - Added `time_limit_minutes` field to Quiz model with `time_limit_seconds` property
+- `core/forms.py` - Added time_limit_minutes to QuizForm with validation
+- `core/templates/core/instructor/quiz_form.html` - Time limit input on quiz creation
+- `core/templates/core/instructor/quiz_edit.html` - Time limit display and editing, question management
+- `core/templates/core/instructor/quiz_question_create.html` - Create new questions
+- `core/templates/core/instructor/quiz_question_add.html` - Add questions from item bank
+- `core/urls.py` - Routes for quiz question management
+
+### Student Quiz Experience
+
+- `core/templates/core/student/lesson_quiz.html` - Quiz taking interface with:
+  - Countdown timer with auto-submit when time expires
+  - Per-question time tracking (JavaScript)
+  - Visual feedback on answer selection
+  - Hidden fields for submission metadata
+- `core/templates/core/student/lesson_quiz_results.html` - Results page with:
+  - Score display with percentage and points
+  - Motivational feedback based on score tier
+  - Time spent summary
+  - Question-by-question review with correct/incorrect indicators
+  - Explanations for each question
+- `core/views.py` - Quiz submission handling with auto-grading for MCQ/true-false
+
+### Reading Behavior Tracking
+
+- `core/templates/core/student/lesson_read.html` - Enhanced with:
+  - Reading event logging (start, pause, resume, finish)
+  - Active time tracking with visibility change detection
+  - Scroll depth tracking in continuous mode
+  - Per-card time tracking in cards mode
+  - Segment view logging with first-view detection
+  - Mode change tracking
+- `core/views.py` - `reading_event` endpoint for logging reading analytics
+- `core/urls.py` - Route for reading event API
+
+### Lesson Management Improvements
+
+- `core/templates/core/instructor/lesson_form.html` - Dynamic quiz filtering by selected story (HTMX)
+- `core/templates/core/instructor/unit_list.html` - Add existing lessons modal
+- `core/templates/core/instructor/partials/unit_available_lessons.html` - Available lessons partial
+- `core/templates/core/instructor/partials/quiz_options.html` - Quiz dropdown options partial
+- `core/views.py` - HTMX endpoints for dynamic filtering
+
+### Acceptance Criteria
+
+- Instructors can set quiz time limits ✅
+- Students see countdown timer during timed quizzes ✅
+- Quiz auto-submits when time expires ✅
+- Quiz submissions are auto-graded for objective questions ✅
+- Students see detailed results with explanations ✅
+- Reading behavior is tracked for analytics ✅
+- Dynamic quiz filtering improves lesson authoring workflow ✅
+
+---
+
 ## Milestone G — Quality, Testing, and Observability ✅ COMPLETE
 
 **Completed:** 2025-12-15
@@ -595,23 +658,30 @@ Log per story via TelemetryLogger:
 
 ## 6. Suggested Development Order
 
-1) Milestone A (Rules + Prompt Composer)
-2) Milestone B (Validation loop)
-3) Milestone F (UI integration)
-4) Milestone C (Corpora analytics)
-5) Milestone D/E (Style + Vocabulary control)
-6) Milestone G (Eval harness + telemetry)
-7) Milestone H (Safegloss integration)
-8) Milestone I (AI quizzes & assessment)
+1) Milestone A (Rules + Prompt Composer) ✅
+2) Milestone B (Validation loop) ✅
+3) Milestone F (UI integration) ✅
+4) Milestone C (Corpora analytics) ✅
+5) Milestone D/E (Style + Vocabulary control) ✅
+6) Milestone G (Eval harness + telemetry) ✅
+7) Milestone I (AI quizzes & assessment) ✅
+8) Milestone J (Quiz & Lesson delivery) ✅
+9) Milestone H (Safegloss integration) — remaining
 
 ---
 
 ## Definition of Done
 
-The system is “done” when:
-- A teacher can generate a story with chosen age, genre, and Lexile band
-- The system validates and corrects to stay within band proxies
-- The applied rules are transparent to the teacher
-- The system is auditable, testable, and stable across runs
+The system is "done" when:
+
+- A teacher can generate a story with chosen age, genre, and Lexile band ✅
+- The system validates and corrects to stay within band proxies ✅
+- The applied rules are transparent to the teacher ✅
+- The system is auditable, testable, and stable across runs ✅
+- Teachers can create and configure quizzes with time limits ✅
+- Students can take quizzes with timed countdown and auto-submit ✅
+- Quiz submissions are auto-graded with detailed results ✅
+- Reading behavior is tracked for analytics ✅
+- Safegloss glossary integration enables vocabulary-controlled generation (pending Milestone H)
 
 ---
