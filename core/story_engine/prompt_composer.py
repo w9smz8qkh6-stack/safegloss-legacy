@@ -38,10 +38,21 @@ class PromptComposer:
     Given identical input, prompt text is identical (stable).
     """
 
-    SYSTEM_MESSAGE = """You are an educational content generator specializing in leveled reading texts.
+    SYSTEM_MESSAGE_FICTION = """You are an educational content generator specializing in leveled reading texts.
 You strictly follow linguistic constraints related to sentence length, syntax complexity, and vocabulary usage.
 You create age-appropriate stories that support young readers' development.
 Never mention the rules or constraints in your output."""
+
+    SYSTEM_MESSAGE_NONFICTION = """You are an educational content generator specializing in leveled informational texts.
+You strictly follow linguistic constraints related to sentence length, syntax complexity, and vocabulary usage.
+You create age-appropriate educational content that explains topics clearly and accurately.
+Never mention the rules or constraints in your output."""
+
+    NONFICTION_GENRES = {"nonfiction_expository", "nonfiction_narrative", "nonfiction_persuasive"}
+
+    def _is_nonfiction(self, genre: str) -> bool:
+        """Check if genre is a nonfiction type."""
+        return genre in self.NONFICTION_GENRES
 
     def compose(
         self,
@@ -66,19 +77,21 @@ Never mention the rules or constraints in your output."""
         Returns:
             ComposedPrompt with system message and user prompt
         """
+        is_nonfiction = self._is_nonfiction(profile.genre)
         sections = []
 
         # Section 1: Reader & Age Profile
-        sections.append(self._compose_reader_profile(profile))
+        sections.append(self._compose_reader_profile(profile, is_nonfiction))
 
-        # Section 2: Developmental Writing Rules
-        sections.append(self._compose_developmental_rules(profile))
+        # Section 2: Developmental Writing Rules (skip for nonfiction)
+        if not is_nonfiction:
+            sections.append(self._compose_developmental_rules(profile))
 
         # Section 3: Genre-Specific Rules
-        sections.append(self._compose_genre_rules(profile))
+        sections.append(self._compose_genre_rules(profile, is_nonfiction))
 
-        # Section 4: Style Profile Rules (if style_profile selected)
-        if profile.style_profile:
+        # Section 4: Style Profile Rules (if style_profile selected, skip for nonfiction)
+        if profile.style_profile and not is_nonfiction:
             sections.append(self._compose_style_rules(profile))
 
         # Section 5: Lexile & Language Constraints
@@ -88,32 +101,45 @@ Never mention the rules or constraints in your output."""
         if profile.vocab_constraints.mode != "none":
             sections.append(self._compose_vocabulary_control(profile))
 
-        # Section 6: Story-Specific Parameters
-        sections.append(self._compose_story_parameters(
-            profile, theme, setting, main_character, word_count, tone
+        # Section 6: Content Parameters (story or informational)
+        sections.append(self._compose_content_parameters(
+            profile, theme, setting, main_character, word_count, tone, is_nonfiction
         ))
 
         # Section 7: Output Constraints
-        sections.append(self._compose_output_constraints(profile))
+        sections.append(self._compose_output_constraints(profile, is_nonfiction))
 
         user_prompt = "\n\n".join(filter(None, sections))
 
+        # Select appropriate system message
+        system_message = self.SYSTEM_MESSAGE_NONFICTION if is_nonfiction else self.SYSTEM_MESSAGE_FICTION
+
         return ComposedPrompt(
-            system_message=self.SYSTEM_MESSAGE,
+            system_message=system_message,
             user_prompt=user_prompt,
             profile_hash=profile.profile_hash
         )
 
-    def _compose_reader_profile(self, profile: WritingProfile) -> str:
+    def _compose_reader_profile(self, profile: WritingProfile, is_nonfiction: bool = False) -> str:
         """Section 1: Reader & Age Profile."""
-        lines = [
-            "## READER PROFILE",
-            "",
-            f"You are writing for readers aged {profile.age_band}.",
-            "",
-            "These readers are still developing reading comprehension and require writing",
-            "that matches their cognitive and emotional stage.",
-        ]
+        if is_nonfiction:
+            lines = [
+                "## READER PROFILE",
+                "",
+                f"You are writing informational content for readers aged {profile.age_band}.",
+                "",
+                "These readers require clear, well-organized explanations",
+                "that match their reading level and prior knowledge.",
+            ]
+        else:
+            lines = [
+                "## READER PROFILE",
+                "",
+                f"You are writing for readers aged {profile.age_band}.",
+                "",
+                "These readers are still developing reading comprehension and require writing",
+                "that matches their cognitive and emotional stage.",
+            ]
         return "\n".join(lines)
 
     def _compose_developmental_rules(self, profile: WritingProfile) -> str:
@@ -192,12 +218,15 @@ Never mention the rules or constraints in your output."""
 
         return "\n".join(lines)
 
-    def _compose_genre_rules(self, profile: WritingProfile) -> str:
+    def _compose_genre_rules(self, profile: WritingProfile, is_nonfiction: bool = False) -> str:
         """Section 3: Genre-Specific Rules."""
-        lines = ["## GENRE RULES", ""]
-
         genre = profile.genre
         genre_rules = profile.genre_rules
+
+        if is_nonfiction:
+            return self._compose_nonfiction_rules(genre, genre_rules)
+
+        lines = ["## GENRE RULES", ""]
 
         if genre == "realistic_fiction":
             lines.extend([
@@ -229,6 +258,66 @@ Never mention the rules or constraints in your output."""
         for guidance in genre_rules.guidance:
             if guidance not in lines:
                 lines.append(f"- {guidance}")
+
+        return "\n".join(lines)
+
+    def _compose_nonfiction_rules(self, genre: str, genre_rules) -> str:
+        """Compose rules specific to nonfiction genres."""
+        lines = ["## CONTENT TYPE & REQUIREMENTS", ""]
+
+        if genre == "nonfiction_expository":
+            lines.extend([
+                "You are writing EXPOSITORY NONFICTION - an informational text that explains a topic.",
+                "",
+                "**This is NOT a story. Do NOT include:**",
+                "- Fictional characters or dialogue",
+                "- Narrative plot or conflict",
+                "- Made-up scenarios or examples",
+                "",
+                "**Content Requirements:**",
+                "- Present factual information objectively",
+                "- Use clear organizational structures (definition, comparison, cause/effect, process)",
+                "- Include specific facts, data, and real-world examples",
+                "- Define technical terms when first introduced",
+                "- Use topic sentences and clear transitions between ideas",
+                "- Conclude with a summary of key points",
+            ])
+        elif genre == "nonfiction_narrative":
+            lines.extend([
+                "You are writing NARRATIVE NONFICTION - a true account told in narrative form.",
+                "",
+                "**Content Requirements:**",
+                "- All events, people, and details must be factually accurate",
+                "- Use narrative techniques (scene-setting, chronology) while maintaining accuracy",
+                "- Clearly establish time period and setting",
+                "- Include only details that can be verified or reasonably inferred from sources",
+                "- Provide historical or contextual background as needed",
+                "",
+                "**Do NOT:**",
+                "- Invent dialogue unless historically documented",
+                "- Create fictional characters or composite figures",
+                "- Embellish events for dramatic effect",
+            ])
+        elif genre == "nonfiction_persuasive":
+            lines.extend([
+                "You are writing PERSUASIVE/ARGUMENTATIVE NONFICTION - text that presents and defends a position.",
+                "",
+                "**This is NOT a story. Do NOT include fictional elements.**",
+                "",
+                "**Content Requirements:**",
+                "- State a clear thesis or position",
+                "- Support claims with evidence and logical reasoning",
+                "- Use credible examples and facts",
+                "- Address potential counterarguments (for higher reading levels)",
+                "- Maintain a logical flow of argument",
+                "- Conclude with a strong summary or call to action",
+            ])
+
+        # Add guidance from the genre rules
+        lines.append("")
+        lines.append("**Writing Guidelines:**")
+        for guidance in genre_rules.guidance:
+            lines.append(f"- {guidance}")
 
         return "\n".join(lines)
 
@@ -461,7 +550,7 @@ Never mention the rules or constraints in your output."""
         if len(words) > limit:
             lines.append(f"  ... and {len(words) - limit} more words")
 
-    def _compose_story_parameters(
+    def _compose_content_parameters(
         self,
         profile: WritingProfile,
         theme: str,
@@ -469,44 +558,77 @@ Never mention the rules or constraints in your output."""
         main_character: str | None,
         word_count: int,
         tone: str | None,
+        is_nonfiction: bool = False,
     ) -> str:
-        """Section 6: Story-Specific Parameters."""
-        lines = ["## STORY PARAMETERS", ""]
+        """Section 6: Content Parameters (story or informational)."""
+        if is_nonfiction:
+            lines = ["## CONTENT PARAMETERS", ""]
+            lines.append(f"Topic: {theme}")
+            if setting:
+                lines.append(f"Context/Scope: {setting}")
+            if tone:
+                lines.append(f"Tone: {tone}")
+            lines.append(f"Target length: {word_count} words (±5%)")
 
-        lines.append(f"Theme: {theme}")
-        if setting:
-            lines.append(f"Setting: {setting}")
-        if main_character:
-            lines.append(f"Main character: {main_character}")
-        if tone:
-            lines.append(f"Tone: {tone}")
+            # Study mode for nonfiction
+            if profile.study_mode:
+                lines.append("")
+                lines.append("### Vocabulary Support")
+                lines.append("When introducing technical or specialized terms,")
+                lines.append("define them clearly using simple language.")
+        else:
+            lines = ["## STORY PARAMETERS", ""]
+            lines.append(f"Theme: {theme}")
+            if setting:
+                lines.append(f"Setting: {setting}")
+            if main_character:
+                lines.append(f"Main character: {main_character}")
+            if tone:
+                lines.append(f"Tone: {tone}")
 
-        lines.append(f"Target length: {word_count} words (±5%)")
+            lines.append(f"Target length: {word_count} words (±5%)")
 
-        # Dialogue level - use numeric if no style profile, otherwise style handles it
-        if not profile.style_profile:
-            dialogue_pct = int((profile.style.dialogue_ratio_min + profile.style.dialogue_ratio_max) / 2 * 100)
-            lines.append(f"Dialogue level: approximately {dialogue_pct}% of the story should be dialogue")
+            # Dialogue level - use numeric if no style profile, otherwise style handles it
+            if not profile.style_profile:
+                dialogue_pct = int((profile.style.dialogue_ratio_min + profile.style.dialogue_ratio_max) / 2 * 100)
+                lines.append(f"Dialogue level: approximately {dialogue_pct}% of the story should be dialogue")
 
-        # Study mode
-        if profile.study_mode:
-            lines.append("")
-            lines.append("### Study Mode")
-            lines.append("When a potentially difficult word appears,")
-            lines.append("define it immediately using simple language within the sentence.")
+            # Study mode
+            if profile.study_mode:
+                lines.append("")
+                lines.append("### Study Mode")
+                lines.append("When a potentially difficult word appears,")
+                lines.append("define it immediately using simple language within the sentence.")
 
         return "\n".join(lines)
 
-    def _compose_output_constraints(self, profile: WritingProfile) -> str:
+    def _compose_output_constraints(self, profile: WritingProfile, is_nonfiction: bool = False) -> str:
         """Section 7: Output Constraints."""
-        lines = [
-            "## OUTPUT REQUIREMENTS",
-            "",
-            "- Output plain text only.",
-            "- Do not include headings, bullet points, or explanations.",
-            "- Do not mention rules or constraints in the output.",
-            "- Begin the story immediately.",
-        ]
+        if is_nonfiction:
+            lines = [
+                "## OUTPUT REQUIREMENTS",
+                "",
+                "- Output the informational text directly.",
+                "- Use HTML formatting ONLY. Do NOT use markdown.",
+                "  - Headings: <h2>Title</h2>, <h3>Subtitle</h3>",
+                "  - Bold: <strong>text</strong> (NOT **text**)",
+                "  - Italic: <em>text</em> (NOT *text*)",
+                "  - Paragraphs: <p>text</p>",
+                "  - Lists: <ul><li>item</li></ul>",
+                "- Do not include meta-commentary about the text.",
+                "- Do not mention rules or constraints in the output.",
+                "- Begin the content immediately with the topic.",
+                "- Do NOT write a story or include fictional elements.",
+            ]
+        else:
+            lines = [
+                "## OUTPUT REQUIREMENTS",
+                "",
+                "- Output plain text only.",
+                "- Do not include headings, bullet points, or explanations.",
+                "- Do not mention rules or constraints in the output.",
+                "- Begin the story immediately.",
+            ]
         return "\n".join(lines)
 
 

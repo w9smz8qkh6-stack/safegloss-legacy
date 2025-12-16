@@ -218,6 +218,20 @@ async function generateQuestions() {
       generatedQuestions = data.questions;
       renderQuestions(data.questions);
       preview.classList.remove('d-none');
+
+      // Show warning if questions were filtered or count doesn't match
+      if (data.warning) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = 'alert alert-warning mb-3';
+        warningDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>' + data.warning;
+        document.getElementById('questions-list').insertBefore(warningDiv, document.getElementById('questions-list').firstChild);
+      }
+      if (data.requested_count && data.generated_count && data.requested_count !== data.generated_count) {
+        const countDiv = document.createElement('div');
+        countDiv.className = 'alert alert-info mb-3';
+        countDiv.innerHTML = `<i class="bi bi-info-circle me-2"></i>Requested ${data.requested_count} questions, generated ${data.generated_count}.`;
+        document.getElementById('questions-list').insertBefore(countDiv, document.getElementById('questions-list').firstChild);
+      }
     } else {
       error.textContent = data.error || 'Generation failed';
       error.classList.remove('d-none');

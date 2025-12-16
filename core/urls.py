@@ -13,7 +13,9 @@ urlpatterns = [
     path("lessons/<int:pk>/", views.lesson_intro, name="lesson_intro"),
     path("lessons/<int:pk>/read/", views.lesson_read, name="lesson_read"),
     path("lessons/<int:pk>/quiz/", views.lesson_quiz, name="lesson_quiz"),
+    path("lessons/<int:pk>/quiz/results/", views.lesson_quiz_results, name="lesson_quiz_results"),
     path("lessons/<int:lesson_id>/term/<int:term_id>/", views.glossary_term_detail, name="glossary_term_detail"),
+    path("lessons/<int:lesson_id>/reading-event/", views.log_reading_event, name="log_reading_event"),
 
     # Instructor Dashboard
     path("instructor/dashboard/", views.instructor_dashboard, name="instructor_dashboard"),
@@ -45,6 +47,8 @@ urlpatterns = [
     path("instructor/units/create/", views.unit_create, name="unit_create"),
     path("instructor/units/<int:pk>/", views.unit_edit, name="unit_edit"),
     path("instructor/units/<int:pk>/delete/", views.unit_delete, name="unit_delete"),
+    path("instructor/units/<int:pk>/available-lessons/", views.unit_available_lessons, name="unit_available_lessons"),
+    path("instructor/units/<int:pk>/add-lesson/", views.unit_add_lesson, name="unit_add_lesson"),
 
     # Course management
     path("instructor/courses/", views.course_list, name="course_list"),
@@ -67,6 +71,7 @@ urlpatterns = [
     path("instructor/lessons/create/", views.lesson_create, name="lesson_create"),
     path("instructor/lessons/<int:pk>/", views.lesson_edit, name="lesson_edit"),
     path("instructor/lessons/<int:pk>/delete/", views.lesson_delete, name="lesson_delete"),
+    path("instructor/lessons/quizzes-for-story/<int:story_pk>/", views.lesson_quizzes_for_story, name="lesson_quizzes_for_story"),
 
     # Quiz management
     path("instructor/quizzes/", views.quiz_list, name="quiz_list"),
@@ -76,6 +81,9 @@ urlpatterns = [
     path("instructor/quizzes/generate/save/", views.quiz_generate_save, name="quiz_generate_save"),
     path("instructor/quizzes/<int:pk>/", views.quiz_edit, name="quiz_edit"),
     path("instructor/quizzes/<int:pk>/delete/", views.quiz_delete, name="quiz_delete"),
+    path("instructor/quizzes/<int:pk>/add-question/", views.quiz_question_add, name="quiz_question_add"),
+    path("instructor/quizzes/<int:pk>/create-question/", views.quiz_question_create, name="quiz_question_create"),
+    path("instructor/quizzes/<int:pk>/remove-question/<int:qq_pk>/", views.quiz_question_remove, name="quiz_question_remove"),
 
     # Roster management
     path("instructor/rosters/", views.roster_list, name="roster_list"),

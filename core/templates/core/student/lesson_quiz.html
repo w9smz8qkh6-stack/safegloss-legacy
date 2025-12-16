@@ -68,9 +68,11 @@
 
   <form method="post" id="quizForm">
     {% csrf_token %}
+    <input type="hidden" name="question_times" id="questionTimes" value="{}">
+    <input type="hidden" name="submission_id" value="{{ submission.pk }}">
 
     {% for qq in questions %}
-    <div class="card question-card shadow-sm">
+    <div class="card question-card shadow-sm" data-question-id="{{ qq.question.pk }}">
       <div class="card-header bg-light">
         <span class="question-number">Question {{ forloop.counter }}</span>
         {% if qq.points_override or qq.question.default_points %}
@@ -138,7 +140,132 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Handle choice selection visual feedback
+  // ==========================================================================
+  // QUESTION TIME TRACKING
+  // ==========================================================================
+  const questionTimes = {};  // { questionId: { total_ms: 0, started_at: null, interactions: 0 } }
+  const questionTimesInput = document.getElementById('questionTimes');
+  let currentQuestionId = null;
+  let isPaused = false;
+
+  // Initialize tracking for all questions
+  document.querySelectorAll('.question-card').forEach(card => {
+    const qId = card.dataset.questionId;
+    questionTimes[qId] = { total_ms: 0, started_at: null, interactions: 0 };
+  });
+
+  // Start timing a question
+  function startTiming(questionId) {
+    if (currentQuestionId && currentQuestionId !== questionId) {
+      stopTiming(currentQuestionId);
+    }
+    if (questionId && !isPaused) {
+      const q = questionTimes[questionId];
+      if (!q.started_at) {
+        q.started_at = Date.now();
+      }
+      currentQuestionId = questionId;
+    }
+  }
+
+  // Stop timing a question
+  function stopTiming(questionId) {
+    if (questionId && questionTimes[questionId]) {
+      const q = questionTimes[questionId];
+      if (q.started_at) {
+        q.total_ms += Date.now() - q.started_at;
+        q.started_at = null;
+      }
+    }
+  }
+
+  // Update hidden input with current times
+  function updateTimesInput() {
+    // Stop current timing to get accurate totals
+    if (currentQuestionId) {
+      stopTiming(currentQuestionId);
+    }
+    // Format as { questionId: { time_ms: X, interactions: Y } }
+    const output = {};
+    for (const [qId, data] of Object.entries(questionTimes)) {
+      output[qId] = {
+        time_ms: data.total_ms,
+        interactions: data.interactions
+      };
+    }
+    questionTimesInput.value = JSON.stringify(output);
+  }
+
+  // Track focus/interaction on question cards
+  document.querySelectorAll('.question-card').forEach(card => {
+    const qId = card.dataset.questionId;
+
+    // Track when user clicks or focuses on a question
+    card.addEventListener('click', () => {
+      startTiming(qId);
+      questionTimes[qId].interactions++;
+    });
+
+    card.addEventListener('focusin', () => {
+      startTiming(qId);
+    });
+  });
+
+  // Track scroll position to determine active question
+  let scrollTimeout;
+  window.addEventListener('scroll', () => {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      const viewportCenter = window.innerHeight / 2;
+      let closestQuestion = null;
+      let closestDistance = Infinity;
+
+      document.querySelectorAll('.question-card').forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const cardCenter = rect.top + rect.height / 2;
+        const distance = Math.abs(cardCenter - viewportCenter);
+
+        if (distance < closestDistance && rect.top < window.innerHeight && rect.bottom > 0) {
+          closestDistance = distance;
+          closestQuestion = card.dataset.questionId;
+        }
+      });
+
+      if (closestQuestion) {
+        startTiming(closestQuestion);
+      }
+    }, 100);
+  });
+
+  // Pause/resume on visibility change
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      isPaused = true;
+      if (currentQuestionId) {
+        stopTiming(currentQuestionId);
+      }
+    } else {
+      isPaused = false;
+      if (currentQuestionId) {
+        questionTimes[currentQuestionId].started_at = Date.now();
+      }
+    }
+  });
+
+  // Update times before form submission
+  document.getElementById('quizForm').addEventListener('submit', () => {
+    updateTimesInput();
+  });
+
+  // Start timing the first visible question
+  const firstQuestion = document.querySelector('.question-card');
+  if (firstQuestion) {
+    startTiming(firstQuestion.dataset.questionId);
+  }
+
+  // ==========================================================================
+  // CHOICE SELECTION VISUAL FEEDBACK
+  // ==========================================================================
   document.querySelectorAll('.choice-option').forEach(label => {
     const input = label.querySelector('input');
     input.addEventListener('change', function() {
@@ -152,8 +279,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  // ==========================================================================
+  // TIMER FUNCTIONALITY
+  // ==========================================================================
   {% if quiz.time_limit_seconds %}
-  // Timer functionality
   let timeLeft = {{ quiz.time_limit_seconds }};
   const timerEl = document.getElementById('timer');
 
@@ -168,6 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (timeLeft <= 0) {
+      updateTimesInput();  // Save times before auto-submit
       document.getElementById('quizForm').submit();
     } else {
       timeLeft--;

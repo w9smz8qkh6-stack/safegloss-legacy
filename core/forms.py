@@ -207,12 +207,25 @@ CourseUnitFormSet = inlineformset_factory(
 class QuizForm(forms.ModelForm):
     class Meta:
         model = Quiz
-        fields = ["title", "instructions_html", "total_points"]
+        fields = ["story", "title", "instructions_html", "total_points", "time_limit_minutes"]
         widgets = {
+            "story": forms.Select(attrs={"class": "form-select"}),
             "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter quiz title"}),
             "instructions_html": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Instructions for students"}),
             "total_points": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "time_limit_minutes": forms.NumberInput(attrs={
+                "class": "form-control",
+                "min": 1,
+                "max": 180,
+                "placeholder": "e.g., 30"
+            }),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user:
+            self.fields["story"].queryset = Story.objects.filter(instructor=user).order_by("-created_at")
+        self.fields["time_limit_minutes"].required = False
 
 
 class ItemBankQuestionForm(forms.ModelForm):
@@ -400,6 +413,8 @@ class StoryGeneratorForm(forms.Form):
         ("8-10", "Ages 8-10 (Developing Readers)"),
         ("10-12", "Ages 10-12 (Transitional Readers)"),
         ("12-14", "Ages 12-14 (Advanced Young Readers)"),
+        ("14-16", "Ages 14-16 (High School)"),
+        ("16-18", "Ages 16-18 (Advanced High School)"),
     ]
 
     LEXILE_BAND_CHOICES = [
@@ -409,6 +424,8 @@ class StoryGeneratorForm(forms.Form):
         ("600-700L", "600-700L (Upper Elementary)"),
         ("700-900L", "700-900L (Middle School)"),
         ("900-1100L", "900-1100L (Advanced Middle School)"),
+        ("1100-1200L", "1100-1200L (High School)"),
+        ("1200-1400L", "1200-1400L (Advanced High School)"),
     ]
 
     GENRE_CHOICES = [
@@ -416,6 +433,9 @@ class StoryGeneratorForm(forms.Form):
         ("fantasy", "Fantasy"),
         ("mystery", "Mystery"),
         ("informational_fiction", "Informational Fiction"),
+        ("nonfiction_expository", "Nonfiction - Expository"),
+        ("nonfiction_narrative", "Nonfiction - Narrative"),
+        ("nonfiction_persuasive", "Nonfiction - Persuasive/Argumentative"),
     ]
 
     STYLE_PROFILE_CHOICES = [

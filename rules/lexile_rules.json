@@ -224,6 +224,85 @@
         "Academic vocabulary allowed",
         "Passive voice acceptable when appropriate"
       ]
+    },
+    "1100-1200L": {
+      "label": "High School",
+      "typical_age": "14-16",
+      "typical_grade": "9-10",
+      "sentence": {
+        "avg_length": {"min": 18, "max": 25, "hard_max": 35},
+        "types": ["simple", "compound", "complex", "compound-complex"],
+        "max_clauses": 3
+      },
+      "validation_thresholds": {
+        "avg_sentence_length": {"target_min": 18, "target_max": 25, "hard_max": 35},
+        "max_passive_ratio": 0.25,
+        "max_complex_ratio": 0.55,
+        "dialogue_ratio": {"min": 0.05, "max": 0.30}
+      },
+      "vocabulary": {
+        "level": "academic_allowed",
+        "abstract_nouns": "frequent",
+        "academic_terms": "expected",
+        "frequency_tier": "top_10000",
+        "domain_specific": "allowed"
+      },
+      "grammar": {
+        "passive_voice": "appropriate_use",
+        "nested_clauses": "allowed",
+        "parentheticals": "regular",
+        "appositives": "regular",
+        "rhetorical_devices": "encouraged"
+      },
+      "guidance": [
+        "Compound-complex sentences appropriate",
+        "Average 18-25 words per sentence",
+        "Multiple dependent clauses allowed",
+        "Academic and domain-specific vocabulary expected",
+        "Passive voice for appropriate rhetorical effect",
+        "Varied sentence structures for stylistic effect"
+      ]
+    },
+    "1200-1400L": {
+      "label": "Advanced High School",
+      "typical_age": "16-18",
+      "typical_grade": "11-12",
+      "sentence": {
+        "avg_length": {"min": 20, "max": 30, "hard_max": 45},
+        "types": ["simple", "compound", "complex", "compound-complex"],
+        "max_clauses": 4
+      },
+      "validation_thresholds": {
+        "avg_sentence_length": {"target_min": 20, "target_max": 30, "hard_max": 45},
+        "max_passive_ratio": 0.30,
+        "max_complex_ratio": 0.65,
+        "dialogue_ratio": {"min": 0.00, "max": 0.30}
+      },
+      "vocabulary": {
+        "level": "academic_allowed",
+        "abstract_nouns": "standard",
+        "academic_terms": "standard",
+        "frequency_tier": "top_15000",
+        "domain_specific": "expected",
+        "literary_terms": "allowed"
+      },
+      "grammar": {
+        "passive_voice": "strategic_use",
+        "nested_clauses": "regular",
+        "parentheticals": "regular",
+        "appositives": "regular",
+        "rhetorical_devices": "expected",
+        "complex_constructions": "allowed"
+      },
+      "guidance": [
+        "Full range of sentence structures",
+        "Average 20-30 words per sentence",
+        "Complex nested structures appropriate",
+        "College-level vocabulary expected",
+        "Strategic use of passive voice",
+        "Literary and rhetorical techniques encouraged",
+        "Varied rhythm and pacing through syntax"
+      ]
     }
   }
 }

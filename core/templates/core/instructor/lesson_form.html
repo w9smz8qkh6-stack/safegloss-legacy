@@ -53,7 +53,12 @@
           <div class="mb-3">
             <label for="id_story" class="form-label">Story <span class="text-danger">*</span></label>
             <div class="input-group">
-              {{ form.story }}
+              <select name="story" id="id_story" class="form-select">
+                <option value="">---------</option>
+                {% for story in form.story.field.queryset %}
+                <option value="{{ story.pk }}"{% if form.story.value|stringformat:"s" == story.pk|stringformat:"s" %} selected{% endif %}>{{ story }}</option>
+                {% endfor %}
+              </select>
               <a href="{% url 'core:story_import_search' %}" class="btn btn-outline-primary" title="Import story from external library">
                 <i class="bi bi-cloud-download me-1"></i>Import
               </a>
@@ -70,7 +75,13 @@
           <div class="row mb-3">
             <div class="col-md-6">
               <label for="id_quiz" class="form-label">Quiz (optional)</label>
-              {{ form.quiz }}
+              <select name="quiz" id="id_quiz" class="form-select">
+                <option value="">---------</option>
+                {% for quiz in story_quizzes %}
+                <option value="{{ quiz.pk }}"{% if form.quiz.value|stringformat:"s" == quiz.pk|stringformat:"s" %} selected{% endif %}>{{ quiz.title }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Only quizzes linked to the selected story are shown.</div>
             </div>
             <div class="col-md-6">
               <label for="id_default_mode" class="form-label">Default Reading Mode</label>
@@ -124,4 +135,19 @@
     </div>
   </div>
 </div>
+
+<script>
+document.getElementById('id_story').addEventListener('change', function() {
+  const storyId = this.value;
+  const quizSelect = document.getElementById('id_quiz');
+
+  if (!storyId) {
+    quizSelect.innerHTML = '<option value="">---------</option>';
+    return;
+  }
+
+  const url = '{% url "core:lesson_quizzes_for_story" story_pk=0 %}'.replace('/0/', '/' + storyId + '/');
+  htmx.ajax('GET', url, {target: '#id_quiz', swap: 'innerHTML'});
+});
+</script>
 {% endblock %}

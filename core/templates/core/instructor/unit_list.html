@@ -43,9 +43,18 @@
               <i class="bi bi-trash me-1"></i>Delete
             </a>
           </div>
-          <a href="{% url 'core:lesson_create' %}?unit={{ unit.pk }}" class="btn btn-success btn-sm">
-            <i class="bi bi-plus-circle me-1"></i>New Lesson
-          </a>
+          <div class="btn-group btn-group-sm">
+            <a href="{% url 'core:lesson_create' %}?unit={{ unit.pk }}" class="btn btn-success">
+              <i class="bi bi-plus-circle me-1"></i>New Lesson
+            </a>
+            <button type="button" class="btn btn-outline-success"
+                    data-bs-toggle="modal" data-bs-target="#addLessonModal-{{ unit.pk }}"
+                    hx-get="{% url 'core:unit_available_lessons' pk=unit.pk %}"
+                    hx-target="#available-lessons-{{ unit.pk }}"
+                    hx-trigger="click">
+              <i class="bi bi-journal-plus me-1"></i>Add Existing
+            </button>
+          </div>
         </div>
 
         <!-- Lessons List -->
@@ -87,11 +96,44 @@
         <div class="text-center py-4 text-muted">
           <i class="bi bi-journal-x fs-2 d-block mb-2"></i>
           <p class="mb-2">No lessons in this unit yet.</p>
-          <a href="{% url 'core:lesson_create' %}?unit={{ unit.pk }}" class="btn btn-outline-success btn-sm">
-            <i class="bi bi-plus-circle me-1"></i>Add First Lesson
-          </a>
+          <div class="btn-group btn-group-sm">
+            <a href="{% url 'core:lesson_create' %}?unit={{ unit.pk }}" class="btn btn-outline-success">
+              <i class="bi bi-plus-circle me-1"></i>New Lesson
+            </a>
+            <button type="button" class="btn btn-outline-primary"
+                    data-bs-toggle="modal" data-bs-target="#addLessonModal-{{ unit.pk }}"
+                    hx-get="{% url 'core:unit_available_lessons' pk=unit.pk %}"
+                    hx-target="#available-lessons-{{ unit.pk }}"
+                    hx-trigger="click">
+              <i class="bi bi-journal-plus me-1"></i>Add Existing
+            </button>
+          </div>
         </div>
         {% endif %}
+      </div>
+    </div>
+
+    <!-- Add Existing Lesson Modal -->
+    <div class="modal fade" id="addLessonModal-{{ unit.pk }}" tabindex="-1" aria-labelledby="addLessonModalLabel-{{ unit.pk }}" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="addLessonModalLabel-{{ unit.pk }}">
+              <i class="bi bi-journal-plus me-2"></i>Add Existing Lesson to "{{ unit.title }}"
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0" id="available-lessons-{{ unit.pk }}">
+            <div class="text-center py-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

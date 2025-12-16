@@ -30,9 +30,18 @@
             <div class="form-text">Instructions shown to students before they start the quiz.</div>
           </div>
 
-          <div class="mb-3">
-            <label for="id_total_points" class="form-label">Total Points</label>
-            {{ form.total_points }}
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <label for="id_total_points" class="form-label">Total Points</label>
+              {{ form.total_points }}
+            </div>
+            <div class="col-md-6">
+              <label for="id_time_limit_minutes" class="form-label">
+                <i class="bi bi-clock me-1"></i>Time Limit (minutes)
+              </label>
+              {{ form.time_limit_minutes }}
+              <div class="form-text">Leave blank for no time limit. Students will see a countdown timer.</div>
+            </div>
           </div>
 
           <div class="d-flex gap-2">

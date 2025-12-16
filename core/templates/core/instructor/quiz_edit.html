@@ -8,7 +8,12 @@
     <h1 class="h3 mb-0">
       <i class="bi bi-question-circle me-2"></i>{{ quiz.title }}
     </h1>
-    <small class="text-muted">{{ quiz.total_points }} points total</small>
+    <small class="text-muted">
+      {{ quiz.total_points }} points total
+      {% if quiz.time_limit_minutes %}
+      <span class="ms-2"><i class="bi bi-clock me-1"></i>{{ quiz.time_limit_minutes }} min</span>
+      {% endif %}
+    </small>
   </div>
   <div class="btn-group">
     <a href="{% url 'core:quiz_list' %}" class="btn btn-outline-secondary">
@@ -45,6 +50,14 @@
             {{ form.total_points }}
           </div>
 
+          <div class="mb-3">
+            <label for="id_time_limit_minutes" class="form-label">
+              <i class="bi bi-clock me-1"></i>Time Limit (minutes)
+            </label>
+            {{ form.time_limit_minutes }}
+            <div class="form-text">Leave blank for no time limit.</div>
+          </div>
+
           <button type="submit" class="btn btn-primary btn-sm">
             <i class="bi bi-check-circle me-2"></i>Save Settings
           </button>
@@ -56,31 +69,42 @@
   <div class="col-lg-8">
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-list-ol me-2"></i>Questions</span>
-        <span class="badge bg-secondary">{{ questions.count }} question{{ questions.count|pluralize }}</span>
+        <span><i class="bi bi-list-ol me-2"></i>Questions ({{ questions.count }})</span>
+        <div class="btn-group btn-group-sm">
+          <a href="{% url 'core:quiz_question_create' quiz.pk %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i>Create New
+          </a>
+          <a href="{% url 'core:quiz_question_add' quiz.pk %}" class="btn btn-outline-primary">
+            <i class="bi bi-folder-plus me-1"></i>From Item Bank
+          </a>
+        </div>
       </div>
       <div class="card-body">
         {% if questions %}
           <div class="list-group list-group-flush">
             {% for qq in questions %}
               <div class="list-group-item d-flex justify-content-between align-items-start">
-                <div>
-                  <span class="badge bg-secondary me-2">{{ forloop.counter }}</span>
-                  <span>{{ qq.question.prompt_html|truncatewords:20|safe }}</span>
-                  <br>
-                  <small class="text-muted">
-                    {{ qq.question.get_question_type_display }} &bull;
-                    {{ qq.points_override|default:qq.question.default_points }} pts
-                  </small>
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-start">
+                    <span class="badge bg-secondary me-2">{{ forloop.counter }}</span>
+                    <div>
+                      <span>{{ qq.question.prompt_html|striptags|truncatewords:25 }}</span>
+                      <br>
+                      <small class="text-muted">
+                        <span class="badge bg-{% if qq.question.question_type == 'mcq_single' %}primary{% elif qq.question.question_type == 'true_false' %}info{% else %}warning text-dark{% endif %} me-1">
+                          {{ qq.question.get_question_type_display }}
+                        </span>
+                        {{ qq.points|default:qq.question.default_points }} pts
+                      </small>
+                    </div>
+                  </div>
                 </div>
-                <div class="btn-group btn-group-sm">
-                  <button class="btn btn-outline-secondary" disabled title="Edit (coming soon)">
-                    <i class="bi bi-pencil"></i>
-                  </button>
-                  <button class="btn btn-outline-danger" disabled title="Remove (coming soon)">
+                <form method="post" action="{% url 'core:quiz_question_remove' quiz.pk qq.pk %}" class="ms-2" onsubmit="return confirm('Remove this question from the quiz?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove from quiz">
                     <i class="bi bi-trash"></i>
                   </button>
-                </div>
+                </form>
               </div>
             {% endfor %}
           </div>
@@ -88,7 +112,14 @@
           <div class="text-center py-4 text-muted">
             <i class="bi bi-list-ol fs-1 d-block mb-2"></i>
             <p>No questions in this quiz yet.</p>
-            <p class="small">Question management coming soon.</p>
+            <div class="btn-group">
+              <a href="{% url 'core:quiz_question_create' quiz.pk %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle me-1"></i>Create New Question
+              </a>
+              <a href="{% url 'core:quiz_question_add' quiz.pk %}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-folder-plus me-1"></i>Add from Item Bank
+              </a>
+            </div>
           </div>
         {% endif %}
       </div>

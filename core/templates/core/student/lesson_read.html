@@ -84,27 +84,38 @@
   </div>
 
   {% elif mode == 'cards' %}
+  {% with total_cards=segments|length|add:1 %}
   <div class="card shadow-sm card-reader" id="cardReader">
     <div class="card-header bg-light">
       <div class="d-flex justify-content-between align-items-center">
         <span class="text-muted">
-          <i class="bi bi-card-text me-2"></i>Card <span id="currentCard">1</span> of {{ segments|length }}
+          <i class="bi bi-card-text me-2"></i>Card <span id="currentCard">1</span> of {{ total_cards }}
         </span>
         <div class="progress flex-grow-1 mx-3" style="height: 6px;">
-          <div class="progress-bar" role="progressbar" id="cardProgress" style="width: {% widthratio 1 segments|length 100 %}%;"></div>
+          <div class="progress-bar" role="progressbar" id="cardProgress" style="width: {% widthratio 1 total_cards 100 %}%;"></div>
         </div>
       </div>
     </div>
     <div class="card-body reading-content" id="cardContent">
+      <!-- Title Card -->
+      <div class="segment-card" data-index="0">
+        <div class="text-center py-4">
+          <h2 class="mb-3">{{ story.title }}</h2>
+          {% if story.reading_level_label %}
+          <span class="badge bg-secondary">{{ story.reading_level_label }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <!-- Content Cards -->
       {% for segment in segments %}
-      <div class="segment-card {% if not forloop.first %}d-none{% endif %}" data-index="{{ forloop.counter0 }}">
+      <div class="segment-card d-none" data-index="{{ forloop.counter }}">
         {% if segment.title %}
         <h5 class="mb-3">{{ segment.title }}</h5>
         {% endif %}
         {{ segment.text_html|safe }}
       </div>
       {% empty %}
-      <p class="text-muted">No segments defined for this story.</p>
+      <p class="text-muted d-none">No segments defined for this story.</p>
       {% endfor %}
     </div>
     <div class="card-footer bg-white card-navigation">
@@ -112,13 +123,14 @@
         <button type="button" class="btn btn-outline-primary" id="prevCard" disabled>
           <i class="bi bi-chevron-left me-1"></i>Previous
         </button>
-        <span class="text-muted" id="cardCounter">1 / {{ segments|length }}</span>
+        <span class="text-muted" id="cardCounter">1 / {{ total_cards }}</span>
         <button type="button" class="btn btn-primary" id="nextCard">
           Next<i class="bi bi-chevron-right ms-1"></i>
         </button>
       </div>
     </div>
   </div>
+  {% endwith %}
 
   {% elif mode == 'movie' %}
   <div class="card shadow-sm">
@@ -163,7 +175,142 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Card Mode Navigation
+  const lessonId = {{ lesson.pk }};
+  const currentMode = '{{ mode }}';
+
+  // ==========================================================================
+  // READING BEHAVIOR TRACKING
+  // ==========================================================================
+  const tracker = {
+    startTime: Date.now(),
+    activeTime: 0,
+    lastActiveTime: Date.now(),
+    isPaused: false,
+    scrollDepth: 0,
+    segmentsViewed: new Set([0]), // Title card always viewed
+
+    // Card time tracking
+    currentCardIndex: 0,
+    cardStartTime: Date.now(),
+    cardTimes: {}, // { segmentIndex: totalMs }
+
+    // Log an event to the server
+    logEvent(eventType, payload = {}) {
+      payload.active_time_ms = this.activeTime + (this.isPaused ? 0 : Date.now() - this.lastActiveTime);
+      payload.mode = currentMode;
+
+      fetch(`/lessons/${lessonId}/reading-event/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ event_type: eventType, payload })
+      }).catch(err => console.warn('Failed to log reading event:', err));
+    },
+
+    // Update active time tracking
+    updateActiveTime() {
+      if (!this.isPaused) {
+        this.activeTime += Date.now() - this.lastActiveTime;
+      }
+      this.lastActiveTime = Date.now();
+    },
+
+    // Track time spent on current card before switching
+    recordCardTime() {
+      if (!this.isPaused) {
+        const timeOnCard = Date.now() - this.cardStartTime;
+        this.cardTimes[this.currentCardIndex] = (this.cardTimes[this.currentCardIndex] || 0) + timeOnCard;
+      }
+    },
+
+    // Called when switching to a new card
+    switchCard(newIndex) {
+      this.recordCardTime();
+      const prevIndex = this.currentCardIndex;
+      this.currentCardIndex = newIndex;
+      this.cardStartTime = Date.now();
+      return prevIndex;
+    },
+
+    pause() {
+      if (!this.isPaused) {
+        this.updateActiveTime();
+        this.recordCardTime(); // Record card time on pause
+        this.isPaused = true;
+        this.logEvent('pause', { reason: 'visibility_hidden', current_card: this.currentCardIndex });
+      }
+    },
+
+    resume() {
+      if (this.isPaused) {
+        this.isPaused = false;
+        this.lastActiveTime = Date.now();
+        this.cardStartTime = Date.now(); // Reset card timer on resume
+        this.logEvent('resume', { reason: 'visibility_visible', current_card: this.currentCardIndex });
+      }
+    },
+
+    finish() {
+      this.updateActiveTime();
+      this.recordCardTime(); // Record final card time
+      this.logEvent('finish', {
+        total_time_ms: Date.now() - this.startTime,
+        segments_viewed: Array.from(this.segmentsViewed),
+        scroll_depth: this.scrollDepth,
+        card_times_ms: this.cardTimes // Include per-card times
+      });
+    }
+  };
+
+  // Log start event
+  tracker.logEvent('start', { url: window.location.href });
+
+  // Track page visibility (pause/resume)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      tracker.pause();
+    } else {
+      tracker.resume();
+    }
+  });
+
+  // Track scroll depth in continuous mode
+  if (currentMode === 'continuous') {
+    let maxScroll = 0;
+    window.addEventListener('scroll', () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrollPercent = docHeight > 0 ? Math.round((scrollTop / docHeight) * 100) : 0;
+      if (scrollPercent > maxScroll) {
+        maxScroll = scrollPercent;
+        tracker.scrollDepth = maxScroll;
+        // Log significant scroll milestones
+        if (maxScroll % 25 === 0 && maxScroll > 0) {
+          tracker.logEvent('scroll', { depth_percent: maxScroll });
+        }
+      }
+    });
+  }
+
+  // Track finish on navigation away
+  window.addEventListener('beforeunload', () => {
+    tracker.finish();
+  });
+
+  // Track finish on explicit finish button clicks
+  document.querySelectorAll('a[href*="quiz"], a[href*="lessons"]').forEach(link => {
+    if (link.textContent.includes('Quiz') || link.textContent.includes('Finish')) {
+      link.addEventListener('click', () => {
+        tracker.finish();
+      });
+    }
+  });
+
+  // ==========================================================================
+  // CARD MODE NAVIGATION
+  // ==========================================================================
   const cardContent = document.getElementById('cardContent');
   if (cardContent) {
     const cards = cardContent.querySelectorAll('.segment-card');
@@ -177,6 +324,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const progressBar = document.getElementById('cardProgress');
 
     function showCard(index) {
+      // Track time on previous card before switching
+      const prevIndex = tracker.switchCard(index);
+      const timeOnPrevCard = tracker.cardTimes[prevIndex] || 0;
+
       cards.forEach((card, i) => {
         card.classList.toggle('d-none', i !== index);
       });
@@ -193,6 +344,17 @@ document.addEventListener('DOMContentLoaded', function() {
       } else {
         nextBtn.innerHTML = 'Next<i class="bi bi-chevron-right ms-1"></i>';
       }
+
+      // Track segment view with time spent on previous card
+      const isFirstView = !tracker.segmentsViewed.has(index);
+      tracker.segmentsViewed.add(index);
+      tracker.logEvent('segment_view', {
+        segment_index: index,
+        total_segments: totalCards,
+        prev_segment_index: prevIndex,
+        prev_segment_time_ms: timeOnPrevCard,
+        is_first_view: isFirstView
+      });
     }
 
     prevBtn.addEventListener('click', () => {
@@ -215,11 +377,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Glossary Term Click Handling
+  // ==========================================================================
+  // MODE CHANGE TRACKING
+  // ==========================================================================
+  document.querySelectorAll('.mode-switcher a').forEach(link => {
+    link.addEventListener('click', function() {
+      const newMode = new URL(this.href).searchParams.get('mode');
+      if (newMode !== currentMode) {
+        tracker.logEvent('mode_change', { from_mode: currentMode, to_mode: newMode });
+      }
+    });
+  });
+
+  // ==========================================================================
+  // GLOSSARY TERM CLICK HANDLING
+  // ==========================================================================
   document.querySelectorAll('.gloss-term').forEach(term => {
     term.addEventListener('click', function(e) {
       const termId = this.dataset.termId;
-      const lessonId = {{ lesson.pk }};
 
       fetch(`/lessons/${lessonId}/term/${termId}/`, {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }

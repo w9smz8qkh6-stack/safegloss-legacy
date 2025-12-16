@@ -36,6 +36,14 @@
         "12-14": {
           "setting_complexity": "complex",
           "conflict_types": ["identity", "relationships", "ethics", "social_justice", "coming_of_age"]
+        },
+        "14-16": {
+          "setting_complexity": "sophisticated",
+          "conflict_types": ["identity", "relationships", "ethics", "systemic_issues", "existential", "moral_ambiguity"]
+        },
+        "16-18": {
+          "setting_complexity": "literary",
+          "conflict_types": ["philosophical", "existential", "social_critique", "psychological", "moral_complexity"]
         }
       }
     },
@@ -77,6 +85,19 @@
           "magic_complexity": "complex_allowed",
           "invented_terms_max": 12,
           "world_building": "rich"
+        },
+        "14-16": {
+          "magic_complexity": "sophisticated_systems",
+          "invented_terms_max": 20,
+          "world_building": "detailed",
+          "subversion": "allowed"
+        },
+        "16-18": {
+          "magic_complexity": "literary_metaphor",
+          "invented_terms_max": 30,
+          "world_building": "comprehensive",
+          "subversion": "encouraged",
+          "allegory": "allowed"
         }
       }
     },
@@ -120,6 +141,21 @@
           "clue_visibility": "embedded",
           "red_herrings": "allowed",
           "solution_complexity": "layered"
+        },
+        "14-16": {
+          "clue_count": "7-10",
+          "clue_visibility": "subtle",
+          "red_herrings": "multiple",
+          "solution_complexity": "sophisticated",
+          "unreliable_elements": "allowed"
+        },
+        "16-18": {
+          "clue_count": "10+",
+          "clue_visibility": "deeply_embedded",
+          "red_herrings": "strategic",
+          "solution_complexity": "literary",
+          "unreliable_elements": "encouraged",
+          "meta_mystery": "allowed"
         }
       }
     },
@@ -160,6 +196,187 @@
           "facts_per_story": "7-10",
           "fact_complexity": "nuanced",
           "vocabulary_support": "minimal"
+        },
+        "14-16": {
+          "facts_per_story": "10-15",
+          "fact_complexity": "sophisticated",
+          "vocabulary_support": "academic_terms_expected"
+        },
+        "16-18": {
+          "facts_per_story": "15-20",
+          "fact_complexity": "advanced",
+          "vocabulary_support": "college_prep"
+        }
+      }
+    },
+    "nonfiction_expository": {
+      "label": "Nonfiction - Expository",
+      "description": "Informational text that explains a topic clearly and objectively",
+      "requirements": {
+        "accuracy": "required",
+        "objectivity": "required",
+        "structure": "logical_organization",
+        "evidence": "facts_and_examples",
+        "citations": "age_appropriate"
+      },
+      "guidance": [
+        "Present information objectively without personal opinion",
+        "Use clear organizational structures (compare/contrast, cause/effect, problem/solution)",
+        "Include specific facts, statistics, and examples",
+        "Define technical terms when introduced",
+        "Use headings and transitions to guide readers",
+        "Conclude with a summary of key points"
+      ],
+      "age_adjustments": {
+        "6-8": {
+          "structure": "simple_sequential",
+          "concepts_per_section": 1,
+          "vocabulary_support": "high",
+          "examples": "concrete_familiar"
+        },
+        "8-10": {
+          "structure": "basic_organization",
+          "concepts_per_section": 2,
+          "vocabulary_support": "medium",
+          "examples": "concrete_varied"
+        },
+        "10-12": {
+          "structure": "clear_patterns",
+          "concepts_per_section": 3,
+          "vocabulary_support": "contextual",
+          "examples": "mixed_concrete_abstract"
+        },
+        "12-14": {
+          "structure": "sophisticated_patterns",
+          "concepts_per_section": 4,
+          "vocabulary_support": "minimal",
+          "examples": "abstract_allowed"
+        },
+        "14-16": {
+          "structure": "complex_organization",
+          "concepts_per_section": 5,
+          "vocabulary_support": "academic_expected",
+          "examples": "varied_including_research"
+        },
+        "16-18": {
+          "structure": "advanced_rhetorical",
+          "concepts_per_section": 6,
+          "vocabulary_support": "college_level",
+          "examples": "scholarly_references_allowed"
+        }
+      }
+    },
+    "nonfiction_narrative": {
+      "label": "Nonfiction - Narrative",
+      "description": "True stories told in narrative form (biography, memoir, historical accounts)",
+      "requirements": {
+        "accuracy": "required",
+        "narrative_arc": "required",
+        "real_events": "required",
+        "chronology": "clear",
+        "perspective": "stated"
+      },
+      "guidance": [
+        "All events and people must be real and accurately portrayed",
+        "Use narrative techniques while maintaining factual accuracy",
+        "Establish clear time and place settings",
+        "Include sensory details based on historical record",
+        "Distinguish between documented facts and reasonable inferences",
+        "Provide context for historical or cultural elements"
+      ],
+      "age_adjustments": {
+        "6-8": {
+          "timeline": "simple_linear",
+          "scope": "single_event_or_day",
+          "characters": 1,
+          "historical_context": "minimal"
+        },
+        "8-10": {
+          "timeline": "linear",
+          "scope": "short_period",
+          "characters": 2,
+          "historical_context": "basic"
+        },
+        "10-12": {
+          "timeline": "mostly_linear",
+          "scope": "extended_period",
+          "characters": 3,
+          "historical_context": "integrated"
+        },
+        "12-14": {
+          "timeline": "flexible",
+          "scope": "complex_period",
+          "characters": 4,
+          "historical_context": "detailed"
+        },
+        "14-16": {
+          "timeline": "sophisticated",
+          "scope": "multiple_periods_or_perspectives",
+          "characters": 5,
+          "historical_context": "analytical"
+        },
+        "16-18": {
+          "timeline": "advanced_techniques",
+          "scope": "broad_historical_sweep",
+          "characters": "multiple",
+          "historical_context": "scholarly"
+        }
+      }
+    },
+    "nonfiction_persuasive": {
+      "label": "Nonfiction - Persuasive/Argumentative",
+      "description": "Text that presents a viewpoint and attempts to convince the reader",
+      "requirements": {
+        "thesis": "clear_position",
+        "evidence": "required",
+        "reasoning": "logical",
+        "counterarguments": "age_dependent",
+        "call_to_action": "optional"
+      },
+      "guidance": [
+        "State a clear position or thesis",
+        "Support claims with evidence and reasoning",
+        "Use appropriate persuasive techniques",
+        "Address counterarguments fairly (at higher levels)",
+        "Maintain logical flow of argument",
+        "Conclude with a strong summary or call to action"
+      ],
+      "age_adjustments": {
+        "6-8": {
+          "argument_complexity": "single_reason",
+          "evidence_types": "personal_experience",
+          "counterarguments": false,
+          "persuasive_techniques": "emotional_appeal"
+        },
+        "8-10": {
+          "argument_complexity": "two_three_reasons",
+          "evidence_types": "facts_and_examples",
+          "counterarguments": false,
+          "persuasive_techniques": "basic_appeals"
+        },
+        "10-12": {
+          "argument_complexity": "multiple_reasons",
+          "evidence_types": "varied_sources",
+          "counterarguments": "acknowledged",
+          "persuasive_techniques": "ethos_pathos_logos_basic"
+        },
+        "12-14": {
+          "argument_complexity": "structured_argument",
+          "evidence_types": "research_based",
+          "counterarguments": "addressed",
+          "persuasive_techniques": "rhetorical_strategies"
+        },
+        "14-16": {
+          "argument_complexity": "nuanced_claims",
+          "evidence_types": "scholarly_sources",
+          "counterarguments": "refuted_systematically",
+          "persuasive_techniques": "advanced_rhetoric"
+        },
+        "16-18": {
+          "argument_complexity": "sophisticated_thesis",
+          "evidence_types": "academic_research",
+          "counterarguments": "steel_man_approach",
+          "persuasive_techniques": "full_rhetorical_range"
         }
       }
     }

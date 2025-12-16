@@ -15,8 +15,9 @@ from .forms import (
     ExternalBookSearchForm, ExternalBookImportForm
 )
 from .models import (
-    Lesson, LessonProgress, RosterMembership, Term, GlossClickLog,
-    Story, StorySegment, Glossary, Quiz, QuizQuestion, ItemBankQuestion, ItemBankChoice, Roster, Site,
+    Lesson, LessonProgress, RosterMembership, Term, GlossClickLog, ReadingEvent,
+    Story, StorySegment, Glossary, Quiz, QuizQuestion, QuizSubmission, QuizSubmissionAnswer,
+    ItemBankQuestion, ItemBankChoice, Roster, Site,
     Unit, UnitLesson, Course, CourseUnit, ExternalBookmark
 )
 
@@ -250,7 +251,7 @@ def lesson_read(request, pk):
 
 @login_required
 def lesson_quiz(request, pk):
-    """Quiz view for a lesson."""
+    """Quiz view for a lesson - handles both display (GET) and submission (POST)."""
     user = request.user
     lesson = get_object_or_404(
         Lesson.objects.select_related("story", "quiz"),
@@ -272,12 +273,232 @@ def lesson_quiz(request, pk):
         "question__choices"
     ).order_by("order")
 
+    # Get or create submission for this user/quiz
+    submission, created = QuizSubmission.objects.get_or_create(
+        student=user,
+        quiz=quiz,
+        submitted_at__isnull=True,  # Only get unsubmitted
+        defaults={"started_at": timezone.now()}
+    )
+
+    # Update LessonProgress quiz_start if not set
+    progress, _ = LessonProgress.objects.get_or_create(
+        student=user, lesson=lesson
+    )
+    if not progress.quiz_start:
+        progress.quiz_start = timezone.now()
+        progress.save()
+
+    if request.method == "POST":
+        # Handle quiz submission
+        import json
+
+        # Get time tracking data from hidden field
+        time_data = {}
+        try:
+            time_data = json.loads(request.POST.get("question_times", "{}"))
+        except json.JSONDecodeError:
+            pass
+
+        total_score = 0
+        max_score = 0
+
+        for qq in questions:
+            question = qq.question
+            points = qq.points or question.default_points or 1
+
+            # Get the answer(s) for this question
+            answer_key = f"q_{question.pk}"
+            answer_value = request.POST.getlist(answer_key)
+
+            # Create submission answer
+            question_time_data = time_data.get(str(question.pk), {})
+            time_ms = question_time_data.get("time_ms", 0) if isinstance(question_time_data, dict) else 0
+            answer = QuizSubmissionAnswer(
+                submission=submission,
+                question=question,
+                question_type=question.question_type,
+                time_spent_seconds=time_ms / 1000 if time_ms else None  # Convert ms to seconds
+            )
+
+            is_correct = None
+            partial_credit = None
+
+            if question.question_type in ("mcq_single", "true_false"):
+                # Single choice - check if correct
+                selected_ids = [int(v) for v in answer_value if v]
+                answer.selected_choice_ids = selected_ids
+
+                if selected_ids:
+                    correct_choices = question.choices.filter(is_correct=True).values_list("pk", flat=True)
+                    is_correct = set(selected_ids) == set(correct_choices)
+
+            elif question.question_type == "mcq_multi":
+                # Multiple choice - check all correct
+                selected_ids = [int(v) for v in answer_value if v]
+                answer.selected_choice_ids = selected_ids
+
+                correct_choices = set(question.choices.filter(is_correct=True).values_list("pk", flat=True))
+                selected_set = set(selected_ids)
+
+                if correct_choices:
+                    # Partial credit: correct selections / total correct choices
+                    correct_selected = len(selected_set & correct_choices)
+                    incorrect_selected = len(selected_set - correct_choices)
+                    if incorrect_selected == 0 and correct_selected == len(correct_choices):
+                        is_correct = True
+                        partial_credit = 1.0
+                    elif incorrect_selected == 0 and correct_selected > 0:
+                        partial_credit = correct_selected / len(correct_choices)
+                        is_correct = False
+                    else:
+                        is_correct = False
+                        partial_credit = 0
+
+            elif question.question_type == "short_answer":
+                answer.short_answer_text = answer_value[0] if answer_value else ""
+                # Short answers require manual grading
+
+            elif question.question_type == "long_answer":
+                answer.long_answer_text = answer_value[0] if answer_value else ""
+                # Long answers require manual grading
+
+            answer.is_correct = is_correct
+            answer.partial_credit_ratio = partial_credit
+            answer.save()
+
+            # Calculate score
+            max_score += points
+            if is_correct:
+                total_score += points
+            elif partial_credit is not None:
+                total_score += points * partial_credit
+
+        # Mark submission as complete
+        submission.submitted_at = timezone.now()
+        submission.raw_score = total_score
+        submission.max_score = max_score
+        submission.save()
+
+        # Update LessonProgress
+        progress.quiz_end = timezone.now()
+        progress.comprehension_score = (total_score / max_score * 100) if max_score > 0 else 0
+        progress.save()
+
+        return redirect("core:lesson_quiz_results", pk=pk)
+
     context = {
         "lesson": lesson,
         "quiz": quiz,
         "questions": questions,
+        "submission": submission,
     }
     return render(request, "core/student/lesson_quiz.html", context)
+
+
+@login_required
+def lesson_quiz_results(request, pk):
+    """Display quiz results after submission."""
+    user = request.user
+    lesson = get_object_or_404(
+        Lesson.objects.select_related("story", "quiz"),
+        pk=pk,
+    )
+
+    if not lesson.quiz:
+        return redirect("core:lesson_intro", pk=pk)
+
+    quiz = lesson.quiz
+
+    # Get the most recent submitted submission
+    submission = QuizSubmission.objects.filter(
+        student=user,
+        quiz=quiz,
+        submitted_at__isnull=False
+    ).order_by("-submitted_at").first()
+
+    if not submission:
+        return redirect("core:lesson_quiz", pk=pk)
+
+    # Get answers with question details
+    answers = submission.answers.select_related("question").prefetch_related(
+        "question__choices"
+    ).all()
+
+    # Get quiz questions for points info
+    quiz_questions = {
+        qq.question_id: qq for qq in quiz.quiz_questions.all()
+    }
+
+    # Build results data
+    results = []
+    for answer in answers:
+        question = answer.question
+        correct_choice_ids = set(
+            question.choices.filter(is_correct=True).values_list("pk", flat=True)
+        )
+
+        # Get points for this question
+        qq = quiz_questions.get(question.pk)
+        points_possible = qq.points if qq and qq.points else question.default_points or 1.0
+
+        # Calculate points earned
+        if answer.is_correct is True:
+            points_earned = points_possible
+        elif answer.partial_credit_ratio is not None:
+            points_earned = points_possible * answer.partial_credit_ratio
+        else:
+            points_earned = 0.0
+
+        # Determine if needs grading (text answers with is_correct=None)
+        needs_grading = (
+            question.question_type in ("short_answer", "long_answer")
+            and answer.is_correct is None
+        )
+
+        # Get text answer
+        text_answer = answer.short_answer_text or answer.long_answer_text or ""
+
+        # Format time spent
+        time_spent_formatted = None
+        if answer.time_spent_seconds:
+            secs = int(answer.time_spent_seconds)
+            time_spent_formatted = f"{secs}s" if secs < 60 else f"{secs // 60}m {secs % 60}s"
+
+        results.append({
+            "question": question,
+            "answer": answer,
+            "correct_choice_ids": correct_choice_ids,
+            "selected_ids": set(answer.selected_choice_ids) if answer.selected_choice_ids else set(),
+            "points_possible": points_possible,
+            "points_earned": points_earned,
+            "needs_grading": needs_grading,
+            "text_answer": text_answer,
+            "time_spent_formatted": time_spent_formatted,
+        })
+
+    # Calculate time spent
+    time_spent_seconds = None
+    time_spent_formatted = None
+    if submission.started_at and submission.submitted_at:
+        time_spent_seconds = (submission.submitted_at - submission.started_at).total_seconds()
+        minutes = int(time_spent_seconds // 60)
+        seconds = int(time_spent_seconds % 60)
+        if minutes > 0:
+            time_spent_formatted = f"{minutes}m {seconds}s"
+        else:
+            time_spent_formatted = f"{seconds}s"
+
+    context = {
+        "lesson": lesson,
+        "quiz": quiz,
+        "submission": submission,
+        "results": results,
+        "time_spent_seconds": time_spent_seconds,
+        "time_spent_formatted": time_spent_formatted,
+        "score_percent": (submission.raw_score / submission.max_score * 100) if submission.max_score else 0,
+    }
+    return render(request, "core/student/lesson_quiz_results.html", context)
 
 
 @login_required
@@ -296,6 +517,46 @@ def glossary_term_detail(request, lesson_id, term_id):
     return render(request, "core/_glossary_term_detail.html", {"lesson": lesson, "term": term})
 
 
+@login_required
+def log_reading_event(request, lesson_id):
+    """API endpoint for logging reading events from JavaScript."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    lesson = get_object_or_404(Lesson, pk=lesson_id)
+    user = request.user
+
+    # Parse JSON body
+    import json
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    event_type = data.get("event_type")
+    valid_types = [t[0] for t in ReadingEvent.EVENT_TYPES]
+    if event_type not in valid_types:
+        return JsonResponse({"error": f"Invalid event_type. Must be one of: {valid_types}"}, status=400)
+
+    # Create the reading event
+    ReadingEvent.objects.create(
+        student=user,
+        lesson=lesson,
+        story=lesson.story,
+        event_type=event_type,
+        event_payload=data.get("payload", {}),
+    )
+
+    # If this is a finish event, update LessonProgress.reading_end
+    if event_type == "finish":
+        progress = LessonProgress.objects.filter(student=user, lesson=lesson).first()
+        if progress and not progress.reading_end:
+            progress.reading_end = timezone.now()
+            progress.save()
+
+    return JsonResponse({"status": "ok"})
+
+
 # =============================================================================
 # INSTRUCTOR DASHBOARD
 # =============================================================================
@@ -308,7 +569,8 @@ def instructor_dashboard(request):
     story_count = Story.objects.filter(instructor=user).count()
     lesson_count = Lesson.objects.filter(instructor=user).count()
     quiz_count = Quiz.objects.filter(owner=user).count()
-    roster_count = Roster.objects.filter(site=user.site).count() if user.site else 0
+    roster_count = Roster.objects.filter(instructor=user).count()
+    student_count = RosterMembership.objects.filter(roster__instructor=user).values("student").distinct().count()
     unit_count = Unit.objects.filter(instructor=user).count()
     course_count = Course.objects.filter(instructor=user).count()
 
@@ -327,6 +589,7 @@ def instructor_dashboard(request):
         "lesson_count": lesson_count,
         "quiz_count": quiz_count,
         "roster_count": roster_count,
+        "student_count": student_count,
         "unit_count": unit_count,
         "course_count": course_count,
         "recent_stories": recent_stories,
@@ -382,6 +645,11 @@ def story_edit(request, pk):
     story = get_object_or_404(Story, pk=pk, instructor=request.user)
     tab = request.GET.get("tab", "details")
 
+    # Auto-compute reading levels if story has content but no metrics
+    if story.text_html and not story.reading_level_metrics:
+        if story.update_reading_levels():
+            story.save(update_fields=["reading_level_label", "reading_level_metrics"])
+
     if request.method == "POST":
         if tab == "details":
             form = StoryForm(request.POST, instance=story)
@@ -413,12 +681,16 @@ def story_edit(request, pk):
     )
     terms = Term.objects.filter(glossary=glossary).order_by("term_text")
 
+    # Get quizzes for this story
+    quizzes = story.quizzes.annotate(question_count=Count("quiz_questions")).order_by("-created_at")
+
     context = {
         "story": story,
         "form": form,
         "formset": formset,
         "glossary": glossary,
         "terms": terms,
+        "quizzes": quizzes,
         "tab": tab,
         "title": f"Edit Story: {story.title}",
     }
@@ -1131,10 +1403,19 @@ def lesson_edit(request, pk):
     else:
         form = LessonForm(instance=lesson, user=request.user)
 
+    # Get quizzes for the lesson's story (ordered by most recent)
+    story_quizzes = []
+    if lesson.story:
+        story_quizzes = Quiz.objects.filter(
+            owner=request.user,
+            story=lesson.story
+        ).order_by("-created_at")
+
     return render(request, "core/instructor/lesson_form.html", {
         "form": form,
         "lesson": lesson,
         "title": f"Edit Lesson: {lesson.title}",
+        "story_quizzes": story_quizzes,
     })
 
 
@@ -1150,6 +1431,19 @@ def lesson_delete(request, pk):
     return render(request, "core/instructor/lesson_confirm_delete.html", {"lesson": lesson})
 
 
+@login_required
+@instructor_required
+def lesson_quizzes_for_story(request, story_pk):
+    """HTMX endpoint: return quiz options for a given story."""
+    quizzes = Quiz.objects.filter(
+        owner=request.user,
+        story_id=story_pk
+    ).order_by("-created_at")
+    return render(request, "core/instructor/partials/quiz_options.html", {
+        "quizzes": quizzes,
+    })
+
+
 # =============================================================================
 # QUIZ VIEWS
 # =============================================================================
@@ -1159,6 +1453,7 @@ def lesson_delete(request, pk):
 def quiz_list(request):
     quizzes = (
         Quiz.objects.filter(owner=request.user)
+        .select_related("story")
         .annotate(question_count=Count("quiz_questions"))
         .order_by("-created_at")
     )
@@ -1168,8 +1463,16 @@ def quiz_list(request):
 @login_required
 @instructor_required
 def quiz_create(request):
+    # Check if a story_id was passed (e.g., from story page)
+    story_id = request.GET.get("story")
+    initial = {}
+    if story_id:
+        story = Story.objects.filter(pk=story_id, instructor=request.user).first()
+        if story:
+            initial["story"] = story
+
     if request.method == "POST":
-        form = QuizForm(request.POST)
+        form = QuizForm(request.POST, user=request.user)
         if form.is_valid():
             quiz = form.save(commit=False)
             quiz.owner = request.user
@@ -1177,7 +1480,7 @@ def quiz_create(request):
             messages.success(request, f"Quiz '{quiz.title}' created successfully.")
             return redirect("core:quiz_edit", pk=quiz.pk)
     else:
-        form = QuizForm()
+        form = QuizForm(user=request.user, initial=initial)
 
     return render(request, "core/instructor/quiz_form.html", {
         "form": form,
@@ -1192,13 +1495,13 @@ def quiz_edit(request, pk):
     questions = quiz.quiz_questions.select_related("question").order_by("order")
 
     if request.method == "POST":
-        form = QuizForm(request.POST, instance=quiz)
+        form = QuizForm(request.POST, instance=quiz, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, "Quiz updated successfully.")
             return redirect("core:quiz_edit", pk=pk)
     else:
-        form = QuizForm(instance=quiz)
+        form = QuizForm(instance=quiz, user=request.user)
 
     return render(request, "core/instructor/quiz_edit.html", {
         "form": form,
@@ -1222,6 +1525,128 @@ def quiz_delete(request, pk):
 
 @login_required
 @instructor_required
+def quiz_question_add(request, pk):
+    """Add an existing question from item bank to quiz."""
+    quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
+
+    if request.method == "POST":
+        question_id = request.POST.get("question_id")
+        if question_id:
+            question = get_object_or_404(ItemBankQuestion, pk=question_id, owner=request.user)
+            # Get next order number
+            max_order = quiz.quiz_questions.aggregate(models.Max("order"))["order__max"] or 0
+            QuizQuestion.objects.create(
+                quiz=quiz,
+                question=question,
+                order=max_order + 1,
+                points=question.default_points,
+            )
+            messages.success(request, f"Question added to quiz.")
+        return redirect("core:quiz_edit", pk=pk)
+
+    # GET: Show list of available questions
+    existing_question_ids = quiz.quiz_questions.values_list("question_id", flat=True)
+    available_questions = ItemBankQuestion.objects.filter(
+        owner=request.user,
+        status="active"
+    ).exclude(pk__in=existing_question_ids).order_by("-created_at")
+
+    return render(request, "core/instructor/quiz_question_add.html", {
+        "quiz": quiz,
+        "available_questions": available_questions,
+        "title": f"Add Question to {quiz.title}",
+    })
+
+
+@login_required
+@instructor_required
+def quiz_question_create(request, pk):
+    """Create a new question and add it to the quiz."""
+    quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
+
+    if request.method == "POST":
+        form = ItemBankQuestionForm(request.POST)
+        if form.is_valid():
+            question = form.save(commit=False)
+            question.owner = request.user
+            question.save()
+
+            # Handle choices based on question type
+            if question.question_type in ["mcq_single", "mcq_multiple"]:
+                # Create choices from form data
+                labels = ["A", "B", "C", "D"]
+                for i, label in enumerate(labels):
+                    choice_text = request.POST.get(f"choice_text_{i}", "").strip()
+                    is_correct = request.POST.get(f"choice_correct_{i}") == "on"
+                    if choice_text:
+                        ItemBankChoice.objects.create(
+                            question=question,
+                            label=label,
+                            text_html=choice_text,
+                            is_correct=is_correct,
+                            order=i,
+                        )
+            elif question.question_type == "true_false":
+                # Create True/False choices
+                tf_answer = request.POST.get("true_false_answer", "true")
+                ItemBankChoice.objects.create(
+                    question=question,
+                    label="",
+                    text_html="True",
+                    is_correct=(tf_answer == "true"),
+                    order=0,
+                )
+                ItemBankChoice.objects.create(
+                    question=question,
+                    label="",
+                    text_html="False",
+                    is_correct=(tf_answer == "false"),
+                    order=1,
+                )
+            elif question.question_type == "short_answer":
+                # Store expected answer in metadata
+                expected_answer = request.POST.get("expected_answer", "").strip()
+                if expected_answer:
+                    question.metadata["expected_answer"] = expected_answer
+                    question.save()
+
+            # Add to quiz
+            max_order = quiz.quiz_questions.aggregate(models.Max("order"))["order__max"] or 0
+            QuizQuestion.objects.create(
+                quiz=quiz,
+                question=question,
+                order=max_order + 1,
+                points=question.default_points,
+            )
+
+            messages.success(request, "Question created and added to quiz.")
+            return redirect("core:quiz_edit", pk=pk)
+    else:
+        form = ItemBankQuestionForm()
+
+    return render(request, "core/instructor/quiz_question_create.html", {
+        "quiz": quiz,
+        "form": form,
+        "title": f"Create Question for {quiz.title}",
+    })
+
+
+@login_required
+@instructor_required
+def quiz_question_remove(request, pk, qq_pk):
+    """Remove a question from quiz."""
+    quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
+    quiz_question = get_object_or_404(QuizQuestion, pk=qq_pk, quiz=quiz)
+
+    if request.method == "POST":
+        quiz_question.delete()
+        messages.success(request, "Question removed from quiz.")
+
+    return redirect("core:quiz_edit", pk=pk)
+
+
+@login_required
+@instructor_required
 def quiz_generate(request):
     """
     AI-powered quiz generation based on story content.
@@ -1229,7 +1654,15 @@ def quiz_generate(request):
     """
     import json
 
-    form = QuizGeneratorForm(request.POST or None, user=request.user)
+    # Check if a story_id was passed (e.g., from story page)
+    initial = {}
+    story_id = request.GET.get("story")
+    if story_id:
+        story = Story.objects.filter(pk=story_id, instructor=request.user).first()
+        if story:
+            initial["story"] = story
+
+    form = QuizGeneratorForm(request.POST or None, user=request.user, initial=initial)
     generated_questions = None
     generation_params = None
     generation_params_json = None
@@ -1327,13 +1760,26 @@ def quiz_generate_ai(request):
         "mixed": "a mix of comprehension, vocabulary, and inference questions"
     }.get(focus, "mixed question types")
 
+    # Build specific type requirements
+    allowed_types = question_types  # List like ["mcq_single"]
+    type_names = {
+        "mcq_single": "multiple choice (mcq_single)",
+        "true_false": "true/false (true_false)",
+        "short_answer": "short answer (short_answer)"
+    }
+    allowed_type_names = [type_names.get(t, t) for t in allowed_types]
+
     system_prompt = f"""You are an expert educational assessment designer. Generate quiz questions based on the provided reading passage.
 
 Your task:
 - Generate exactly {num_questions} questions
-- Question types to include: {', '.join(type_instructions)}
+- ONLY use these question types: {', '.join(allowed_type_names)}
+- DO NOT generate any other question types
 - Difficulty level: {difficulty_desc}
 - Focus area: {focus_desc}
+
+Question type specifications:
+{chr(10).join(f'- {instr}' for instr in type_instructions)}
 
 Output format - Return a JSON array of question objects:
 [
@@ -1346,14 +1792,16 @@ Output format - Return a JSON array of question objects:
   }}
 ]
 
-For true_false questions, choices should be ["True", "False"].
-For short_answer questions, omit the choices field.
+For mcq_single questions: include exactly 4 choices labeled A), B), C), D).
+For true_false questions: choices must be ["True", "False"].
+For short_answer questions: omit the choices field entirely.
 
-Important:
-- Questions should be directly answerable from the text
+CRITICAL RULES:
+- Generate exactly {num_questions} questions, no more, no less
+- ONLY use question types from this list: {allowed_types}
+- Questions must be directly answerable from the text
 - Avoid ambiguous questions
-- Ensure correct answers are unambiguously correct
-- Distribute question types if multiple types are requested"""
+- Ensure correct answers are unambiguously correct"""
 
     user_prompt = f"""Based on this reading passage, generate {num_questions} quiz questions:
 
@@ -1393,12 +1841,37 @@ Generate the questions as a JSON array."""
         else:
             return JsonResponse({"success": False, "error": "Could not parse questions from AI response"}, status=500)
 
+        # Validate and filter questions to only allowed types
+        valid_questions = []
+        for q in questions:
+            q_type = q.get("type", "")
+            if q_type in allowed_types:
+                valid_questions.append(q)
+            else:
+                # Log the rejected question type for debugging
+                pass
+
+        # If we filtered out questions, warn the user
+        filtered_count = len(questions) - len(valid_questions)
+        warning = None
+        if filtered_count > 0:
+            warning = f"Filtered out {filtered_count} question(s) with incorrect type. Requested: {allowed_types}"
+
+        if not valid_questions:
+            return JsonResponse({
+                "success": False,
+                "error": f"AI generated questions with wrong types. Requested types: {allowed_types}. Please try again."
+            }, status=500)
+
         return JsonResponse({
             "success": True,
-            "questions": questions,
+            "questions": valid_questions,
             "model": model,
             "story_title": generation_params["story_title"],
             "quiz_title": generation_params["quiz_title"],
+            "warning": warning,
+            "requested_count": num_questions,
+            "generated_count": len(valid_questions),
         })
 
     except json.JSONDecodeError as e:
@@ -1429,9 +1902,15 @@ def quiz_generate_save(request):
         if not questions:
             return JsonResponse({"success": False, "error": "No questions to save"}, status=400)
 
+        # Get the story if provided
+        story = None
+        if story_id:
+            story = Story.objects.filter(pk=story_id, instructor=request.user).first()
+
         # Create the quiz
         quiz = Quiz.objects.create(
             owner=request.user,
+            story=story,
             title=quiz_title,
             instructions_html=quiz_instructions,
             total_points=len(questions),  # 1 point per question by default
@@ -1747,6 +2226,42 @@ def unit_delete(request, pk):
         "unit": unit,
         "title": f"Delete Unit: {unit.title}",
     })
+
+
+@login_required
+@instructor_required
+def unit_available_lessons(request, pk):
+    """HTMX endpoint: return lessons not already in this unit."""
+    unit = get_object_or_404(Unit, pk=pk, instructor=request.user)
+    existing_lesson_ids = unit.unit_lessons.values_list("lesson_id", flat=True)
+    available_lessons = Lesson.objects.filter(
+        instructor=request.user
+    ).exclude(
+        pk__in=existing_lesson_ids
+    ).order_by("-id")
+    return render(request, "core/instructor/partials/unit_available_lessons.html", {
+        "unit": unit,
+        "lessons": available_lessons,
+    })
+
+
+@login_required
+@instructor_required
+def unit_add_lesson(request, pk):
+    """Add an existing lesson to a unit."""
+    unit = get_object_or_404(Unit, pk=pk, instructor=request.user)
+
+    if request.method == "POST":
+        lesson_id = request.POST.get("lesson_id")
+        if lesson_id:
+            lesson = get_object_or_404(Lesson, pk=lesson_id, instructor=request.user)
+            # Check if already in unit
+            if not UnitLesson.objects.filter(unit=unit, lesson=lesson).exists():
+                max_order = unit.unit_lessons.aggregate(max_order=Max("order"))["max_order"] or 0
+                UnitLesson.objects.create(unit=unit, lesson=lesson, order=max_order + 1)
+                messages.success(request, f"Lesson '{lesson.title}' added to unit.")
+
+    return redirect("core:unit_list")
 
 
 # =============================================================================

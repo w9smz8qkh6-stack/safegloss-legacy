@@ -159,6 +159,88 @@
         "Keep paragraphs to 4-8 sentences",
         "Dialogue should make up 12-32% of text"
       ]
+    },
+    "14-16": {
+      "label": "High School (Ages 14-16)",
+      "lexile_range": "1100-1200L",
+      "corpus_metrics": {
+        "texts_analyzed": 18,
+        "sentence_length": {"mean": 20.5, "std": 4.2, "range": [17, 25]},
+        "paragraph_sentences": {"mean": 6.0, "range": [4, 9]},
+        "dialogue_ratio": {"mean": 0.22, "range": [0.10, 0.30]},
+        "word_count": {"mean": 1500, "range": [1000, 2000]},
+        "complexity": {"passive_voice": 0.15, "complex_sentences": 0.42}
+      },
+      "narrative": {
+        "max_characters": 4,
+        "conflict_count": 3,
+        "timeline": "flexible",
+        "emotion_expression": "implicit",
+        "inference_level": "high",
+        "moral_clarity": "implicit",
+        "flashbacks": true,
+        "unreliable_narrator": "allowed"
+      },
+      "cognitive": {
+        "cause_effect": "can_be_inferred",
+        "internal_thoughts": true,
+        "subplots": "multiple_allowed",
+        "dialogue_purpose": "multifunctional",
+        "thematic_complexity": "layered"
+      },
+      "guidance": [
+        "Up to four main characters allowed",
+        "Complex character psychology and motivation",
+        "Abstract themes and symbolism permitted",
+        "Multiple subplots that interweave",
+        "Ambiguous endings acceptable",
+        "Sophisticated narrative techniques allowed",
+        "Target 1000-2000 words total",
+        "Paragraphs may be longer for effect",
+        "Dialogue ratio flexible based on genre"
+      ]
+    },
+    "16-18": {
+      "label": "Advanced High School (Ages 16-18)",
+      "lexile_range": "1200-1400L",
+      "corpus_metrics": {
+        "texts_analyzed": 15,
+        "sentence_length": {"mean": 23.0, "std": 5.0, "range": [18, 30]},
+        "paragraph_sentences": {"mean": 6.5, "range": [4, 10]},
+        "dialogue_ratio": {"mean": 0.20, "range": [0.08, 0.28]},
+        "word_count": {"mean": 1800, "range": [1200, 2500]},
+        "complexity": {"passive_voice": 0.18, "complex_sentences": 0.50}
+      },
+      "narrative": {
+        "max_characters": 5,
+        "conflict_count": 4,
+        "timeline": "flexible",
+        "emotion_expression": "implicit",
+        "inference_level": "high",
+        "moral_clarity": "implicit",
+        "flashbacks": true,
+        "unreliable_narrator": "allowed",
+        "metafiction": "allowed"
+      },
+      "cognitive": {
+        "cause_effect": "can_be_inferred",
+        "internal_thoughts": true,
+        "subplots": "complex_weaving",
+        "dialogue_purpose": "multifunctional",
+        "thematic_complexity": "sophisticated",
+        "philosophical_content": "allowed"
+      },
+      "guidance": [
+        "Up to five main characters with distinct arcs",
+        "Full range of literary techniques available",
+        "Abstract and philosophical themes permitted",
+        "Complex moral ambiguity acceptable",
+        "Experimental narrative structures allowed",
+        "College-prep reading level expected",
+        "Target 1200-2500 words total",
+        "Paragraph and sentence variety for stylistic effect",
+        "All dialogue levels appropriate based on content"
+      ]
     }
   }
 }

@@ -12,9 +12,12 @@ from dataclasses import dataclass
 
 
 # Schema definitions for validation
-AGE_BANDS = ["6-8", "8-10", "10-12", "12-14"]
-GENRES = ["realistic_fiction", "fantasy", "mystery", "informational_fiction"]
-LEXILE_BANDS = ["300-400L", "400-500L", "500-600L", "600-700L", "700-900L", "900-1100L"]
+AGE_BANDS = ["6-8", "8-10", "10-12", "12-14", "14-16", "16-18"]
+GENRES = [
+    "realistic_fiction", "fantasy", "mystery", "informational_fiction",
+    "nonfiction_expository", "nonfiction_narrative", "nonfiction_persuasive"
+]
+LEXILE_BANDS = ["300-400L", "400-500L", "500-600L", "600-700L", "700-900L", "900-1100L", "1100-1200L", "1200-1400L"]
 STYLE_PROFILES = ["minimalist", "cinematic", "humorous", "sel_focused", "adventure"]
 ELL_LEVELS = ["beginner", "intermediate", "advanced"]
 

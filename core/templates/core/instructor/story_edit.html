@@ -68,6 +68,12 @@
       <span class="badge bg-secondary ms-1">{{ terms.count }}</span>
     </a>
   </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'quizzes' %}active{% endif %}" href="?tab=quizzes">
+      <i class="bi bi-question-circle me-1"></i>Quizzes
+      <span class="badge bg-secondary ms-1">{{ quizzes.count }}</span>
+    </a>
+  </li>
 </ul>
 
 <!-- Tab Content -->
@@ -414,6 +420,75 @@ document.getElementById('autoSegmentBtn').addEventListener('click', async functi
         </a>
         <a href="{% url 'core:term_create' story.pk %}" class="btn btn-primary btn-sm">
           <i class="bi bi-plus-circle me-1"></i>Add Manually
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% elif tab == 'quizzes' %}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-question-circle me-2"></i>Quizzes</span>
+    <div class="btn-group">
+      <a href="{% url 'core:quiz_generate' %}?story={{ story.pk }}" class="btn btn-sm btn-success">
+        <i class="bi bi-stars me-1"></i>Generate with AI
+      </a>
+      <a href="{% url 'core:quiz_create' %}?story={{ story.pk }}" class="btn btn-sm btn-primary">
+        <i class="bi bi-plus-circle me-1"></i>Create Quiz
+      </a>
+    </div>
+  </div>
+  <div class="card-body">
+    {% if quizzes %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Title</th>
+            <th>Questions</th>
+            <th>Total Points</th>
+            <th>Created</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for quiz in quizzes %}
+          <tr>
+            <td>
+              <a href="{% url 'core:quiz_edit' quiz.pk %}" class="text-decoration-none fw-medium">
+                {{ quiz.title }}
+              </a>
+            </td>
+            <td>{{ quiz.question_count }}</td>
+            <td>{{ quiz.total_points }}</td>
+            <td>{{ quiz.created_at|date:"M d, Y" }}</td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm">
+                <a href="{% url 'core:quiz_edit' quiz.pk %}" class="btn btn-outline-primary" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{% url 'core:quiz_delete' quiz.pk %}" class="btn btn-outline-danger" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+      <i class="bi bi-question-circle fs-1 d-block mb-2"></i>
+      <p>No quizzes yet for this story.</p>
+      <div class="btn-group">
+        <a href="{% url 'core:quiz_generate' %}?story={{ story.pk }}" class="btn btn-success btn-sm">
+          <i class="bi bi-stars me-1"></i>Generate with AI
+        </a>
+        <a href="{% url 'core:quiz_create' %}?story={{ story.pk }}" class="btn btn-primary btn-sm">
+          <i class="bi bi-plus-circle me-1"></i>Create Manually
         </a>
       </div>
     </div>

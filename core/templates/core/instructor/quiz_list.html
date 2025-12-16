@@ -23,6 +23,7 @@
     <thead class="table-light">
       <tr>
         <th>Title</th>
+        <th>Story</th>
         <th>Questions</th>
         <th>Total Points</th>
         <th>Created</th>
@@ -36,6 +37,15 @@
           <a href="{% url 'core:quiz_edit' quiz.pk %}" class="text-decoration-none fw-medium">
             {{ quiz.title }}
           </a>
+        </td>
+        <td>
+          {% if quiz.story %}
+          <a href="{% url 'core:story_edit' quiz.story.pk %}" class="text-decoration-none text-muted">
+            <i class="bi bi-journal-text me-1"></i>{{ quiz.story.title|truncatechars:30 }}
+          </a>
+          {% else %}
+          <span class="text-muted">—</span>
+          {% endif %}
         </td>
         <td>{{ quiz.question_count }}</td>
         <td>{{ quiz.total_points }}</td>

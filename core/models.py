@@ -368,11 +368,22 @@ class ItemBankChoice(models.Model):
 
 class Quiz(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="quizzes")
+    story = models.ForeignKey(Story, on_delete=models.CASCADE, related_name="quizzes", null=True, blank=True)
     title = models.CharField(max_length=255)
     instructions_html = models.TextField(blank=True)
     total_points = models.FloatField(default=0)
+    time_limit_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Time limit in minutes. Leave blank for no time limit."
+    )
     metadata = models.JSONField(blank=True, default=dict)
     created_at = models.DateTimeField(default=timezone.now)
+
+    @property
+    def time_limit_seconds(self):
+        """Return time limit in seconds for JavaScript timer."""
+        return self.time_limit_minutes * 60 if self.time_limit_minutes else None
 
     def __str__(self):
         return self.title
