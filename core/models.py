@@ -212,6 +212,12 @@ class Course(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     rosters = models.ManyToManyField("Roster", related_name="courses", blank=True)
+    aligned_objectives = models.ManyToManyField(
+        "ObjectiveNode",
+        related_name="aligned_courses",
+        blank=True,
+        help_text="Learning objectives this course is aligned to"
+    )
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -548,6 +554,34 @@ class AuthorityProgram(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)
 
+    # Sync status tracking
+    SYNC_STATUS_CHOICES = [
+        ("never", "Never Synced"),
+        ("syncing", "Syncing"),
+        ("success", "Success"),
+        ("error", "Error"),
+    ]
+    last_objectives_sync = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last successful objectives sync"
+    )
+    last_resources_sync = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last successful resources sync"
+    )
+    objectives_sync_status = models.CharField(
+        max_length=20,
+        choices=SYNC_STATUS_CHOICES,
+        default="never"
+    )
+    resources_sync_status = models.CharField(
+        max_length=20,
+        choices=SYNC_STATUS_CHOICES,
+        default="never"
+    )
+
     class Meta:
         unique_together = ("authority", "code")
         ordering = ["authority", "name"]
@@ -607,6 +641,14 @@ class StandardsDocument(models.Model):
         ("other", "Other"),
     ]
 
+    # Pipeline tier for organizing documents in the standards hierarchy
+    TIER_CHOICES = [
+        ("legislative", "Legislative Authority"),
+        ("standards_board", "Standards Board"),
+        ("testing_agency", "Testing Agency"),
+        ("publisher", "Publisher Materials"),
+    ]
+
     CONTENT_TYPES = [
         ("html", "HTML"),
         ("pdf", "PDF"),
@@ -628,6 +670,12 @@ class StandardsDocument(models.Model):
     # Provenance fields (Section 17.1)
     source_publisher_name = models.CharField(max_length=255, help_text="e.g., 'Texas Education Agency'")
     source_publisher_type = models.CharField(max_length=20, choices=PUBLISHER_TYPES, blank=True)
+    tier = models.CharField(
+        max_length=20,
+        choices=TIER_CHOICES,
+        default="standards_board",
+        help_text="Position in the standards pipeline hierarchy"
+    )
     source_title = models.CharField(max_length=500, help_text="Human-readable doc title")
     source_url = models.URLField(max_length=1000, help_text="Primary official URL")
     source_url_canonical = models.URLField(max_length=1000, blank=True, help_text="Clean landing page URL")
@@ -659,10 +707,34 @@ class StandardsDocument(models.Model):
     evidence_sha256_canonical = models.CharField(max_length=64, blank=True)
 
     # Status
+    DOCUMENT_STATUS_CHOICES = [
+        ("current", "Current"),
+        ("superseded", "Superseded"),
+        ("draft", "Draft"),
+    ]
     is_active = models.BooleanField(default=True)
     is_reference_only = models.BooleanField(
         default=False,
         help_text="True if only codes/structure stored due to licensing"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=DOCUMENT_STATUS_CHOICES,
+        default="current",
+        help_text="Document lifecycle status"
+    )
+    superseded_by = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="supersedes",
+        help_text="Newer document that supersedes this one"
+    )
+    superseded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this document was superseded"
     )
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -671,10 +743,20 @@ class StandardsDocument(models.Model):
         ordering = ["authority_program", "subject", "grade_level", "-version_label"]
         indexes = [
             models.Index(fields=["authority_program", "subject", "grade_level"]),
+            models.Index(fields=["status"]),
+            models.Index(fields=["tier"]),
         ]
 
     def __str__(self):
         return f"{self.authority_program.code} - {self.subject} ({self.grade_level}) [{self.version_label}]"
+
+    def mark_superseded(self, new_document: "StandardsDocument") -> None:
+        """Mark this document as superseded by a newer version."""
+        from django.utils import timezone as tz
+        self.status = "superseded"
+        self.superseded_by = new_document
+        self.superseded_at = tz.now()
+        self.save(update_fields=["status", "superseded_by", "superseded_at", "updated_at"])
 
 
 class ObjectiveNode(models.Model):
@@ -786,26 +868,257 @@ class ObjectiveCodeMap(models.Model):
         return f"{self.native_code} → {self.internal_code}"
 
 
-class TeacherStandardsSelection(models.Model):
+class AuthorityProgramMedia(models.Model):
     """
-    Teacher's saved selection of standards documents for their library.
+    Official media and endorsed courses for an authority/program.
+    Includes textbooks, guides, exam prep materials, and platform courses.
     """
-    teacher = models.ForeignKey(
-        User,
+    MEDIA_TYPES = [
+        ("book", "Book"),
+        ("guide", "Guide"),
+        ("practice_tests", "Practice Tests"),
+        ("video_series", "Video Series"),
+        ("course", "Course"),
+    ]
+
+    PLATFORMS = [
+        ("print", "Print"),
+        ("google_books", "Google Books"),
+        ("amazon", "Amazon"),
+        ("khan_academy", "Khan Academy"),
+        ("udemy", "Udemy"),
+        ("coursera", "Coursera"),
+        ("youtube", "YouTube"),
+        ("other", "Other"),
+    ]
+
+    RETRIEVAL_SOURCES = [
+        ("google_books", "Google Books API"),
+        ("amazon", "Amazon"),
+        ("manual", "Manual Entry"),
+        ("platform_scrape", "Platform Scrape"),
+    ]
+
+    authority_program = models.ForeignKey(
+        AuthorityProgram,
         on_delete=models.CASCADE,
-        related_name="standards_selections"
+        related_name="media"
     )
-    document = models.ForeignKey(
-        StandardsDocument,
-        on_delete=models.CASCADE,
-        related_name="teacher_selections"
+    title = models.CharField(max_length=500)
+    author = models.CharField(max_length=500, blank=True)
+    publisher = models.CharField(max_length=255, blank=True)
+
+    # Identifiers
+    isbn_10 = models.CharField(max_length=10, blank=True)
+    isbn_13 = models.CharField(max_length=13, blank=True)
+
+    # URLs and images
+    source_url = models.URLField(max_length=1000, help_text="Canonical link to resource")
+    cover_image_url = models.URLField(max_length=1000, blank=True)
+
+    # Content
+    description = models.TextField(blank=True)
+    media_type = models.CharField(max_length=20, choices=MEDIA_TYPES)
+    platform = models.CharField(max_length=20, choices=PLATFORMS)
+
+    # Official/endorsement status
+    is_official = models.BooleanField(
+        default=False,
+        help_text="True if published/endorsed by the authority"
     )
-    notes = models.TextField(blank=True)
+    is_unofficial = models.BooleanField(
+        default=False,
+        help_text="True for relevant but unofficial resources"
+    )
+    endorsement_notes = models.TextField(blank=True)
+
+    # Features (JSON for flexibility)
+    features = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="e.g., {online_text: true, practice_tests: 5, video_hours: 12}"
+    )
+
+    # Metadata retrieval
+    retrieved_from = models.CharField(max_length=20, choices=RETRIEVAL_SOURCES, blank=True)
+    retrieved_at = models.DateTimeField(null=True, blank=True)
+    metadata_raw = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Raw API payload for audit"
+    )
+
+    # Objective alignment
+    aligned_objectives = models.ManyToManyField(
+        "ObjectiveNode",
+        related_name="supporting_resources",
+        blank=True,
+        help_text="Learning objectives this resource supports"
+    )
+
     created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ("teacher", "document")
-        ordering = ["-created_at"]
+        verbose_name_plural = "Authority program media"
+        ordering = ["-is_official", "title"]
+        indexes = [
+            models.Index(fields=["authority_program", "is_official"]),
+            models.Index(fields=["isbn_13"]),
+        ]
 
     def __str__(self):
-        return f"{self.teacher.username} - {self.document}"
+        return f"{self.title} ({self.get_media_type_display()})"
+
+
+class AuthorityProgramMediaTag(models.Model):
+    """
+    Tags for categorizing and filtering media resources.
+    """
+    media = models.ForeignKey(
+        AuthorityProgramMedia,
+        on_delete=models.CASCADE,
+        related_name="tags"
+    )
+    label = models.CharField(
+        max_length=50,
+        help_text="e.g., official, exam_prep, beginner, video, open_course"
+    )
+
+    class Meta:
+        unique_together = ("media", "label")
+        ordering = ["label"]
+
+    def __str__(self):
+        return self.label
+
+
+# =============================================================================
+# Background Job Processing
+# =============================================================================
+
+class BackgroundJob(models.Model):
+    """
+    Tracks background jobs for async processing of standards imports,
+    media hydration, and other long-running tasks.
+
+    Jobs can be triggered via admin UI and processed via management command
+    (cron) or upgraded to Celery/django-q workers later.
+    """
+    JOB_TYPES = [
+        ("sync_standards", "Sync Standards"),
+        ("hydrate_media", "Hydrate Media"),
+        ("import_standards_json", "Import Standards from JSON"),
+        ("bootstrap_courses", "Bootstrap Platform Courses"),
+        ("resync_authority", "Re-sync Authority"),
+        ("sync_authority_objectives", "Sync Authority Objectives"),
+        ("sync_authority_resources", "Sync Authority Resources"),
+    ]
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    # Job identification
+    job_type = models.CharField(max_length=50, choices=JOB_TYPES)
+    idempotency_key = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Unique key to prevent duplicate jobs (e.g., sync_standards:STATE_TX:Grades6-8)"
+    )
+
+    # Job parameters (JSON)
+    params = models.JSONField(
+        default=dict,
+        help_text="Job-specific parameters"
+    )
+
+    # Status tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    progress_pct = models.IntegerField(default=0, help_text="0-100 progress percentage")
+    progress_message = models.TextField(blank=True, help_text="Current operation description")
+
+    # Results
+    result = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Job result data"
+    )
+    error_message = models.TextField(blank=True)
+
+    # Retry handling
+    retry_count = models.IntegerField(default=0)
+    max_retries = models.IntegerField(default=3)
+    next_retry_at = models.DateTimeField(null=True, blank=True)
+
+    # Timestamps
+    created_at = models.DateTimeField(default=timezone.now)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    # Triggered by
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="background_jobs"
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["job_type", "status"]),
+            models.Index(fields=["idempotency_key"]),
+        ]
+
+    def __str__(self):
+        return f"{self.get_job_type_display()} ({self.status})"
+
+    def mark_running(self):
+        """Mark job as running."""
+        self.status = "running"
+        self.started_at = timezone.now()
+        self.save(update_fields=["status", "started_at"])
+
+    def mark_completed(self, result: dict = None):
+        """Mark job as completed with optional result."""
+        self.status = "completed"
+        self.completed_at = timezone.now()
+        self.progress_pct = 100
+        if result:
+            self.result = result
+        self.save(update_fields=["status", "completed_at", "progress_pct", "result"])
+
+    def mark_failed(self, error: str):
+        """Mark job as failed with error message."""
+        self.status = "failed"
+        self.completed_at = timezone.now()
+        self.error_message = error
+        self.save(update_fields=["status", "completed_at", "error_message"])
+
+    def update_progress(self, pct: int, message: str = ""):
+        """Update job progress."""
+        self.progress_pct = min(100, max(0, pct))
+        if message:
+            self.progress_message = message
+        self.save(update_fields=["progress_pct", "progress_message"])
+
+    def can_retry(self) -> bool:
+        """Check if job can be retried."""
+        return self.retry_count < self.max_retries
+
+    def schedule_retry(self, delay_seconds: int = 60):
+        """Schedule a retry after the specified delay."""
+        from datetime import timedelta
+        self.retry_count += 1
+        self.status = "pending"
+        self.next_retry_at = timezone.now() + timedelta(seconds=delay_seconds)
+        self.save(update_fields=["retry_count", "status", "next_retry_at"])
+
+

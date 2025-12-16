@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db.models import Count, Max
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from functools import wraps
 
 from django.http import JsonResponse
@@ -21,7 +22,9 @@ from .models import (
     Unit, UnitLesson, Course, CourseUnit, ExternalBookmark,
     # Standards models
     StandardsAuthority, AuthorityProgram, StandardsDocument, ObjectiveNode,
-    TeacherStandardsSelection,
+    AuthorityProgramMedia, AuthorityProgramMediaTag,
+    # Background jobs
+    BackgroundJob,
 )
 
 
@@ -33,7 +36,8 @@ def teacher_required(view_func):
         if not user.is_authenticated:
             return redirect("account_login")
         if not (user.is_teacher() or user.is_researcher()):
-            return redirect("core:student_lessons")
+            # Redirect to home instead of student_lessons to avoid potential loops
+            return redirect("core:home")
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -73,10 +77,11 @@ def home_redirect(request):
     return render(request, "core/home.html")
 
 
-@login_required
 def login_redirect(request):
     """Redirect users to appropriate dashboard based on role after login."""
     user = request.user
+    if not user.is_authenticated:
+        return redirect("account_login")
     if user.is_teacher() or user.is_researcher():
         return redirect("core:teacher_dashboard")
     return redirect("core:student_lessons")
@@ -89,7 +94,9 @@ def login_redirect(request):
 @login_required
 def student_lessons(request):
     user = request.user
-    if hasattr(user, "is_student") and not user.is_student():
+    # Only redirect to teacher dashboard if user is explicitly a teacher/researcher
+    # Don't redirect students or users with unknown roles (they should see student view)
+    if user.is_teacher() or user.is_researcher():
         return redirect("core:teacher_dashboard")
 
     roster_ids = list(RosterMembership.objects.filter(student=user).values_list("roster_id", flat=True))
@@ -2762,12 +2769,8 @@ def standards_browse(request):
     """
     authorities = StandardsAuthority.objects.filter(is_active=True).order_by("name")
 
-    # Get teacher's saved selections count
-    saved_count = TeacherStandardsSelection.objects.filter(teacher=request.user).count()
-
     return render(request, "core/teacher/standards_browse.html", {
         "authorities": authorities,
-        "saved_count": saved_count,
         "title": "Browse Learning Standards",
     })
 
@@ -2855,6 +2858,62 @@ def standards_api_subjects(request):
     return JsonResponse({"subjects": data})
 
 
+def _expand_grade_levels(selected_grades: list[str]) -> set[str]:
+    """
+    Expand grade level selections to include hierarchical matches.
+
+    Examples:
+    - "Grade 6" also matches "Grades 6-8", "Middle School"
+    - "Grades 6-8" also matches "Grade 6", "Grade 7", "Grade 8"
+    """
+    import re
+
+    expanded = set(selected_grades)
+
+    # Common grade band patterns
+    GRADE_BANDS = {
+        "K-2": ["K", "Kindergarten", "1", "2"],
+        "Grades K-2": ["K", "Kindergarten", "1", "2"],
+        "3-5": ["3", "4", "5"],
+        "Grades 3-5": ["3", "4", "5"],
+        "6-8": ["6", "7", "8"],
+        "Grades 6-8": ["6", "7", "8"],
+        "9-12": ["9", "10", "11", "12"],
+        "Grades 9-12": ["9", "10", "11", "12"],
+        "Middle School": ["6", "7", "8"],
+        "High School": ["9", "10", "11", "12"],
+        "Elementary": ["K", "Kindergarten", "1", "2", "3", "4", "5"],
+    }
+
+    # Reverse mapping: individual grades to their bands
+    GRADE_TO_BANDS = {}
+    for band, grades in GRADE_BANDS.items():
+        for g in grades:
+            if g not in GRADE_TO_BANDS:
+                GRADE_TO_BANDS[g] = []
+            GRADE_TO_BANDS[g].append(band)
+
+    for selected in selected_grades:
+        # Extract numeric grade from patterns like "Grade 6", "Grade K", etc.
+        match = re.match(r'^Grade\s+(\w+)$', selected, re.IGNORECASE)
+        if match:
+            grade_num = match.group(1)
+            # Add the grade bands this individual grade belongs to
+            if grade_num in GRADE_TO_BANDS:
+                expanded.update(GRADE_TO_BANDS[grade_num])
+
+        # If a band is selected, expand to include individual grades
+        if selected in GRADE_BANDS:
+            for g in GRADE_BANDS[selected]:
+                expanded.add(f"Grade {g}")
+                # Also add common variations
+                if g == "K":
+                    expanded.add("Grade Kindergarten")
+                    expanded.add("Kindergarten")
+
+    return expanded
+
+
 @login_required
 @teacher_required
 def standards_api_results(request):
@@ -2877,7 +2936,9 @@ def standards_api_results(request):
     ).select_related("authority_program__authority")
 
     if grades:
-        queryset = queryset.filter(grade_level__in=grades)
+        # Expand grades to include hierarchical matches
+        expanded_grades = _expand_grade_levels(grades)
+        queryset = queryset.filter(grade_level__in=expanded_grades)
     if subjects:
         queryset = queryset.filter(subject__in=subjects)
 
@@ -2898,7 +2959,8 @@ def standards_api_results(request):
             children = []
             for node in nodes:
                 if node.parent_id == parent_id:
-                    code_display = node.internal_code if show_internal_codes else node.code
+                    # When checkbox is ticked, show internal codes; when unticked show native/external
+                    code_display = node.code if show_internal_codes else node.internal_code
                     children.append({
                         "id": node.pk,
                         "code": code_display or "",
@@ -2912,6 +2974,24 @@ def standards_api_results(request):
 
         objective_tree = build_tree()
 
+        # Get resources for this program
+        resources = doc.authority_program.media.filter(is_official=True)[:5]
+        resources_data = [
+            {
+                "id": media.pk,
+                "title": media.title,
+                "author": media.author,
+                "media_type": media.media_type,
+                "media_type_display": media.get_media_type_display(),
+                "platform": media.platform,
+                "platform_display": media.get_platform_display(),
+                "is_official": media.is_official,
+                "cover_image_url": media.cover_image_url,
+                "source_url": media.source_url,
+            }
+            for media in resources
+        ]
+
         documents_data.append({
             "id": doc.pk,
             "authority_name": doc.authority_program.authority.name,
@@ -2921,13 +3001,20 @@ def standards_api_results(request):
             "subject": doc.subject,
             "grade_level": doc.grade_level,
             "version_label": doc.version_label,
+            "tier": doc.tier,
+            "tier_display": doc.get_tier_display(),
             "source_publisher_name": doc.source_publisher_name,
+            "source_publisher_type": doc.source_publisher_type,
+            "source_publisher_type_display": doc.get_source_publisher_type_display() if doc.source_publisher_type else "",
             "source_url": doc.source_url,
             "source_accessed_at": doc.source_accessed_at.isoformat() if doc.source_accessed_at else None,
             "acquisition_method": doc.get_acquisition_method_display(),
             "is_reference_only": doc.is_reference_only,
+            "status": doc.status,
             "objective_count": nodes.count(),
             "objectives": objective_tree,
+            "resources": resources_data,
+            "resources_count": doc.authority_program.media.filter(is_official=True).count(),
         })
 
     return JsonResponse({
@@ -2939,74 +3026,266 @@ def standards_api_results(request):
 
 @login_required
 @teacher_required
-def standards_save_selection(request):
-    """Save a standards document to teacher's library."""
-    import json
+def standards_api_search(request):
+    """
+    API endpoint: search objectives by keyword or code.
 
-    if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
+    Query parameters:
+    - q: Search query (searches text, native code, and internal code)
+    - programs: Comma-separated program IDs to filter
+    - limit: Maximum results (default 50)
+    """
+    query = request.GET.get("q", "").strip()
+    program_ids = request.GET.getlist("programs")
+    limit = min(int(request.GET.get("limit", 50)), 200)
 
-    try:
-        data = json.loads(request.body)
-        document_id = data.get("document_id")
-        notes = data.get("notes", "")
+    if not query or len(query) < 2:
+        return JsonResponse({"error": "Query must be at least 2 characters"}, status=400)
 
-        if not document_id:
-            return JsonResponse({"error": "document_id required"}, status=400)
-
-        document = get_object_or_404(StandardsDocument, pk=document_id, is_active=True)
-
-        selection, created = TeacherStandardsSelection.objects.get_or_create(
-            teacher=request.user,
-            document=document,
-            defaults={"notes": notes}
-        )
-
-        if not created and notes:
-            selection.notes = notes
-            selection.save()
-
-        return JsonResponse({
-            "success": True,
-            "created": created,
-            "selection_id": selection.pk,
-        })
-
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
-
-
-@login_required
-@teacher_required
-def standards_my_library(request):
-    """View teacher's saved standards selections."""
-    selections = (
-        TeacherStandardsSelection.objects
-        .filter(teacher=request.user)
-        .select_related(
-            "document__authority_program__authority"
-        )
-        .order_by("-created_at")
+    # Build base queryset
+    from django.db.models import Q
+    qs = ObjectiveNode.objects.select_related(
+        "document__authority_program__authority"
+    ).filter(
+        document__is_active=True
     )
 
-    return render(request, "core/teacher/standards_library.html", {
-        "selections": selections,
-        "title": "My Standards Library",
+    # Filter by programs if specified
+    if program_ids:
+        qs = qs.filter(document__authority_program_id__in=program_ids)
+
+    # Search across text, native code, and internal code
+    qs = qs.filter(
+        Q(text__icontains=query) |
+        Q(code__icontains=query) |
+        Q(internal_code__icontains=query)
+    )
+
+    # Order by relevance (exact code matches first, then by sort order)
+    qs = qs.order_by(
+        "document__authority_program__authority__code",
+        "document__subject",
+        "sort_order"
+    )[:limit]
+
+    results = []
+    for node in qs:
+        doc = node.document
+        results.append({
+            "id": node.pk,
+            "code": node.code,
+            "internal_code": node.internal_code,
+            "text": node.text,
+            "node_type": node.node_type,
+            "document_id": doc.pk,
+            "subject": doc.subject,
+            "grade_level": doc.grade_level,
+            "authority_code": doc.authority_program.authority.code,
+            "authority_name": doc.authority_program.authority.name,
+            "program_code": doc.authority_program.code,
+            "program_name": doc.authority_program.name,
+        })
+
+    return JsonResponse({
+        "results": results,
+        "total": len(results),
+        "query": query,
+        "limit": limit,
     })
 
 
 @login_required
 @teacher_required
-def standards_remove_selection(request, pk):
-    """Remove a standards document from teacher's library."""
-    selection = get_object_or_404(
-        TeacherStandardsSelection,
-        pk=pk,
-        teacher=request.user
+def standards_api_media(request):
+    """
+    API endpoint: get media/resources for authority programs.
+
+    Query parameters:
+    - programs: Comma-separated program IDs to filter
+    - official_only: If "true", only show official/endorsed resources
+    - platform: Filter by platform (google_books, amazon, etc.)
+    - media_type: Filter by type (book, guide, course, etc.)
+    - q: Search by title/author/ISBN
+    """
+    program_ids = request.GET.getlist("programs")
+    official_only = request.GET.get("official_only", "").lower() == "true"
+    platform = request.GET.get("platform", "").strip()
+    media_type = request.GET.get("media_type", "").strip()
+    query = request.GET.get("q", "").strip()
+
+    # Build queryset
+    qs = AuthorityProgramMedia.objects.select_related(
+        "authority_program__authority"
+    ).prefetch_related("tags")
+
+    # Filter by programs
+    if program_ids:
+        qs = qs.filter(authority_program_id__in=program_ids)
+
+    # Filter by official status
+    if official_only:
+        qs = qs.filter(is_official=True)
+
+    # Filter by platform
+    if platform:
+        qs = qs.filter(platform=platform)
+
+    # Filter by media type
+    if media_type:
+        qs = qs.filter(media_type=media_type)
+
+    # Search
+    if query:
+        from django.db.models import Q
+        qs = qs.filter(
+            Q(title__icontains=query) |
+            Q(author__icontains=query) |
+            Q(isbn_10__icontains=query) |
+            Q(isbn_13__icontains=query)
+        )
+
+    # Order: official first, then by title
+    qs = qs.order_by("-is_official", "title")[:100]
+
+    results = []
+    for media in qs:
+        results.append({
+            "id": media.pk,
+            "title": media.title,
+            "author": media.author,
+            "publisher": media.publisher,
+            "description": media.description[:300] + "..." if len(media.description) > 300 else media.description,
+            "isbn_10": media.isbn_10,
+            "isbn_13": media.isbn_13,
+            "source_url": media.source_url,
+            "cover_image_url": media.cover_image_url,
+            "media_type": media.media_type,
+            "media_type_display": media.get_media_type_display(),
+            "platform": media.platform,
+            "platform_display": media.get_platform_display(),
+            "is_official": media.is_official,
+            "is_unofficial": media.is_unofficial,
+            "endorsement_notes": media.endorsement_notes,
+            "features": media.features,
+            "tags": [tag.label for tag in media.tags.all()],
+            "program_id": media.authority_program_id,
+            "program_code": media.authority_program.code,
+            "program_name": media.authority_program.name,
+            "authority_code": media.authority_program.authority.code,
+        })
+
+    return JsonResponse({
+        "results": results,
+        "total": len(results),
+    })
+
+
+@login_required
+@teacher_required
+@require_POST
+def standards_api_sync_objectives(request):
+    """
+    API endpoint: Trigger objectives sync for an authority.
+
+    POST parameters:
+    - authority_id: ID of the StandardsAuthority to sync
+    """
+    from core.services.jobs import enqueue_authority_objectives_sync
+
+    authority_id = request.POST.get("authority_id")
+    if not authority_id:
+        return JsonResponse({"error": "authority_id is required"}, status=400)
+
+    try:
+        authority_id = int(authority_id)
+    except ValueError:
+        return JsonResponse({"error": "authority_id must be an integer"}, status=400)
+
+    # Verify authority exists
+    try:
+        authority = StandardsAuthority.objects.get(pk=authority_id)
+    except StandardsAuthority.DoesNotExist:
+        return JsonResponse({"error": f"Authority not found: {authority_id}"}, status=404)
+
+    # Enqueue the job
+    job = enqueue_authority_objectives_sync(
+        authority_id=authority_id,
+        created_by=request.user,
     )
 
-    if request.method == "POST":
-        selection.delete()
-        messages.success(request, "Removed from your library.")
+    return JsonResponse({
+        "job_id": job.pk,
+        "status": job.status,
+        "authority_id": authority_id,
+        "authority_name": authority.name,
+        "message": f"Objectives sync queued for {authority.name}",
+    })
 
-    return redirect("core:standards_my_library")
+
+@login_required
+@teacher_required
+@require_POST
+def standards_api_sync_resources(request):
+    """
+    API endpoint: Trigger resources sync for an authority.
+
+    POST parameters:
+    - authority_id: ID of the StandardsAuthority to sync
+    """
+    from core.services.jobs import enqueue_authority_resources_sync
+
+    authority_id = request.POST.get("authority_id")
+    if not authority_id:
+        return JsonResponse({"error": "authority_id is required"}, status=400)
+
+    try:
+        authority_id = int(authority_id)
+    except ValueError:
+        return JsonResponse({"error": "authority_id must be an integer"}, status=400)
+
+    # Verify authority exists
+    try:
+        authority = StandardsAuthority.objects.get(pk=authority_id)
+    except StandardsAuthority.DoesNotExist:
+        return JsonResponse({"error": f"Authority not found: {authority_id}"}, status=404)
+
+    # Enqueue the job
+    job = enqueue_authority_resources_sync(
+        authority_id=authority_id,
+        created_by=request.user,
+    )
+
+    return JsonResponse({
+        "job_id": job.pk,
+        "status": job.status,
+        "authority_id": authority_id,
+        "authority_name": authority.name,
+        "message": f"Resources sync queued for {authority.name}",
+    })
+
+
+@login_required
+def standards_api_job_status(request, job_id):
+    """
+    API endpoint: Check job progress and status.
+
+    GET parameters:
+    - job_id: ID of the BackgroundJob (in URL)
+    """
+    try:
+        job = BackgroundJob.objects.get(pk=job_id)
+    except BackgroundJob.DoesNotExist:
+        return JsonResponse({"error": f"Job not found: {job_id}"}, status=404)
+
+    return JsonResponse({
+        "job_id": job.pk,
+        "job_type": job.job_type,
+        "status": job.status,
+        "progress_pct": job.progress_pct,
+        "progress_message": job.progress_message,
+        "result": job.result if job.status == "completed" else None,
+        "error_message": job.error_message if job.status == "failed" else None,
+        "created_at": job.created_at.isoformat(),
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+    })

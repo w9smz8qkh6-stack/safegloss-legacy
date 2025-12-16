@@ -166,17 +166,20 @@ UnitLessonFormSet = inlineformset_factory(
 class CourseForm(forms.ModelForm):
     class Meta:
         model = Course
-        fields = ["title", "description", "rosters"]
+        fields = ["title", "description", "rosters", "aligned_objectives"]
         widgets = {
             "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter course title"}),
             "description": forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "Optional description of this course"}),
             "rosters": forms.SelectMultiple(attrs={"class": "form-select", "size": 5}),
+            "aligned_objectives": forms.SelectMultiple(attrs={"class": "form-select d-none"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user and user.site:
             self.fields["rosters"].queryset = Roster.objects.filter(site=user.site)
+        # Hide the objectives widget - we'll manage this via custom UI
+        self.fields["aligned_objectives"].required = False
 
 
 class CourseUnitForm(forms.ModelForm):

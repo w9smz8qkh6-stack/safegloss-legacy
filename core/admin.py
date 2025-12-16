@@ -9,7 +9,9 @@ from .models import (
     # Standards models
     StandardsAuthority, AuthorityProgram, StandardsArtifact,
     StandardsDocument, ObjectiveNode, ObjectiveCodeMap,
-    TeacherStandardsSelection,
+    AuthorityProgramMedia, AuthorityProgramMediaTag,
+    # Background jobs
+    BackgroundJob,
 )
 
 
@@ -241,8 +243,101 @@ class ObjectiveCodeMapAdmin(admin.ModelAdmin):
     raw_id_fields = ('objective_node', 'mapped_by')
 
 
-@admin.register(TeacherStandardsSelection)
-class TeacherStandardsSelectionAdmin(admin.ModelAdmin):
-    list_display = ('teacher', 'document', 'created_at')
-    list_filter = ('teacher', 'document__authority_program')
-    raw_id_fields = ('teacher', 'document')
+class AuthorityProgramMediaTagInline(admin.TabularInline):
+    model = AuthorityProgramMediaTag
+    extra = 1
+
+
+@admin.register(AuthorityProgramMedia)
+class AuthorityProgramMediaAdmin(admin.ModelAdmin):
+    list_display = (
+        'title', 'authority_program', 'media_type', 'platform',
+        'is_official', 'is_unofficial', 'created_at'
+    )
+    list_filter = ('authority_program__authority', 'media_type', 'platform', 'is_official')
+    search_fields = ('title', 'author', 'isbn_10', 'isbn_13', 'description')
+    ordering = ('-is_official', 'title')
+    raw_id_fields = ('authority_program',)
+    inlines = [AuthorityProgramMediaTagInline]
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('authority_program', 'title', 'author', 'publisher', 'description')
+        }),
+        ('Identifiers', {
+            'fields': ('isbn_10', 'isbn_13', 'source_url', 'cover_image_url')
+        }),
+        ('Classification', {
+            'fields': ('media_type', 'platform', 'is_official', 'is_unofficial', 'endorsement_notes')
+        }),
+        ('Features', {
+            'fields': ('features',)
+        }),
+        ('Metadata', {
+            'fields': ('retrieved_from', 'retrieved_at', 'metadata_raw'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(AuthorityProgramMediaTag)
+class AuthorityProgramMediaTagAdmin(admin.ModelAdmin):
+    list_display = ('label', 'media')
+    list_filter = ('label',)
+    search_fields = ('label', 'media__title')
+
+
+# =============================================================================
+# Background Jobs Admin
+# =============================================================================
+
+@admin.register(BackgroundJob)
+class BackgroundJobAdmin(admin.ModelAdmin):
+    list_display = (
+        'job_type', 'status', 'progress_pct', 'created_by',
+        'created_at', 'started_at', 'completed_at'
+    )
+    list_filter = ('job_type', 'status', 'created_at')
+    search_fields = ('idempotency_key', 'progress_message', 'error_message')
+    readonly_fields = (
+        'idempotency_key', 'started_at', 'completed_at',
+        'progress_pct', 'progress_message', 'result', 'error_message',
+        'retry_count', 'created_at'
+    )
+    ordering = ('-created_at',)
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        ('Job Info', {
+            'fields': ('job_type', 'idempotency_key', 'params', 'created_by')
+        }),
+        ('Status', {
+            'fields': ('status', 'progress_pct', 'progress_message')
+        }),
+        ('Results', {
+            'fields': ('result', 'error_message'),
+            'classes': ('collapse',)
+        }),
+        ('Retry', {
+            'fields': ('retry_count', 'max_retries', 'next_retry_at'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'started_at', 'completed_at'),
+        }),
+    )
+
+    actions = ['cancel_jobs', 'retry_jobs']
+
+    @admin.action(description="Cancel selected jobs")
+    def cancel_jobs(self, request, queryset):
+        updated = queryset.filter(status__in=['pending', 'running']).update(status='cancelled')
+        self.message_user(request, f"{updated} job(s) cancelled.")
+
+    @admin.action(description="Retry failed jobs")
+    def retry_jobs(self, request, queryset):
+        count = 0
+        for job in queryset.filter(status='failed'):
+            if job.can_retry():
+                job.schedule_retry()
+                count += 1
+        self.message_user(request, f"{count} job(s) scheduled for retry.")

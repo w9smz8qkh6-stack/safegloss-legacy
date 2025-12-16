@@ -124,7 +124,7 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_REDIRECT_URL = "core:login_redirect"
-LOGOUT_REDIRECT_URL = "account_login"
+LOGOUT_REDIRECT_URL = "core:home"
 
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
@@ -141,8 +141,12 @@ AUTHENTICATION_BACKENDS = [
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],
-        "AUTH_PARAMS": {"access_type": "online"},
+        "AUTH_PARAMS": {
+            "access_type": "online",
+            "prompt": "select_account",  # Force account picker on each login
+        },
     }
 }
 SOCIALACCOUNT_LOGIN_ON_GET = True
+ACCOUNT_LOGOUT_ON_GET = True  # Allow logout via GET request
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Skip email verification for easier signup

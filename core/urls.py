@@ -99,7 +99,9 @@ urlpatterns = [
     path("teacher/standards/api/grades/", views.standards_api_grades, name="standards_api_grades"),
     path("teacher/standards/api/subjects/", views.standards_api_subjects, name="standards_api_subjects"),
     path("teacher/standards/api/results/", views.standards_api_results, name="standards_api_results"),
-    path("teacher/standards/save/", views.standards_save_selection, name="standards_save_selection"),
-    path("teacher/standards/my-library/", views.standards_my_library, name="standards_my_library"),
-    path("teacher/standards/my-library/<int:pk>/remove/", views.standards_remove_selection, name="standards_remove_selection"),
+    path("teacher/standards/api/search/", views.standards_api_search, name="standards_api_search"),
+    path("teacher/standards/api/media/", views.standards_api_media, name="standards_api_media"),
+    path("teacher/standards/api/sync/objectives/", views.standards_api_sync_objectives, name="standards_api_sync_objectives"),
+    path("teacher/standards/api/sync/resources/", views.standards_api_sync_resources, name="standards_api_sync_resources"),
+    path("teacher/standards/api/job/<int:job_id>/", views.standards_api_job_status, name="standards_api_job_status"),
 ]
