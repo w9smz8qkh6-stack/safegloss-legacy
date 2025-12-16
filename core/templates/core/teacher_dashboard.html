@@ -1,11 +1,11 @@
 {% extends "core/base.html" %}
 
-{% block title %}Instructor Dashboard{% endblock %}
+{% block title %}Teacher Dashboard{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1 class="h3 mb-0">
-    <i class="bi bi-speedometer2 me-2"></i>Instructor Dashboard
+    <i class="bi bi-speedometer2 me-2"></i>Teacher Dashboard
   </h1>
 </div>
 
@@ -65,7 +65,7 @@
             <p class="text-muted small mb-0">Lessons</p>
           </div>
           <div class="card-footer bg-transparent py-2">
-            <a href="{% url 'core:instructor_lesson_list' %}" class="btn btn-sm btn-link p-0">View all</a>
+            <a href="{% url 'core:teacher_lesson_list' %}" class="btn btn-sm btn-link p-0">View all</a>
           </div>
         </div>
       </div>
@@ -173,7 +173,7 @@
     <div class="card h-100">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span><i class="bi bi-mortarboard me-2"></i>Active Lessons</span>
-        <a href="{% url 'core:instructor_lesson_list' %}" class="btn btn-sm btn-outline-secondary">View all</a>
+        <a href="{% url 'core:teacher_lesson_list' %}" class="btn btn-sm btn-outline-secondary">View all</a>
       </div>
       <div class="card-body p-0">
         <div class="list-group list-group-flush">

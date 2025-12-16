@@ -22,14 +22,14 @@ from .models import (
 )
 
 
-def instructor_required(view_func):
-    """Decorator to check if user is instructor or researcher."""
+def teacher_required(view_func):
+    """Decorator to check if user is teacher or researcher."""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         user = request.user
         if not user.is_authenticated:
             return redirect("account_login")
-        if not (user.is_instructor() or user.is_researcher()):
+        if not (user.is_teacher() or user.is_researcher()):
             return redirect("core:student_lessons")
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -64,8 +64,8 @@ def student_can_access_lesson(user, lesson):
 
 def home_redirect(request):
     if request.user.is_authenticated:
-        if getattr(request.user, "role", "") in ("instructor", "researcher"):
-            return redirect("core:instructor_dashboard")
+        if getattr(request.user, "role", "") in ("teacher", "researcher"):
+            return redirect("core:teacher_dashboard")
         return redirect("core:student_lessons")
     return render(request, "core/home.html")
 
@@ -74,8 +74,8 @@ def home_redirect(request):
 def login_redirect(request):
     """Redirect users to appropriate dashboard based on role after login."""
     user = request.user
-    if user.is_instructor() or user.is_researcher():
-        return redirect("core:instructor_dashboard")
+    if user.is_teacher() or user.is_researcher():
+        return redirect("core:teacher_dashboard")
     return redirect("core:student_lessons")
 
 
@@ -87,7 +87,7 @@ def login_redirect(request):
 def student_lessons(request):
     user = request.user
     if hasattr(user, "is_student") and not user.is_student():
-        return redirect("core:instructor_dashboard")
+        return redirect("core:teacher_dashboard")
 
     roster_ids = list(RosterMembership.objects.filter(student=user).values_list("roster_id", flat=True))
 
@@ -562,27 +562,27 @@ def log_reading_event(request, lesson_id):
 # =============================================================================
 
 @login_required
-@instructor_required
-def instructor_dashboard(request):
+@teacher_required
+def teacher_dashboard(request):
     user = request.user
 
-    story_count = Story.objects.filter(instructor=user).count()
-    lesson_count = Lesson.objects.filter(instructor=user).count()
+    story_count = Story.objects.filter(teacher=user).count()
+    lesson_count = Lesson.objects.filter(teacher=user).count()
     quiz_count = Quiz.objects.filter(owner=user).count()
-    roster_count = Roster.objects.filter(instructor=user).count()
-    student_count = RosterMembership.objects.filter(roster__instructor=user).values("student").distinct().count()
-    unit_count = Unit.objects.filter(instructor=user).count()
-    course_count = Course.objects.filter(instructor=user).count()
+    roster_count = Roster.objects.filter(teacher=user).count()
+    student_count = RosterMembership.objects.filter(roster__teacher=user).values("student").distinct().count()
+    unit_count = Unit.objects.filter(teacher=user).count()
+    course_count = Course.objects.filter(teacher=user).count()
 
-    recent_stories = Story.objects.filter(instructor=user).order_by("-created_at")[:5]
+    recent_stories = Story.objects.filter(teacher=user).order_by("-created_at")[:5]
     active_lessons = (
-        Lesson.objects.filter(instructor=user)
+        Lesson.objects.filter(teacher=user)
         .select_related("story", "site")
         .prefetch_related("rosters")
         .order_by("-created_at")[:5]
     )
-    recent_units = Unit.objects.filter(instructor=user).order_by("-created_at")[:5]
-    recent_courses = Course.objects.filter(instructor=user).prefetch_related("rosters").order_by("-created_at")[:5]
+    recent_units = Unit.objects.filter(teacher=user).order_by("-created_at")[:5]
+    recent_courses = Course.objects.filter(teacher=user).prefetch_related("rosters").order_by("-created_at")[:5]
 
     context = {
         "story_count": story_count,
@@ -597,7 +597,7 @@ def instructor_dashboard(request):
         "recent_units": recent_units,
         "recent_courses": recent_courses,
     }
-    return render(request, "core/instructor_dashboard.html", context)
+    return render(request, "core/teacher_dashboard.html", context)
 
 
 # =============================================================================
@@ -605,18 +605,18 @@ def instructor_dashboard(request):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def story_list(request):
     stories = (
-        Story.objects.filter(instructor=request.user)
+        Story.objects.filter(teacher=request.user)
         .annotate(segment_count=Count("segments"))
         .order_by("-created_at")
     )
-    return render(request, "core/instructor/story_list.html", {"stories": stories})
+    return render(request, "core/teacher/story_list.html", {"stories": stories})
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_create(request):
     if request.method == "POST":
         form = StoryForm(request.POST)
@@ -633,16 +633,16 @@ def story_create(request):
     else:
         form = StoryForm()
 
-    return render(request, "core/instructor/story_form.html", {
+    return render(request, "core/teacher/story_form.html", {
         "form": form,
         "title": "Create Story",
     })
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_edit(request, pk):
-    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=pk, teacher=request.user)
     tab = request.GET.get("tab", "details")
 
     # Auto-compute reading levels if story has content but no metrics
@@ -694,29 +694,29 @@ def story_edit(request, pk):
         "tab": tab,
         "title": f"Edit Story: {story.title}",
     }
-    return render(request, "core/instructor/story_edit.html", context)
+    return render(request, "core/teacher/story_edit.html", context)
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_delete(request, pk):
-    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=pk, teacher=request.user)
     if request.method == "POST":
         title = story.title
         story.delete()
         messages.success(request, f"Story '{title}' deleted.")
         return redirect("core:story_list")
-    return render(request, "core/instructor/story_confirm_delete.html", {"story": story})
+    return render(request, "core/teacher/story_confirm_delete.html", {"story": story})
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_preview(request, pk):
     """
     Preview a story as it would appear to a student.
     Supports switching between reading modes (continuous, cards, movie).
     """
-    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=pk, teacher=request.user)
 
     # Get reading mode from query params
     mode = request.GET.get("mode", "continuous")
@@ -743,11 +743,11 @@ def story_preview(request, pk):
         "is_preview": True,
     }
 
-    return render(request, "core/instructor/story_preview.html", context)
+    return render(request, "core/teacher/story_preview.html", context)
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_auto_segment(request, pk):
     """
     Auto-segment a story by splitting its HTML content into paragraphs.
@@ -755,7 +755,7 @@ def story_auto_segment(request, pk):
     import re
     from django.http import JsonResponse
 
-    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=pk, teacher=request.user)
 
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -825,7 +825,7 @@ def story_auto_segment(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_generate(request):
     """
     AI-powered story generation with Lexile-aligned constraints.
@@ -869,11 +869,11 @@ def story_generate(request):
         "generation_params": generation_params,
         "title": "Generate AI Story",
     }
-    return render(request, "core/instructor/story_generate.html", context)
+    return render(request, "core/teacher/story_generate.html", context)
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_generate_ai(request):
     """
     Call OpenRouter API to generate a story using the composed prompt.
@@ -941,7 +941,7 @@ def story_generate_ai(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_generate_preview(request):
     """
     Preview a generated story before saving.
@@ -977,11 +977,11 @@ def story_generate_preview(request):
         "lexile_band": lexile_band,
         "title": "Preview Generated Story",
     }
-    return render(request, "core/instructor/story_generate_preview.html", context)
+    return render(request, "core/teacher/story_generate_preview.html", context)
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_generate_save(request):
     """
     Save a generated story after preview.
@@ -1002,7 +1002,7 @@ def story_generate_save(request):
 
     # Create the story
     story = Story.objects.create(
-        instructor=request.user,
+        teacher=request.user,
         title=title,
         text_html=f"<p>{story_text.replace(chr(10)+chr(10), '</p><p>').replace(chr(10), '<br>')}</p>",
         source_type=Story.SOURCE_AI,
@@ -1029,7 +1029,7 @@ def story_generate_save(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_export(request, pk):
     """
     Export a story in print-friendly format.
@@ -1038,7 +1038,7 @@ def story_export(request, pk):
     - Web view (print-friendly HTML)
     - PDF (via browser print)
     """
-    story = get_object_or_404(Story, pk=pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=pk, teacher=request.user)
 
     # Get metrics if available
     metrics = story.reading_level_metrics or {}
@@ -1059,7 +1059,7 @@ def story_export(request, pk):
         "segments": segments,
         "title": f"Export: {story.title}",
     }
-    return render(request, "core/instructor/story_export.html", context)
+    return render(request, "core/teacher/story_export.html", context)
 
 
 # =============================================================================
@@ -1067,13 +1067,13 @@ def story_export(request, pk):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def story_import_search(request):
     """Main import interface with search form and bookmarks."""
     form = ExternalBookSearchForm(request.GET or None)
-    bookmarks = ExternalBookmark.objects.filter(instructor=request.user)[:10]
+    bookmarks = ExternalBookmark.objects.filter(teacher=request.user)[:10]
 
-    return render(request, "core/instructor/story_import.html", {
+    return render(request, "core/teacher/story_import.html", {
         "form": form,
         "bookmarks": bookmarks,
         "title": "Import Story from Library",
@@ -1081,14 +1081,14 @@ def story_import_search(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_import_search_results(request):
     """HTMX endpoint: Return search results from external sources."""
     from .services.external_books import GutendexService, OpenLibraryService, OpenTextbookService
 
     form = ExternalBookSearchForm(request.GET)
     if not form.is_valid():
-        return render(request, "core/instructor/partials/import_search_results.html", {
+        return render(request, "core/teacher/partials/import_search_results.html", {
             "error": "Please enter a search term.",
             "results": [],
         })
@@ -1133,11 +1133,11 @@ def story_import_search_results(request):
 
     # Check which are already bookmarked
     bookmarked = set(
-        ExternalBookmark.objects.filter(instructor=request.user)
+        ExternalBookmark.objects.filter(teacher=request.user)
         .values_list("source", "external_id")
     )
 
-    return render(request, "core/instructor/partials/import_search_results.html", {
+    return render(request, "core/teacher/partials/import_search_results.html", {
         "results": results,
         "bookmarked": bookmarked,
         "query": query,
@@ -1147,7 +1147,7 @@ def story_import_search_results(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_import_details(request, source, external_id):
     """HTMX endpoint: Get book details and import options."""
     from .services.external_books import get_service
@@ -1157,12 +1157,12 @@ def story_import_details(request, source, external_id):
         service = get_service(source)
         book = service.get_book_details(external_id)
     except Exception as e:
-        return render(request, "core/instructor/partials/import_book_details.html", {
+        return render(request, "core/teacher/partials/import_book_details.html", {
             "error": f"Failed to load book details: {str(e)}"
         })
 
     if not book:
-        return render(request, "core/instructor/partials/import_book_details.html", {
+        return render(request, "core/teacher/partials/import_book_details.html", {
             "error": "Book not found."
         })
 
@@ -1173,7 +1173,7 @@ def story_import_details(request, source, external_id):
 
     import_form = ExternalBookImportForm()
 
-    return render(request, "core/instructor/partials/import_book_details.html", {
+    return render(request, "core/teacher/partials/import_book_details.html", {
         "book": book,
         "chapters": [],  # Will be detected during preview
         "text_available": text_available,
@@ -1184,7 +1184,7 @@ def story_import_details(request, source, external_id):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_import_preview(request):
     """Preview the imported text before saving."""
     from .services.external_books import get_service, TextProcessor
@@ -1244,7 +1244,7 @@ def story_import_preview(request):
         "metadata": book.raw_metadata,
     }
 
-    return render(request, "core/instructor/story_import_preview.html", {
+    return render(request, "core/teacher/story_import_preview.html", {
         "preview": request.session["import_preview"],
         "book": book,
         "stats": stats,
@@ -1253,7 +1253,7 @@ def story_import_preview(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_import_save(request):
     """Save the imported text as a new Story."""
     if request.method != "POST":
@@ -1266,7 +1266,7 @@ def story_import_save(request):
 
     # Create Story
     story = Story.objects.create(
-        instructor=request.user,
+        teacher=request.user,
         title=preview["title"],
         text_html=preview["text_html"],
         source_type=Story.SOURCE_EXTERNAL,
@@ -1291,7 +1291,7 @@ def story_import_save(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_import_bookmark_add(request):
     """Add a bookmark via HTMX (JSON response)."""
     import json
@@ -1305,7 +1305,7 @@ def story_import_bookmark_add(request):
         return JsonResponse({"error": "Invalid JSON"}, status=400)
 
     bookmark, created = ExternalBookmark.objects.get_or_create(
-        instructor=request.user,
+        teacher=request.user,
         source=data.get("source"),
         external_id=data.get("external_id"),
         defaults={
@@ -1324,15 +1324,15 @@ def story_import_bookmark_add(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def story_import_bookmark_remove(request, pk):
     """Remove a bookmark via HTMX."""
-    bookmark = get_object_or_404(ExternalBookmark, pk=pk, instructor=request.user)
+    bookmark = get_object_or_404(ExternalBookmark, pk=pk, teacher=request.user)
     bookmark.delete()
 
     # Return updated bookmarks list
-    bookmarks = ExternalBookmark.objects.filter(instructor=request.user)[:10]
-    return render(request, "core/instructor/partials/import_bookmarks_list.html", {
+    bookmarks = ExternalBookmark.objects.filter(teacher=request.user)[:10]
+    return render(request, "core/teacher/partials/import_bookmarks_list.html", {
         "bookmarks": bookmarks,
     })
 
@@ -1342,25 +1342,25 @@ def story_import_bookmark_remove(request, pk):
 # =============================================================================
 
 @login_required
-@instructor_required
-def instructor_lesson_list(request):
+@teacher_required
+def teacher_lesson_list(request):
     lessons = (
-        Lesson.objects.filter(instructor=request.user)
+        Lesson.objects.filter(teacher=request.user)
         .select_related("story", "site", "quiz")
         .prefetch_related("rosters")
         .order_by("-created_at")
     )
-    return render(request, "core/instructor/lesson_list.html", {"lessons": lessons})
+    return render(request, "core/teacher/lesson_list.html", {"lessons": lessons})
 
 
 @login_required
-@instructor_required
+@teacher_required
 def lesson_create(request):
     # Check if creating lesson for a specific unit
     unit_id = request.GET.get("unit") or request.POST.get("unit")
     unit = None
     if unit_id:
-        unit = Unit.objects.filter(pk=unit_id, instructor=request.user).first()
+        unit = Unit.objects.filter(pk=unit_id, teacher=request.user).first()
 
     if request.method == "POST":
         form = LessonForm(request.POST, user=request.user)
@@ -1382,7 +1382,7 @@ def lesson_create(request):
     else:
         form = LessonForm(user=request.user)
 
-    return render(request, "core/instructor/lesson_form.html", {
+    return render(request, "core/teacher/lesson_form.html", {
         "form": form,
         "title": "Create Lesson",
         "unit": unit,
@@ -1390,9 +1390,9 @@ def lesson_create(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def lesson_edit(request, pk):
-    lesson = get_object_or_404(Lesson, pk=pk, instructor=request.user)
+    lesson = get_object_or_404(Lesson, pk=pk, teacher=request.user)
 
     if request.method == "POST":
         form = LessonForm(request.POST, instance=lesson, user=request.user)
@@ -1411,7 +1411,7 @@ def lesson_edit(request, pk):
             story=lesson.story
         ).order_by("-created_at")
 
-    return render(request, "core/instructor/lesson_form.html", {
+    return render(request, "core/teacher/lesson_form.html", {
         "form": form,
         "lesson": lesson,
         "title": f"Edit Lesson: {lesson.title}",
@@ -1420,26 +1420,26 @@ def lesson_edit(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def lesson_delete(request, pk):
-    lesson = get_object_or_404(Lesson, pk=pk, instructor=request.user)
+    lesson = get_object_or_404(Lesson, pk=pk, teacher=request.user)
     if request.method == "POST":
         title = lesson.title
         lesson.delete()
         messages.success(request, f"Lesson '{title}' deleted.")
-        return redirect("core:instructor_lesson_list")
-    return render(request, "core/instructor/lesson_confirm_delete.html", {"lesson": lesson})
+        return redirect("core:teacher_lesson_list")
+    return render(request, "core/teacher/lesson_confirm_delete.html", {"lesson": lesson})
 
 
 @login_required
-@instructor_required
+@teacher_required
 def lesson_quizzes_for_story(request, story_pk):
     """HTMX endpoint: return quiz options for a given story."""
     quizzes = Quiz.objects.filter(
         owner=request.user,
         story_id=story_pk
     ).order_by("-created_at")
-    return render(request, "core/instructor/partials/quiz_options.html", {
+    return render(request, "core/teacher/partials/quiz_options.html", {
         "quizzes": quizzes,
     })
 
@@ -1449,7 +1449,7 @@ def lesson_quizzes_for_story(request, story_pk):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_list(request):
     quizzes = (
         Quiz.objects.filter(owner=request.user)
@@ -1457,17 +1457,17 @@ def quiz_list(request):
         .annotate(question_count=Count("quiz_questions"))
         .order_by("-created_at")
     )
-    return render(request, "core/instructor/quiz_list.html", {"quizzes": quizzes})
+    return render(request, "core/teacher/quiz_list.html", {"quizzes": quizzes})
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_create(request):
     # Check if a story_id was passed (e.g., from story page)
     story_id = request.GET.get("story")
     initial = {}
     if story_id:
-        story = Story.objects.filter(pk=story_id, instructor=request.user).first()
+        story = Story.objects.filter(pk=story_id, teacher=request.user).first()
         if story:
             initial["story"] = story
 
@@ -1482,14 +1482,14 @@ def quiz_create(request):
     else:
         form = QuizForm(user=request.user, initial=initial)
 
-    return render(request, "core/instructor/quiz_form.html", {
+    return render(request, "core/teacher/quiz_form.html", {
         "form": form,
         "title": "Create Quiz",
     })
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_edit(request, pk):
     quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
     questions = quiz.quiz_questions.select_related("question").order_by("order")
@@ -1503,7 +1503,7 @@ def quiz_edit(request, pk):
     else:
         form = QuizForm(instance=quiz, user=request.user)
 
-    return render(request, "core/instructor/quiz_edit.html", {
+    return render(request, "core/teacher/quiz_edit.html", {
         "form": form,
         "quiz": quiz,
         "questions": questions,
@@ -1512,7 +1512,7 @@ def quiz_edit(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_delete(request, pk):
     quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
     if request.method == "POST":
@@ -1520,11 +1520,11 @@ def quiz_delete(request, pk):
         quiz.delete()
         messages.success(request, f"Quiz '{title}' deleted.")
         return redirect("core:quiz_list")
-    return render(request, "core/instructor/quiz_confirm_delete.html", {"quiz": quiz})
+    return render(request, "core/teacher/quiz_confirm_delete.html", {"quiz": quiz})
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_question_add(request, pk):
     """Add an existing question from item bank to quiz."""
     quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
@@ -1551,7 +1551,7 @@ def quiz_question_add(request, pk):
         status="active"
     ).exclude(pk__in=existing_question_ids).order_by("-created_at")
 
-    return render(request, "core/instructor/quiz_question_add.html", {
+    return render(request, "core/teacher/quiz_question_add.html", {
         "quiz": quiz,
         "available_questions": available_questions,
         "title": f"Add Question to {quiz.title}",
@@ -1559,7 +1559,7 @@ def quiz_question_add(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_question_create(request, pk):
     """Create a new question and add it to the quiz."""
     quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
@@ -1624,7 +1624,7 @@ def quiz_question_create(request, pk):
     else:
         form = ItemBankQuestionForm()
 
-    return render(request, "core/instructor/quiz_question_create.html", {
+    return render(request, "core/teacher/quiz_question_create.html", {
         "quiz": quiz,
         "form": form,
         "title": f"Create Question for {quiz.title}",
@@ -1632,7 +1632,7 @@ def quiz_question_create(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_question_remove(request, pk, qq_pk):
     """Remove a question from quiz."""
     quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
@@ -1646,7 +1646,7 @@ def quiz_question_remove(request, pk, qq_pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_generate(request):
     """
     AI-powered quiz generation based on story content.
@@ -1658,7 +1658,7 @@ def quiz_generate(request):
     initial = {}
     story_id = request.GET.get("story")
     if story_id:
-        story = Story.objects.filter(pk=story_id, instructor=request.user).first()
+        story = Story.objects.filter(pk=story_id, teacher=request.user).first()
         if story:
             initial["story"] = story
 
@@ -1695,7 +1695,7 @@ def quiz_generate(request):
             "include_instructions": generation_params["include_instructions"],
         })
 
-    return render(request, "core/instructor/quiz_generate.html", {
+    return render(request, "core/teacher/quiz_generate.html", {
         "form": form,
         "generation_params": generation_params,
         "generation_params_json": generation_params_json,
@@ -1704,7 +1704,7 @@ def quiz_generate(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_generate_ai(request):
     """
     Call OpenRouter API to generate quiz questions using the stored parameters.
@@ -1881,7 +1881,7 @@ Generate the questions as a JSON array."""
 
 
 @login_required
-@instructor_required
+@teacher_required
 def quiz_generate_save(request):
     """
     Save generated quiz questions to the database.
@@ -1905,7 +1905,7 @@ def quiz_generate_save(request):
         # Get the story if provided
         story = None
         if story_id:
-            story = Story.objects.filter(pk=story_id, instructor=request.user).first()
+            story = Story.objects.filter(pk=story_id, teacher=request.user).first()
 
         # Create the quiz
         quiz = Quiz.objects.create(
@@ -1974,7 +1974,7 @@ def quiz_generate_save(request):
             "quiz_id": quiz.pk,
             "quiz_title": quiz.title,
             "questions_created": len(questions),
-            "redirect_url": f"/instructor/quizzes/{quiz.pk}/",
+            "redirect_url": f"/teacher/quizzes/{quiz.pk}/",
         })
 
     except json.JSONDecodeError:
@@ -1988,17 +1988,17 @@ def quiz_generate_save(request):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def roster_list(request):
-    rosters = Roster.objects.filter(instructor=request.user).annotate(
+    rosters = Roster.objects.filter(teacher=request.user).annotate(
         student_count=Count("memberships")
     ).order_by("-created_at")
 
-    return render(request, "core/instructor/roster_list.html", {"rosters": rosters})
+    return render(request, "core/teacher/roster_list.html", {"rosters": rosters})
 
 
 @login_required
-@instructor_required
+@teacher_required
 def roster_create(request):
     if request.method == "POST":
         form = RosterForm(request.POST, user=request.user)
@@ -2012,14 +2012,14 @@ def roster_create(request):
             initial["site"] = request.user.site
         form = RosterForm(initial=initial, user=request.user)
 
-    return render(request, "core/instructor/roster_form.html", {
+    return render(request, "core/teacher/roster_form.html", {
         "form": form,
         "title": "Create Roster",
     })
 
 
 @login_required
-@instructor_required
+@teacher_required
 def roster_edit(request, pk):
     roster = get_object_or_404(Roster, pk=pk)
 
@@ -2035,7 +2035,7 @@ def roster_edit(request, pk):
     memberships = roster.memberships.select_related("student").order_by("student__username")
     add_student_form = RosterAddStudentForm(roster=roster)
 
-    return render(request, "core/instructor/roster_form.html", {
+    return render(request, "core/teacher/roster_form.html", {
         "form": form,
         "roster": roster,
         "memberships": memberships,
@@ -2045,7 +2045,7 @@ def roster_edit(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def roster_add_student(request, pk):
     """Bulk add students to a roster via HTMX."""
     roster = get_object_or_404(Roster, pk=pk)
@@ -2081,7 +2081,7 @@ def roster_add_student(request, pk):
             # Return updated student list partial for HTMX
             memberships = roster.memberships.select_related("student").order_by("student__username")
             add_student_form = RosterAddStudentForm(roster=roster)
-            return render(request, "core/instructor/partials/roster_students.html", {
+            return render(request, "core/teacher/partials/roster_students.html", {
                 "roster": roster,
                 "memberships": memberships,
                 "add_student_form": add_student_form,
@@ -2089,7 +2089,7 @@ def roster_add_student(request, pk):
         else:
             # Return form with errors
             memberships = roster.memberships.select_related("student").order_by("student__username")
-            return render(request, "core/instructor/partials/roster_students.html", {
+            return render(request, "core/teacher/partials/roster_students.html", {
                 "roster": roster,
                 "memberships": memberships,
                 "add_student_form": form,
@@ -2099,7 +2099,7 @@ def roster_add_student(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def roster_remove_student(request, pk, student_id):
     """Remove a student from a roster via HTMX."""
     roster = get_object_or_404(Roster, pk=pk)
@@ -2113,7 +2113,7 @@ def roster_remove_student(request, pk, student_id):
         # Return updated student list partial for HTMX
         memberships = roster.memberships.select_related("student").order_by("student__username")
         add_student_form = RosterAddStudentForm(roster=roster)
-        return render(request, "core/instructor/partials/roster_students.html", {
+        return render(request, "core/teacher/partials/roster_students.html", {
             "roster": roster,
             "memberships": memberships,
             "add_student_form": add_student_form,
@@ -2127,23 +2127,23 @@ def roster_remove_student(request, pk, student_id):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def unit_list(request):
     """List all units for the current instructor with nested lessons."""
-    units = Unit.objects.filter(instructor=request.user).prefetch_related(
+    units = Unit.objects.filter(teacher=request.user).prefetch_related(
         "unit_lessons__lesson__story"
     ).annotate(
         lessons_count=Count("unit_lessons")
     ).order_by("-created_at")
 
-    return render(request, "core/instructor/unit_list.html", {
+    return render(request, "core/teacher/unit_list.html", {
         "units": units,
         "title": "Units",
     })
 
 
 @login_required
-@instructor_required
+@teacher_required
 def unit_create(request):
     """Create a new unit."""
     if request.method == "POST":
@@ -2152,7 +2152,7 @@ def unit_create(request):
 
         # Set user on each formset form
         for f in formset.forms:
-            f.fields["lesson"].queryset = Lesson.objects.filter(instructor=request.user).order_by("title")
+            f.fields["lesson"].queryset = Lesson.objects.filter(teacher=request.user).order_by("title")
 
         if form.is_valid() and formset.is_valid():
             unit = form.save(commit=False)
@@ -2168,9 +2168,9 @@ def unit_create(request):
         form = UnitForm()
         formset = UnitLessonFormSet()
         for f in formset.forms:
-            f.fields["lesson"].queryset = Lesson.objects.filter(instructor=request.user).order_by("title")
+            f.fields["lesson"].queryset = Lesson.objects.filter(teacher=request.user).order_by("title")
 
-    return render(request, "core/instructor/unit_form.html", {
+    return render(request, "core/teacher/unit_form.html", {
         "form": form,
         "formset": formset,
         "title": "Create Unit",
@@ -2178,10 +2178,10 @@ def unit_create(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def unit_edit(request, pk):
     """Edit an existing unit."""
-    unit = get_object_or_404(Unit, pk=pk, instructor=request.user)
+    unit = get_object_or_404(Unit, pk=pk, teacher=request.user)
 
     if request.method == "POST":
         form = UnitForm(request.POST, instance=unit)
@@ -2189,7 +2189,7 @@ def unit_edit(request, pk):
 
         # Set user on each formset form
         for f in formset.forms:
-            f.fields["lesson"].queryset = Lesson.objects.filter(instructor=request.user).order_by("title")
+            f.fields["lesson"].queryset = Lesson.objects.filter(teacher=request.user).order_by("title")
 
         if form.is_valid() and formset.is_valid():
             form.save()
@@ -2200,9 +2200,9 @@ def unit_edit(request, pk):
         form = UnitForm(instance=unit)
         formset = UnitLessonFormSet(instance=unit)
         for f in formset.forms:
-            f.fields["lesson"].queryset = Lesson.objects.filter(instructor=request.user).order_by("title")
+            f.fields["lesson"].queryset = Lesson.objects.filter(teacher=request.user).order_by("title")
 
-    return render(request, "core/instructor/unit_form.html", {
+    return render(request, "core/teacher/unit_form.html", {
         "form": form,
         "formset": formset,
         "unit": unit,
@@ -2211,10 +2211,10 @@ def unit_edit(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def unit_delete(request, pk):
     """Delete a unit."""
-    unit = get_object_or_404(Unit, pk=pk, instructor=request.user)
+    unit = get_object_or_404(Unit, pk=pk, teacher=request.user)
 
     if request.method == "POST":
         title = unit.title
@@ -2222,39 +2222,39 @@ def unit_delete(request, pk):
         messages.success(request, f"Unit '{title}' deleted.")
         return redirect("core:unit_list")
 
-    return render(request, "core/instructor/unit_confirm_delete.html", {
+    return render(request, "core/teacher/unit_confirm_delete.html", {
         "unit": unit,
         "title": f"Delete Unit: {unit.title}",
     })
 
 
 @login_required
-@instructor_required
+@teacher_required
 def unit_available_lessons(request, pk):
     """HTMX endpoint: return lessons not already in this unit."""
-    unit = get_object_or_404(Unit, pk=pk, instructor=request.user)
+    unit = get_object_or_404(Unit, pk=pk, teacher=request.user)
     existing_lesson_ids = unit.unit_lessons.values_list("lesson_id", flat=True)
     available_lessons = Lesson.objects.filter(
-        instructor=request.user
+        teacher=request.user
     ).exclude(
         pk__in=existing_lesson_ids
     ).order_by("-id")
-    return render(request, "core/instructor/partials/unit_available_lessons.html", {
+    return render(request, "core/teacher/partials/unit_available_lessons.html", {
         "unit": unit,
         "lessons": available_lessons,
     })
 
 
 @login_required
-@instructor_required
+@teacher_required
 def unit_add_lesson(request, pk):
     """Add an existing lesson to a unit."""
-    unit = get_object_or_404(Unit, pk=pk, instructor=request.user)
+    unit = get_object_or_404(Unit, pk=pk, teacher=request.user)
 
     if request.method == "POST":
         lesson_id = request.POST.get("lesson_id")
         if lesson_id:
-            lesson = get_object_or_404(Lesson, pk=lesson_id, instructor=request.user)
+            lesson = get_object_or_404(Lesson, pk=lesson_id, teacher=request.user)
             # Check if already in unit
             if not UnitLesson.objects.filter(unit=unit, lesson=lesson).exists():
                 max_order = unit.unit_lessons.aggregate(max_order=Max("order"))["max_order"] or 0
@@ -2269,21 +2269,21 @@ def unit_add_lesson(request, pk):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def course_list(request):
     """List all courses for the current instructor."""
-    courses = Course.objects.filter(instructor=request.user).annotate(
+    courses = Course.objects.filter(teacher=request.user).annotate(
         units_count=Count("course_units")
     ).order_by("-created_at")
 
-    return render(request, "core/instructor/course_list.html", {
+    return render(request, "core/teacher/course_list.html", {
         "courses": courses,
         "title": "Courses",
     })
 
 
 @login_required
-@instructor_required
+@teacher_required
 def course_create(request):
     """Create a new course."""
     if request.method == "POST":
@@ -2292,7 +2292,7 @@ def course_create(request):
 
         # Set user on each formset form
         for f in formset.forms:
-            f.fields["unit"].queryset = Unit.objects.filter(instructor=request.user).order_by("title")
+            f.fields["unit"].queryset = Unit.objects.filter(teacher=request.user).order_by("title")
 
         if form.is_valid() and formset.is_valid():
             course = form.save(commit=False)
@@ -2309,9 +2309,9 @@ def course_create(request):
         form = CourseForm(user=request.user)
         formset = CourseUnitFormSet()
         for f in formset.forms:
-            f.fields["unit"].queryset = Unit.objects.filter(instructor=request.user).order_by("title")
+            f.fields["unit"].queryset = Unit.objects.filter(teacher=request.user).order_by("title")
 
-    return render(request, "core/instructor/course_form.html", {
+    return render(request, "core/teacher/course_form.html", {
         "form": form,
         "formset": formset,
         "title": "Create Course",
@@ -2319,10 +2319,10 @@ def course_create(request):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def course_edit(request, pk):
     """Edit an existing course."""
-    course = get_object_or_404(Course, pk=pk, instructor=request.user)
+    course = get_object_or_404(Course, pk=pk, teacher=request.user)
 
     if request.method == "POST":
         form = CourseForm(request.POST, instance=course, user=request.user)
@@ -2330,7 +2330,7 @@ def course_edit(request, pk):
 
         # Set user on each formset form
         for f in formset.forms:
-            f.fields["unit"].queryset = Unit.objects.filter(instructor=request.user).order_by("title")
+            f.fields["unit"].queryset = Unit.objects.filter(teacher=request.user).order_by("title")
 
         if form.is_valid() and formset.is_valid():
             form.save()
@@ -2341,9 +2341,9 @@ def course_edit(request, pk):
         form = CourseForm(instance=course, user=request.user)
         formset = CourseUnitFormSet(instance=course)
         for f in formset.forms:
-            f.fields["unit"].queryset = Unit.objects.filter(instructor=request.user).order_by("title")
+            f.fields["unit"].queryset = Unit.objects.filter(teacher=request.user).order_by("title")
 
-    return render(request, "core/instructor/course_form.html", {
+    return render(request, "core/teacher/course_form.html", {
         "form": form,
         "formset": formset,
         "course": course,
@@ -2352,10 +2352,10 @@ def course_edit(request, pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def course_delete(request, pk):
     """Delete a course."""
-    course = get_object_or_404(Course, pk=pk, instructor=request.user)
+    course = get_object_or_404(Course, pk=pk, teacher=request.user)
 
     if request.method == "POST":
         title = course.title
@@ -2363,7 +2363,7 @@ def course_delete(request, pk):
         messages.success(request, f"Course '{title}' deleted.")
         return redirect("core:course_list")
 
-    return render(request, "core/instructor/course_confirm_delete.html", {
+    return render(request, "core/teacher/course_confirm_delete.html", {
         "course": course,
         "title": f"Delete Course: {course.title}",
     })
@@ -2374,9 +2374,9 @@ def course_delete(request, pk):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def term_create(request, story_pk):
-    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=story_pk, teacher=request.user)
     glossary, _ = Glossary.objects.get_or_create(
         story=story,
         defaults={"language_code": "en", "native_language_code": "vi"}
@@ -2393,7 +2393,7 @@ def term_create(request, story_pk):
     else:
         form = TermForm()
 
-    return render(request, "core/instructor/term_form.html", {
+    return render(request, "core/teacher/term_form.html", {
         "form": form,
         "story": story,
         "title": "Add Term",
@@ -2401,9 +2401,9 @@ def term_create(request, story_pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def term_edit(request, story_pk, term_pk):
-    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=story_pk, teacher=request.user)
     term = get_object_or_404(Term, pk=term_pk, glossary__story=story)
 
     if request.method == "POST":
@@ -2415,7 +2415,7 @@ def term_edit(request, story_pk, term_pk):
     else:
         form = TermForm(instance=term)
 
-    return render(request, "core/instructor/term_form.html", {
+    return render(request, "core/teacher/term_form.html", {
         "form": form,
         "story": story,
         "term": term,
@@ -2424,9 +2424,9 @@ def term_edit(request, story_pk, term_pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def term_delete(request, story_pk, term_pk):
-    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=story_pk, teacher=request.user)
     term = get_object_or_404(Term, pk=term_pk, glossary__story=story)
 
     if request.method == "POST":
@@ -2435,7 +2435,7 @@ def term_delete(request, story_pk, term_pk):
         messages.success(request, f"Term '{term_text}' deleted.")
         return redirect("core:story_edit", pk=story.pk)
 
-    return render(request, "core/instructor/term_confirm_delete.html", {
+    return render(request, "core/teacher/term_confirm_delete.html", {
         "term": term,
         "story": story,
     })
@@ -2446,7 +2446,7 @@ def term_delete(request, story_pk, term_pk):
 # =============================================================================
 
 @login_required
-@instructor_required
+@teacher_required
 def glossary_generate(request, story_pk):
     """
     AI-powered glossary generation based on story content.
@@ -2454,7 +2454,7 @@ def glossary_generate(request, story_pk):
     """
     import json
 
-    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=story_pk, teacher=request.user)
     form = GlossaryGeneratorForm(request.POST or None)
     generation_params = None
     generation_params_json = None
@@ -2498,7 +2498,7 @@ def glossary_generate(request, story_pk):
             "clear_existing": generation_params["clear_existing"],
         })
 
-    return render(request, "core/instructor/glossary_generate.html", {
+    return render(request, "core/teacher/glossary_generate.html", {
         "form": form,
         "story": story,
         "glossary": glossary,
@@ -2510,7 +2510,7 @@ def glossary_generate(request, story_pk):
 
 
 @login_required
-@instructor_required
+@teacher_required
 def glossary_generate_ai(request, story_pk):
     """
     Call OpenRouter API to generate glossary terms using the stored parameters.
@@ -2520,7 +2520,7 @@ def glossary_generate_ai(request, story_pk):
     from django.http import JsonResponse
     from django.conf import settings
 
-    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=story_pk, teacher=request.user)
 
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -2662,7 +2662,7 @@ Example output format:
 
 
 @login_required
-@instructor_required
+@teacher_required
 def glossary_generate_save(request, story_pk):
     """
     Save the generated glossary terms to the database.
@@ -2670,7 +2670,7 @@ def glossary_generate_save(request, story_pk):
     import json
     from django.http import JsonResponse
 
-    story = get_object_or_404(Story, pk=story_pk, instructor=request.user)
+    story = get_object_or_404(Story, pk=story_pk, teacher=request.user)
 
     if request.method != "POST":
         return JsonResponse({"success": False, "error": "POST required"}, status=405)
@@ -2737,7 +2737,7 @@ def glossary_generate_save(request, story_pk):
         return JsonResponse({
             "success": True,
             "created_count": created_count,
-            "redirect_url": f"/instructor/stories/{story.pk}/?tab=glossary"
+            "redirect_url": f"/teacher/stories/{story.pk}/?tab=glossary"
         })
 
     except json.JSONDecodeError:

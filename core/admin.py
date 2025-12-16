@@ -42,8 +42,8 @@ class RosterMembershipAdmin(admin.ModelAdmin):
 
 @admin.register(Story)
 class StoryAdmin(admin.ModelAdmin):
-    list_display = ('title', 'instructor', 'source_type', 'reading_level_label', 'created_at')
-    list_filter = ('source_type', 'instructor')
+    list_display = ('title', 'teacher', 'source_type', 'reading_level_label', 'created_at')
+    list_filter = ('source_type', 'teacher')
     search_fields = ('title',)
 
 
@@ -123,8 +123,8 @@ class QuizSubmissionAnswerAdmin(admin.ModelAdmin):
 
 @admin.register(Lesson)
 class LessonAdmin(admin.ModelAdmin):
-    list_display = ('title', 'instructor', 'site', 'story', 'is_active', 'created_at')
-    list_filter = ('site', 'is_active', 'instructor')
+    list_display = ('title', 'teacher', 'site', 'story', 'is_active', 'created_at')
+    list_filter = ('site', 'is_active', 'teacher')
     search_fields = ('title',)
     filter_horizontal = ('rosters',)
 

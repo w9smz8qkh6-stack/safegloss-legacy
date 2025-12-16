@@ -122,7 +122,7 @@ class LessonForm(forms.ModelForm):
         if not kwargs.get("instance"):
             self.initial["allowed_modes"] = ["continuous"]
         if user:
-            self.fields["story"].queryset = Story.objects.filter(instructor=user)
+            self.fields["story"].queryset = Story.objects.filter(teacher=user)
             self.fields["quiz"].queryset = Quiz.objects.filter(owner=user)
             if user.site:
                 self.fields["rosters"].queryset = Roster.objects.filter(site=user.site)
@@ -150,7 +150,7 @@ class UnitLessonForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user:
-            self.fields["lesson"].queryset = Lesson.objects.filter(instructor=user).order_by("title")
+            self.fields["lesson"].queryset = Lesson.objects.filter(teacher=user).order_by("title")
 
 
 UnitLessonFormSet = inlineformset_factory(
@@ -191,7 +191,7 @@ class CourseUnitForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user:
-            self.fields["unit"].queryset = Unit.objects.filter(instructor=user).order_by("title")
+            self.fields["unit"].queryset = Unit.objects.filter(teacher=user).order_by("title")
 
 
 CourseUnitFormSet = inlineformset_factory(
@@ -224,7 +224,7 @@ class QuizForm(forms.ModelForm):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user:
-            self.fields["story"].queryset = Story.objects.filter(instructor=user).order_by("-created_at")
+            self.fields["story"].queryset = Story.objects.filter(teacher=user).order_by("-created_at")
         self.fields["time_limit_minutes"].required = False
 
 
@@ -283,7 +283,7 @@ class RosterForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.user = user
         if user:
-            self.fields["courses"].queryset = Course.objects.filter(instructor=user).order_by("title")
+            self.fields["courses"].queryset = Course.objects.filter(teacher=user).order_by("title")
         # If editing, set initial courses from the reverse relationship
         if self.instance and self.instance.pk:
             self.fields["courses"].initial = self.instance.courses.all()
@@ -292,7 +292,7 @@ class RosterForm(forms.ModelForm):
         roster = super().save(commit=False)
         # Set instructor for new rosters
         if not roster.pk and self.user:
-            roster.instructor = self.user
+            roster.teacher = self.user
         if commit:
             roster.save()
         if commit and self.cleaned_data.get("courses") is not None:
@@ -738,7 +738,7 @@ class QuizGeneratorForm(forms.Form):
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         if user:
-            self.fields["story"].queryset = Story.objects.filter(instructor=user).order_by("-created_at")
+            self.fields["story"].queryset = Story.objects.filter(teacher=user).order_by("-created_at")
 
 
 class GlossaryGeneratorForm(forms.Form):

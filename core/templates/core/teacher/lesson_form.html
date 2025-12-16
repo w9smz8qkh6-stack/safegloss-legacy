@@ -9,7 +9,7 @@
       <h1 class="h3 mb-0">
         <i class="bi bi-mortarboard me-2"></i>{{ title }}
       </h1>
-      <a href="{% url 'core:instructor_lesson_list' %}" class="btn btn-outline-secondary">
+      <a href="{% url 'core:teacher_lesson_list' %}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left me-2"></i>Back to Lessons
       </a>
     </div>
@@ -123,7 +123,7 @@
             <button type="submit" class="btn btn-primary">
               <i class="bi bi-check-circle me-2"></i>Save Lesson
             </button>
-            <a href="{% url 'core:instructor_lesson_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            <a href="{% url 'core:teacher_lesson_list' %}" class="btn btn-outline-secondary">Cancel</a>
             {% if lesson %}
               <a href="{% url 'core:lesson_delete' lesson.pk %}" class="btn btn-outline-danger ms-auto">
                 <i class="bi bi-trash me-2"></i>Delete

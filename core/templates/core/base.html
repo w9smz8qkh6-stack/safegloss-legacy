@@ -22,10 +22,10 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       {% if request.user.is_authenticated %}
-        {% if request.user.is_instructor or request.user.is_researcher %}
+        {% if request.user.is_teacher or request.user.is_researcher %}
           <ul class="navbar-nav me-auto">
             <li class="nav-item">
-              <a class="nav-link {% if 'dashboard' in request.path %}active{% endif %}" href="{% url 'core:instructor_dashboard' %}">
+              <a class="nav-link {% if 'dashboard' in request.path %}active{% endif %}" href="{% url 'core:teacher_dashboard' %}">
                 <i class="bi bi-speedometer2 me-1"></i>Dashboard
               </a>
             </li>
@@ -45,7 +45,7 @@
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {% if 'lessons' in request.path and 'instructor' in request.path %}active{% endif %}" href="{% url 'core:instructor_lesson_list' %}">
+              <a class="nav-link {% if 'lessons' in request.path and 'teacher' in request.path %}active{% endif %}" href="{% url 'core:teacher_lesson_list' %}">
                 <i class="bi bi-mortarboard me-1"></i>Lessons
               </a>
             </li>

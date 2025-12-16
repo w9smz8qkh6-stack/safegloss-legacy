@@ -13,11 +13,11 @@ class Site(models.Model):
 
 class User(AbstractUser):
     ROLE_STUDENT = "student"
-    ROLE_INSTRUCTOR = "instructor"
+    ROLE_TEACHER = "teacher"
     ROLE_RESEARCHER = "researcher"
     ROLE_CHOICES = [
         (ROLE_STUDENT, "Student"),
-        (ROLE_INSTRUCTOR, "Instructor"),
+        (ROLE_TEACHER, "Teacher"),
         (ROLE_RESEARCHER, "Researcher"),
     ]
 
@@ -27,15 +27,15 @@ class User(AbstractUser):
     def is_student(self):
         return self.role == self.ROLE_STUDENT
 
-    def is_instructor(self):
-        return self.role == self.ROLE_INSTRUCTOR
+    def is_teacher(self):
+        return self.role == self.ROLE_TEACHER
 
     def is_researcher(self):
         return self.role == self.ROLE_RESEARCHER
 
 
 class Roster(models.Model):
-    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rosters", null=True, blank=True)
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="rosters", null=True, blank=True)
     site = models.ForeignKey(Site, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=200)
     grade_band = models.CharField(max_length=50, blank=True)
@@ -65,7 +65,7 @@ class Story(models.Model):
         (SOURCE_EXTERNAL, "External"),
     ]
 
-    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="stories")
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="stories")
     title = models.CharField(max_length=255)
     text_html = models.TextField()
     source_type = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
@@ -141,7 +141,7 @@ class ExternalBookmark(models.Model):
         (SOURCE_OPENTEXTBOOK, "Open Textbook Library"),
     ]
 
-    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="external_bookmarks")
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="external_bookmarks")
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
     external_id = models.CharField(max_length=100)
     title = models.CharField(max_length=500)
@@ -151,7 +151,7 @@ class ExternalBookmark(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        unique_together = ("instructor", "source", "external_id")
+        unique_together = ("teacher", "source", "external_id")
         ordering = ["-created_at"]
 
     def __str__(self):
@@ -176,7 +176,7 @@ class StorySegment(models.Model):
 
 class Unit(models.Model):
     """A unit is a container for two or more related lessons."""
-    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="units")
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="units")
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(default=timezone.now)
@@ -208,7 +208,7 @@ class UnitLesson(models.Model):
 
 class Course(models.Model):
     """A course is a container for one or more units, assigned to rosters."""
-    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="courses")
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="courses")
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     rosters = models.ManyToManyField("Roster", related_name="courses", blank=True)
@@ -432,7 +432,7 @@ class Lesson(models.Model):
     MODE_CARDS = "cards"
     MODE_MOVIE = "movie"
 
-    instructor = models.ForeignKey(User, on_delete=models.CASCADE, related_name="lessons")
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="lessons")
     site = models.ForeignKey(Site, null=True, blank=True, on_delete=models.SET_NULL, related_name="lessons")
     title = models.CharField(max_length=255)
     introduction_html = models.TextField(blank=True, default="")

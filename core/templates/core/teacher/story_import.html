@@ -69,7 +69,7 @@
         <i class="bi bi-bookmark me-2"></i>Bookmarked Texts
       </div>
       <div id="bookmarks-list">
-        {% include "core/instructor/partials/import_bookmarks_list.html" %}
+        {% include "core/teacher/partials/import_bookmarks_list.html" %}
       </div>
     </div>
   </div>
@@ -116,7 +116,7 @@ function loadBookDetails(source, externalId) {
   bsModal.show();
 
   // Fetch details via HTMX
-  htmx.ajax('GET', `/instructor/stories/import/details/${source}/${externalId}/`, {
+  htmx.ajax('GET', `/teacher/stories/import/details/${source}/${externalId}/`, {
     target: '#book-details-content',
     swap: 'innerHTML'
   });
