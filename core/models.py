@@ -604,6 +604,7 @@ class StandardsArtifact(models.Model):
     ]
 
     file_path = models.CharField(max_length=500)
+    remote_url = models.URLField(max_length=1000, blank=True, help_text="Original URL where artifact was fetched")
     content_type = models.CharField(max_length=20, choices=CONTENT_TYPES)
     sha256_hash = models.CharField(max_length=64)
     file_size_bytes = models.PositiveIntegerField(null=True, blank=True)
@@ -665,7 +666,12 @@ class StandardsDocument(models.Model):
     )
     subject = models.CharField(max_length=100, help_text="e.g., 'Mathematics', 'Technology Applications'")
     grade_level = models.CharField(max_length=50, help_text="e.g., 'Grade 6', 'Grades 6-8', 'HL'")
-    version_label = models.CharField(max_length=100, help_text="e.g., 'Adopted 2022', 'Syllabus 2025-2027'")
+    syllabus_code = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Course/syllabus identifier, e.g., '0580' for Cambridge IGCSE Mathematics"
+    )
+    version_label = models.CharField(max_length=100, help_text="e.g., 'Adopted 2022', '2024-2026'")
 
     # Provenance fields (Section 17.1)
     source_publisher_name = models.CharField(max_length=255, help_text="e.g., 'Texas Education Agency'")
@@ -685,6 +691,7 @@ class StandardsDocument(models.Model):
     source_effective_from = models.DateField(null=True, blank=True)
     source_effective_until = models.DateField(null=True, blank=True)
     source_license_notes = models.TextField(blank=True, help_text="Redistribution restrictions")
+    description = models.TextField(blank=True, help_text="Official course description")
 
     # Acquisition method (required - Section 17.2)
     acquisition_method = models.CharField(
@@ -917,6 +924,21 @@ class AuthorityProgramMedia(models.Model):
         ("commonly_used", "Commonly Used"),
     ]
 
+    RESOURCE_CATEGORIES = [
+        ("official", "Official"),
+        ("endorsed", "Endorsed"),
+        ("non_textbook", "Non-Textbook"),
+        ("offering", "Offering"),
+        ("youtube", "YouTube"),
+    ]
+
+    AUDIENCE_CHOICES = [
+        ("general", "General"),
+        ("student", "Student-Facing"),
+        ("teacher", "Teacher-Facing"),
+        ("both", "Student & Teacher"),
+    ]
+
     authority_program = models.ForeignKey(
         AuthorityProgram,
         on_delete=models.CASCADE,
@@ -933,6 +955,11 @@ class AuthorityProgramMedia(models.Model):
     # URLs and images
     source_url = models.URLField(max_length=1000, help_text="Canonical link to resource")
     cover_image_url = models.URLField(max_length=1000, blank=True)
+    publisher_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        help_text="Official publisher page / purchase link for this resource"
+    )
 
     # Content
     description = models.TextField(blank=True)
@@ -945,6 +972,26 @@ class AuthorityProgramMedia(models.Model):
         choices=RECOMMENDATION_TIERS,
         default="commonly_used",
         help_text="How authoritative is this resource?"
+    )
+
+    # New resource classification (supersedes recommendation_tier for UI grouping)
+    resource_category = models.CharField(
+        max_length=30,
+        choices=RESOURCE_CATEGORIES,
+        default="official",
+        help_text="Grouping for resource display (official, endorsed, non-textbook, offering, youtube)"
+    )
+
+    # Audience and companion flags
+    audience = models.CharField(
+        max_length=20,
+        choices=AUDIENCE_CHOICES,
+        default="general",
+        help_text="Primary audience for this resource"
+    )
+    is_companion = models.BooleanField(
+        default=False,
+        help_text="True if this is a companion/extra tied to a core text (e.g., DVD, online extras)"
     )
 
     # Legacy fields (for backwards compatibility during migration)
@@ -999,9 +1046,10 @@ class AuthorityProgramMedia(models.Model):
 
     class Meta:
         verbose_name_plural = "Authority program media"
-        ordering = ["recommendation_tier", "title"]
+        ordering = ["resource_category", "recommendation_tier", "title"]
         indexes = [
             models.Index(fields=["authority_program", "recommendation_tier"]),
+            models.Index(fields=["authority_program", "resource_category"]),
             models.Index(fields=["isbn_13"]),
         ]
 
@@ -1158,5 +1206,3 @@ class BackgroundJob(models.Model):
         self.status = "pending"
         self.next_retry_at = timezone.now() + timedelta(seconds=delay_seconds)
         self.save(update_fields=["retry_count", "status", "next_retry_at"])
-
-
