@@ -268,6 +268,15 @@ def enrich_with_google_books(resource: ResourceData) -> ResourceData:
     if not resource.publisher:
         resource.publisher = volume_info.get("publisher", "")
 
+    # Store metadata and publisher URL/info link
+    resource.metadata = resource.metadata or {}
+    resource.metadata["google_books"] = volume_info
+    info_link = volume_info.get("infoLink", "")
+    if info_link and not resource.publisher_url:
+        resource.publisher_url = info_link
+    if info_link and not resource.source_url:
+        resource.source_url = info_link
+
     return resource
 
 
@@ -332,6 +341,9 @@ def search_google_books(
             isbn_13=isbn_13,
             cover_image_url=cover_url.replace("http://", "https://") if cover_url else "",
             recommendation_tier="commonly_used",  # NOT official - discovered via search
+            publisher_url=volume_info.get("infoLink", ""),
+            metadata={"google_books": volume_info},
+            retrieved_from="google_books",
         )
 
         if resource.title:

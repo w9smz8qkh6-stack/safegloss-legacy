@@ -328,8 +328,7 @@ def _handle_sync_authority_objectives(job: BackgroundJob) -> dict:
     """
     Handle sync_authority_objectives job.
 
-    Syncs learning objectives for all programs under an authority.
-    Checks for newer versions and marks old as superseded.
+    Syncs learning objectives for all programs under an authority, or a subset of documents if provided.
     """
     from core.models import StandardsAuthority, StandardsDocument, AuthorityProgram
     from core.services.standards import sync_document
@@ -338,6 +337,8 @@ def _handle_sync_authority_objectives(job: BackgroundJob) -> dict:
 
     params = job.params
     authority_id = params["authority_id"]
+    document_ids = params.get("document_ids", [])
+    syllabus_url_override = params.get("syllabus_url")
 
     job.update_progress(5, "Loading authority...")
 
@@ -351,6 +352,14 @@ def _handle_sync_authority_objectives(job: BackgroundJob) -> dict:
     # Get all active programs for this authority
     programs = authority.programs.filter(is_active=True)
     registered = list_registered_providers()
+
+    # If document_ids provided, limit scope
+    doc_map = {}
+    if document_ids:
+        docs = StandardsDocument.objects.filter(pk__in=document_ids, authority_program__authority=authority)
+        programs = programs.filter(pk__in=docs.values_list("authority_program_id", flat=True))
+        for doc in docs:
+            doc_map.setdefault(doc.authority_program_id, []).append(doc)
 
     results = {
         "authority": authority.code,
@@ -379,42 +388,59 @@ def _handle_sync_authority_objectives(job: BackgroundJob) -> dict:
             provider_cls = get_provider(program.code)
             provider = provider_cls()
 
-            # Get available subjects and grades from provider
-            subjects = provider.list_available_subjects()
-            for subject in subjects:
-                grades = provider.list_available_grades(subject)
-                for grade in grades:
+            if document_ids:
+                docs = doc_map.get(program.pk, [])
+                for doc in docs:
                     try:
-                        # Sync the document
                         new_doc = sync_document(
                             program.code,
-                            subject,
-                            grade,
-                            None,  # Let provider determine version
+                            doc.subject,
+                            doc.grade_level,
+                            None,
+                            syllabus_url=syllabus_url_override,
                         )
-
-                        # Provider may return None if no data available
                         if new_doc is None:
-                            continue  # Skip this combination silently
-
-                        # Check for existing document to supersede
-                        existing = StandardsDocument.objects.filter(
-                            authority_program=program,
-                            subject=subject,
-                            grade_level=grade,
-                            status="current",
-                        ).exclude(pk=new_doc.pk).first()
-
-                        if existing:
-                            existing.mark_superseded(new_doc)
+                            continue
+                        if doc.pk != new_doc.pk:
+                            doc.mark_superseded(new_doc)
                             results["documents_superseded"] += 1
-
                         results["documents_synced"] += 1
-
                     except Exception as e:
-                        results["errors"].append(
-                            f"{program.code} {subject} {grade}: {str(e)}"
-                        )
+                        results["errors"].append(f"{program.code} {doc.subject} {doc.grade_level}: {str(e)}")
+            else:
+                # Get available subjects and grades from provider
+                subjects = provider.list_available_subjects()
+                for subject in subjects:
+                    grades = provider.list_available_grades(subject)
+                    for grade in grades:
+                        try:
+                            new_doc = sync_document(
+                                program.code,
+                                subject,
+                                grade,
+                                None,  # Let provider determine version
+                            )
+
+                            if new_doc is None:
+                                continue
+
+                            existing = StandardsDocument.objects.filter(
+                                authority_program=program,
+                                subject=subject,
+                                grade_level=grade,
+                                status="current",
+                            ).exclude(pk=new_doc.pk).first()
+
+                            if existing:
+                                existing.mark_superseded(new_doc)
+                                results["documents_superseded"] += 1
+
+                            results["documents_synced"] += 1
+
+                        except Exception as e:
+                            results["errors"].append(
+                                f"{program.code} {subject} {grade}: {str(e)}"
+                            )
 
             # Update program sync status
             program.objectives_sync_status = "success"
@@ -479,6 +505,16 @@ def _handle_sync_authority_resources(job: BackgroundJob) -> dict:
         "errors": [],
     }
 
+    # Limit scope to specific documents if provided
+    if document_ids:
+        docs = StandardsDocument.objects.filter(pk__in=document_ids, authority_program__authority=authority)
+        programs = programs.filter(pk__in=docs.values_list("authority_program_id", flat=True))
+        doc_map = {}
+        for doc in docs:
+            doc_map.setdefault(doc.authority_program_id, []).append(doc)
+    else:
+        doc_map = {}
+
     total_programs = programs.count()
     for idx, program in enumerate(programs):
         results["programs_checked"] += 1
@@ -496,11 +532,14 @@ def _handle_sync_authority_resources(job: BackgroundJob) -> dict:
         try:
             provider = create_resource_provider(program.code)
 
-            # Get subjects and grades from existing documents
-            docs = StandardsDocument.objects.filter(
-                authority_program=program,
-                status="current",
-            )
+            # Get target documents (limited set or all current)
+            if document_ids:
+                docs = doc_map.get(program.pk, [])
+            else:
+                docs = StandardsDocument.objects.filter(
+                    authority_program=program,
+                    status="current",
+                )
 
             for doc in docs:
                 try:
@@ -527,11 +566,17 @@ def _handle_sync_authority_resources(job: BackgroundJob) -> dict:
                                 "isbn_10": resource_data.isbn_10,
                                 "isbn_13": resource_data.isbn_13,
                                 "cover_image_url": resource_data.cover_image_url,
+                                "publisher_url": resource_data.publisher_url,
                                 "is_official": resource_data.is_official,
+                                "recommendation_tier": resource_data.recommendation_tier,
+                                "resource_category": resource_data.resource_category or "official",
+                                "audience": resource_data.audience or "general",
+                                "is_companion": bool(resource_data.is_companion),
                                 "endorsement_notes": resource_data.endorsement_notes,
                                 "features": resource_data.features,
-                                "retrieved_from": "platform_scrape",
+                                "retrieved_from": resource_data.retrieved_from or "platform_scrape",
                                 "retrieved_at": timezone.now(),
+                                "metadata_raw": resource_data.metadata or {},
                             },
                         )
 

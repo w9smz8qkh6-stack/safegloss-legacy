@@ -76,6 +76,7 @@ class BaseStandardsProvider(ABC):
         subject: str,
         grade_level: str,
         version: Optional[str] = None,
+        syllabus_url: Optional[str] = None,
     ) -> FetchResult:
         """
         Fetch objectives for a specific subject/grade combination.
@@ -84,6 +85,7 @@ class BaseStandardsProvider(ABC):
             subject: Subject area (e.g., 'Mathematics', 'Technology Applications')
             grade_level: Grade level (e.g., 'Grade 6', 'Grades 6-8')
             version: Optional version label; defaults to latest
+            syllabus_url: Optional syllabus URL override (provider-specific)
 
         Returns:
             FetchResult containing nodes and provenance

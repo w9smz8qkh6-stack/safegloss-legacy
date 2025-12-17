@@ -262,6 +262,7 @@ def sync_document(
     subject: str,
     grade_level: str,
     version: Optional[str] = None,
+    syllabus_url: Optional[str] = None,
 ) -> Optional[StandardsDocument]:
     """
     Sync a document using the registered provider.
@@ -288,7 +289,7 @@ def sync_document(
         raise ImportError(f"No provider registered for program: {program_code}")
 
     provider = provider_cls()
-    fetch_result = provider.fetch_objectives(subject, grade_level, version)
+    fetch_result = provider.fetch_objectives(subject, grade_level, version, syllabus_url=syllabus_url)
 
     # Provider may return None if no data available for this combination
     if fetch_result is None:

@@ -34,6 +34,15 @@ class ResourceData:
     recommendation_tier: str = "commonly_used"
     endorsement_notes: str = ""
 
+    # Display grouping and audience
+    resource_category: str = "official"  # official, endorsed, non_textbook, offering, youtube
+    audience: str = "general"  # general, student, teacher, both
+    is_companion: bool = False  # true for companion extras (DVDs, online extras)
+    retrieved_from: str = ""  # authority_site, platform_scrape, google_books, etc.
+    discovery_origin: str = "top_down"  # top_down vs bottom_up
+    publisher_url: str = ""  # official publisher/purchase page
+    metadata: dict = field(default_factory=dict)  # external metadata payloads (e.g., google books)
+
     # Discovery provenance
     discovered_from_url: str = ""
     recommending_organization: str = ""
@@ -53,6 +62,19 @@ class ResourceData:
             self.recommendation_tier = "official"
         elif self.recommendation_tier == "official":
             self.is_official = True
+
+        # Derive a fallback category when none is provided
+        if not self.resource_category:
+            if self.platform == "youtube":
+                self.resource_category = "youtube"
+            elif self.media_type in ("course", "curriculum", "video_series", "website"):
+                self.resource_category = "offering"
+            elif self.recommendation_tier == "official":
+                self.resource_category = "official"
+            elif self.recommendation_tier == "recommended":
+                self.resource_category = "endorsed"
+            else:
+                self.resource_category = "non_textbook"
 
 
 @dataclass

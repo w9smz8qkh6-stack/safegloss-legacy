@@ -228,6 +228,8 @@ def enqueue_authority_resync(
 
 def enqueue_authority_objectives_sync(
     authority_id: int,
+    document_ids: Optional[list[int]] = None,
+    extra_params: Optional[dict] = None,
     created_by: Optional[User] = None,
 ) -> BackgroundJob:
     """
@@ -244,10 +246,15 @@ def enqueue_authority_objectives_sync(
     Returns:
         BackgroundJob instance
     """
-    idempotency_key = f"sync_authority_objectives:{authority_id}"
-    params = {
-        "authority_id": authority_id,
-    }
+    doc_suffix = ""
+    if document_ids:
+        doc_suffix = ":docs:" + ",".join(str(d) for d in sorted(set(document_ids)))
+    idempotency_key = f"sync_authority_objectives:{authority_id}{doc_suffix}"
+    params = {"authority_id": authority_id}
+    if document_ids:
+        params["document_ids"] = list(sorted(set(document_ids)))
+    if extra_params:
+        params.update(extra_params)
 
     return enqueue_job(
         job_type="sync_authority_objectives",
@@ -259,25 +266,30 @@ def enqueue_authority_objectives_sync(
 
 def enqueue_authority_resources_sync(
     authority_id: int,
+    document_ids: Optional[list[int]] = None,
     created_by: Optional[User] = None,
 ) -> BackgroundJob:
     """
     Enqueue an authority resources sync job.
 
     Discovers and syncs educational resources (textbooks, courses, etc.)
-    for all programs under an authority.
+    for all programs under an authority, or a subset of specific documents.
 
     Args:
         authority_id: StandardsAuthority primary key
+        document_ids: Optional list of StandardsDocument IDs to limit scope
         created_by: User who triggered the job
 
     Returns:
         BackgroundJob instance
     """
-    idempotency_key = f"sync_authority_resources:{authority_id}"
-    params = {
-        "authority_id": authority_id,
-    }
+    doc_suffix = ""
+    if document_ids:
+        doc_suffix = ":docs:" + ",".join(str(d) for d in sorted(set(document_ids)))
+    idempotency_key = f"sync_authority_resources:{authority_id}{doc_suffix}"
+    params = {"authority_id": authority_id}
+    if document_ids:
+        params["document_ids"] = list(sorted(set(document_ids)))
 
     return enqueue_job(
         job_type="sync_authority_resources",
