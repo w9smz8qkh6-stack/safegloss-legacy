@@ -1,24 +1,23 @@
 """
-Management command to seed Texas TEKS course catalog from JSON.
+Management command to seed state standards course catalogs from JSON.
+Works with Florida, Illinois, California, and other states using the same format.
 Creates StandardsDocument entries for each course in the catalog.
 """
 import json
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from core.models import StandardsAuthority, AuthorityProgram, StandardsDocument
 
 
 class Command(BaseCommand):
-    help = "Seed Texas TEKS course catalog from JSON file into StandardsDocument entries"
+    help = "Seed state standards course catalog from JSON file into StandardsDocument entries"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--file",
+            "file",
             type=str,
-            default="data/seeds/texas_teks_course_catalog.json",
             help="Path to the course catalog JSON file",
         )
         parser.add_argument(
@@ -79,13 +78,12 @@ class Command(BaseCommand):
         for subject_data in catalog["subjects"]:
             subject_name = subject_data["name"]
             subject_code = subject_data["code"]
-            tac_chapter = subject_data["tac_chapter"]
-            subject_version = subject_data.get("version", "Current")  # e.g., "Adopted 2022"
+            subject_version = subject_data.get("version", "Current")
 
-            self.stdout.write(f"\nProcessing {subject_name} (Chapter {tac_chapter}, {subject_version})...")
+            self.stdout.write(f"\nProcessing {subject_name} ({subject_version})...")
 
             for course in subject_data["courses"]:
-                tac_section = course["code"]  # e.g., "126.1" - this is the identifier
+                course_code = course["code"]
                 course_name = course["name"]
                 grade = course["grade"]
                 grade_band = course["grade_band"]
@@ -95,16 +93,26 @@ class Command(BaseCommand):
 
                 # Build grade level string
                 if grade_band == "elementary":
-                    grade_level = f"Grade {grade}" if grade != "K" else "Kindergarten"
+                    if grade == "PK":
+                        grade_level = "Prekindergarten"
+                    elif grade == "K":
+                        grade_level = "Kindergarten"
+                    elif "-" in grade:
+                        grade_level = f"Grades {grade}"
+                    else:
+                        grade_level = f"Grade {grade}"
                 elif grade_band == "middle_school":
-                    grade_level = f"Grade {grade}" if "-" not in grade else f"Grades {grade}"
+                    if "-" in grade:
+                        grade_level = f"Grades {grade}"
+                    else:
+                        grade_level = f"Grade {grade}"
                 else:
                     grade_level = f"Grades {grade}"
 
-                # Check if document already exists (by TAC section, which is unique per course)
+                # Check if document already exists
                 existing = StandardsDocument.objects.filter(
                     authority_program=program,
-                    syllabus_code=tac_section,
+                    syllabus_code=course_code,
                 ).first()
 
                 if existing and not force:
@@ -113,7 +121,7 @@ class Command(BaseCommand):
 
                 if dry_run:
                     action = "Would update" if existing else "Would create"
-                    self.stdout.write(f"  {action}: {course_name} ({tac_section})")
+                    self.stdout.write(f"  {action}: {course_name} ({course_code})")
                     if existing:
                         updated_count += 1
                     else:
@@ -123,13 +131,13 @@ class Command(BaseCommand):
                 # Build document defaults
                 defaults = {
                     "grade_level": grade_level,
-                    "version_label": subject_version,  # e.g., "Adopted 2022"
+                    "version_label": subject_version,
                     "source_publisher_name": source_data["publisher"],
                     "source_publisher_type": source_data["publisher_type"],
                     "source_title": course_name,
                     "source_url": source_data["url"],
                     "acquisition_method": source_data["acquisition_method"],
-                    "acquisition_notes": f"Course catalog entry for {course_name}. TAC Chapter {tac_chapter}, Section {tac_section}.",
+                    "acquisition_notes": f"Course catalog entry for {course_name}. Code: {course_code}.",
                     "is_active": True,
                     "status": "current",
                 }
@@ -155,7 +163,7 @@ class Command(BaseCommand):
                     StandardsDocument.objects.create(
                         authority_program=program,
                         subject=subject_name,
-                        syllabus_code=tac_section,
+                        syllabus_code=course_code,
                         **defaults
                     )
                     created_count += 1

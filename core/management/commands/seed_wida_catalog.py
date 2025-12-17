@@ -1,25 +1,24 @@
 """
-Management command to seed Texas TEKS course catalog from JSON.
-Creates StandardsDocument entries for each course in the catalog.
+Management command to seed WIDA ELD Standards catalog from JSON.
+Creates StandardsDocument entries for each standard × grade cluster combination.
 """
 import json
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from core.models import StandardsAuthority, AuthorityProgram, StandardsDocument
 
 
 class Command(BaseCommand):
-    help = "Seed Texas TEKS course catalog from JSON file into StandardsDocument entries"
+    help = "Seed WIDA ELD Standards catalog from JSON file into StandardsDocument entries"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--file",
             type=str,
-            default="data/seeds/texas_teks_course_catalog.json",
-            help="Path to the course catalog JSON file",
+            default="data/seeds/wida_eld_standards_catalog.json",
+            help="Path to the WIDA catalog JSON file",
         )
         parser.add_argument(
             "--force",
@@ -44,7 +43,7 @@ class Command(BaseCommand):
         with open(file_path, "r") as f:
             catalog = json.load(f)
 
-        # Get or create the authority and program
+        # Get or create the authority
         authority_data = catalog["authority"]
         program_data = catalog["program"]
         source_data = catalog["source"]
@@ -58,7 +57,14 @@ class Command(BaseCommand):
         )
         if auth_created:
             self.stdout.write(self.style.SUCCESS(f"Created authority: {authority.name}"))
+        else:
+            # Update name if it exists but has different name
+            if authority.name != authority_data["name"]:
+                authority.name = authority_data["name"]
+                authority.save()
+                self.stdout.write(f"Updated authority name: {authority.name}")
 
+        # Get or create the program
         program, prog_created = AuthorityProgram.objects.get_or_create(
             authority=authority,
             code=program_data["code"],
@@ -71,40 +77,36 @@ class Command(BaseCommand):
         if prog_created:
             self.stdout.write(self.style.SUCCESS(f"Created program: {program.name}"))
 
-        # Process subjects and courses
+        # Process standards × grade clusters
+        standards = catalog["standards"]
+        grade_clusters = catalog["grade_clusters"]
+
         created_count = 0
         updated_count = 0
         skipped_count = 0
 
-        for subject_data in catalog["subjects"]:
-            subject_name = subject_data["name"]
-            subject_code = subject_data["code"]
-            tac_chapter = subject_data["tac_chapter"]
-            subject_version = subject_data.get("version", "Current")  # e.g., "Adopted 2022"
+        for standard in standards:
+            standard_code = standard["code"]
+            standard_name = standard["name"]
+            standard_desc = standard["description"]
 
-            self.stdout.write(f"\nProcessing {subject_name} (Chapter {tac_chapter}, {subject_version})...")
+            self.stdout.write(f"\nProcessing {standard_name}...")
 
-            for course in subject_data["courses"]:
-                tac_section = course["code"]  # e.g., "126.1" - this is the identifier
-                course_name = course["name"]
-                grade = course["grade"]
-                grade_band = course["grade_band"]
-                credits = course.get("credits")
-                course_type = course.get("course_type", "")
-                discipline = course.get("discipline", "")
+            for grade_cluster in grade_clusters:
+                cluster_code = grade_cluster["code"]
+                cluster_name = grade_cluster["name"]
+                grade_level = grade_cluster["grade_level"]
 
-                # Build grade level string
-                if grade_band == "elementary":
-                    grade_level = f"Grade {grade}" if grade != "K" else "Kindergarten"
-                elif grade_band == "middle_school":
-                    grade_level = f"Grade {grade}" if "-" not in grade else f"Grades {grade}"
-                else:
-                    grade_level = f"Grades {grade}"
+                # Build syllabus code: e.g., ELD-SI.K, ELD-LA.2-3
+                syllabus_code = f"{standard_code}.{cluster_code}"
 
-                # Check if document already exists (by TAC section, which is unique per course)
+                # Build course name: e.g., "Language for Language Arts - Grades 2-3"
+                course_name = f"{standard_name} - {cluster_name}"
+
+                # Check if document already exists
                 existing = StandardsDocument.objects.filter(
                     authority_program=program,
-                    syllabus_code=tac_section,
+                    syllabus_code=syllabus_code,
                 ).first()
 
                 if existing and not force:
@@ -113,7 +115,7 @@ class Command(BaseCommand):
 
                 if dry_run:
                     action = "Would update" if existing else "Would create"
-                    self.stdout.write(f"  {action}: {course_name} ({tac_section})")
+                    self.stdout.write(f"  {action}: {course_name} ({syllabus_code})")
                     if existing:
                         updated_count += 1
                     else:
@@ -123,27 +125,16 @@ class Command(BaseCommand):
                 # Build document defaults
                 defaults = {
                     "grade_level": grade_level,
-                    "version_label": subject_version,  # e.g., "Adopted 2022"
+                    "version_label": "2020 Edition",
                     "source_publisher_name": source_data["publisher"],
                     "source_publisher_type": source_data["publisher_type"],
                     "source_title": course_name,
                     "source_url": source_data["url"],
                     "acquisition_method": source_data["acquisition_method"],
-                    "acquisition_notes": f"Course catalog entry for {course_name}. TAC Chapter {tac_chapter}, Section {tac_section}.",
+                    "acquisition_notes": f"{standard_desc} Key Language Uses: Narrate, Inform, Explain, Argue. Proficiency Levels: 1-6.",
                     "is_active": True,
                     "status": "current",
                 }
-
-                # Add metadata to acquisition_notes
-                metadata_parts = []
-                if credits:
-                    metadata_parts.append(f"Credits: {credits}")
-                if course_type:
-                    metadata_parts.append(f"Type: {course_type}")
-                if discipline:
-                    metadata_parts.append(f"Discipline: {discipline}")
-                if metadata_parts:
-                    defaults["acquisition_notes"] += f" ({', '.join(metadata_parts)})"
 
                 if existing:
                     for key, value in defaults.items():
@@ -154,8 +145,8 @@ class Command(BaseCommand):
                 else:
                     StandardsDocument.objects.create(
                         authority_program=program,
-                        subject=subject_name,
-                        syllabus_code=tac_section,
+                        subject=standard_name,
+                        syllabus_code=syllabus_code,
                         **defaults
                     )
                     created_count += 1
@@ -168,4 +159,4 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"Done! Created: {created_count}, Updated: {updated_count}, Skipped: {skipped_count}"
         ))
-        self.stdout.write(f"Total courses in catalog: {created_count + updated_count + skipped_count}")
+        self.stdout.write(f"Total documents in catalog: {created_count + updated_count + skipped_count}")
