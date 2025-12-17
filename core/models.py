@@ -367,6 +367,10 @@ class ItemBankChoice(models.Model):
     text_html = models.TextField()
     is_correct = models.BooleanField(default=False)
     order = models.PositiveIntegerField(default=0)
+    freeze_position = models.BooleanField(
+        default=False,
+        help_text="Keep this choice in its position even when answer shuffling is enabled."
+    )
 
     class Meta:
         ordering = ["order"]
@@ -383,6 +387,14 @@ class Quiz(models.Model):
         blank=True,
         help_text="Time limit in minutes. Leave blank for no time limit."
     )
+    shuffle_questions = models.BooleanField(
+        default=False,
+        help_text="Present questions in random order for each student."
+    )
+    shuffle_answers = models.BooleanField(
+        default=False,
+        help_text="Randomize the order of answer choices within each question."
+    )
     metadata = models.JSONField(blank=True, default=dict)
     created_at = models.DateTimeField(default=timezone.now)
 
@@ -397,9 +409,13 @@ class Quiz(models.Model):
 
 class QuizQuestion(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name="quiz_questions")
-    question = models.ForeignKey(ItemBankQuestion, on_delete=models.CASCADE)
+    question = models.ForeignKey(ItemBankQuestion, on_delete=models.CASCADE, related_name="quiz_questions")
     order = models.PositiveIntegerField(default=0)
     points = models.FloatField(null=True, blank=True)
+    freeze_position = models.BooleanField(
+        default=False,
+        help_text="Keep this question in its position even when question shuffling is enabled."
+    )
 
     class Meta:
         ordering = ["order"]
@@ -1206,3 +1222,178 @@ class BackgroundJob(models.Model):
         self.status = "pending"
         self.next_retry_at = timezone.now() + timedelta(seconds=delay_seconds)
         self.save(update_fields=["retry_count", "status", "next_retry_at"])
+
+
+# =============================================================================
+# Provider Tab Configuration Models
+# =============================================================================
+
+class ProviderTabConfig(models.Model):
+    """
+    Tab configuration for a standards authority/program.
+
+    Allows database-driven configuration of which tabs appear for each provider,
+    and how data is fetched for each tab. Falls back to authority-level config
+    if no program-specific config exists.
+    """
+    FETCH_METHODS = [
+        ("none", "Static content only"),
+        ("objectives", "Fetch objectives tree"),
+        ("resources", "Fetch resources"),
+        ("ai_extract", "AI extraction from source_url"),
+        ("custom", "Custom provider method"),
+    ]
+
+    # Scope - either authority-wide or program-specific
+    authority = models.ForeignKey(
+        StandardsAuthority,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="tab_configs",
+        help_text="Authority-level config (applies to all programs unless overridden)"
+    )
+    program = models.ForeignKey(
+        AuthorityProgram,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="tab_configs",
+        help_text="Program-specific config (overrides authority-level)"
+    )
+
+    # Tab identification
+    tab_id = models.CharField(
+        max_length=50,
+        help_text="Tab identifier, e.g., 'overview', 'syllabus', 'objectives'"
+    )
+    label = models.CharField(max_length=100, help_text="Display label for the tab")
+    icon = models.CharField(
+        max_length=50,
+        default="bi-file-text",
+        help_text="Bootstrap icon class, e.g., 'bi-file-text'"
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    # Tab behavior configuration
+    fetch_method = models.CharField(
+        max_length=50,
+        choices=FETCH_METHODS,
+        default="none",
+        help_text="How to fetch data for this tab"
+    )
+    ai_extraction_prompt = models.TextField(
+        blank=True,
+        help_text="Custom prompt template for AI extraction. Use {course_name}, {syllabus_code}, {source_url} placeholders."
+    )
+    custom_handler = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Dotted path to custom handler function for 'custom' fetch method"
+    )
+
+    # Static content for tabs that don't need dynamic fetching
+    static_description = models.TextField(
+        blank=True,
+        help_text="Static description shown in tab placeholder"
+    )
+    static_action_url_field = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Document field to use for action button URL (e.g., 'source_url')"
+    )
+    static_action_label = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Label for action button (e.g., 'View Official Syllabus')"
+    )
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "tab_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["authority", "program", "tab_id"],
+                name="unique_tab_config_per_scope"
+            ),
+            models.CheckConstraint(
+                check=models.Q(authority__isnull=False) | models.Q(program__isnull=False),
+                name="tab_config_requires_authority_or_program"
+            ),
+        ]
+
+    def __str__(self):
+        scope = self.program.code if self.program else (self.authority.code if self.authority else "default")
+        return f"{scope} - {self.tab_id} ({self.label})"
+
+
+class TabDataCache(models.Model):
+    """
+    Cached data for a tab on a specific document.
+
+    Stores the result of fetching tab data to avoid repeated API calls.
+    Cache can be invalidated by deleting the record or updating fetch_status.
+    """
+    FETCH_STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("fetching", "Fetching"),
+        ("success", "Success"),
+        ("error", "Error"),
+    ]
+
+    document = models.ForeignKey(
+        StandardsDocument,
+        on_delete=models.CASCADE,
+        related_name="tab_data_cache"
+    )
+    tab_id = models.CharField(max_length=50)
+    data = models.JSONField(default=dict, help_text="Cached tab data as JSON")
+    fetched_at = models.DateTimeField(auto_now=True)
+    fetch_status = models.CharField(
+        max_length=20,
+        choices=FETCH_STATUS_CHOICES,
+        default="pending"
+    )
+    error_message = models.TextField(blank=True)
+
+    # Provenance tracking
+    fetch_method_used = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="Which fetch method was used to populate this cache"
+    )
+    ai_model_used = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="AI model used for extraction (if applicable)"
+    )
+    tokens_used = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Tokens consumed for AI extraction"
+    )
+
+    class Meta:
+        unique_together = ("document", "tab_id")
+        indexes = [
+            models.Index(fields=["document", "fetch_status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.document.source_title} - {self.tab_id} ({self.fetch_status})"
+
+    def invalidate(self):
+        """Mark cache as needing refresh."""
+        self.fetch_status = "pending"
+        self.save(update_fields=["fetch_status"])
+
+    def is_fresh(self, max_age_hours: int = 24) -> bool:
+        """Check if cache is fresh enough to use."""
+        if self.fetch_status != "success":
+            return False
+        from datetime import timedelta
+        age = timezone.now() - self.fetched_at
+        return age < timedelta(hours=max_age_hours)

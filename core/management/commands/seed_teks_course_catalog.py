@@ -120,6 +120,9 @@ class Command(BaseCommand):
                         created_count += 1
                     continue
 
+                # Use course-specific URL if available, otherwise fall back to source URL
+                course_url = course.get("url", source_data["url"])
+
                 # Build document defaults
                 defaults = {
                     "grade_level": grade_level,
@@ -127,7 +130,7 @@ class Command(BaseCommand):
                     "source_publisher_name": source_data["publisher"],
                     "source_publisher_type": source_data["publisher_type"],
                     "source_title": course_name,
-                    "source_url": source_data["url"],
+                    "source_url": course_url,
                     "acquisition_method": source_data["acquisition_method"],
                     "acquisition_notes": f"Course catalog entry for {course_name}. TAC Chapter {tac_chapter}, Section {tac_section}.",
                     "is_active": True,

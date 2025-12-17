@@ -84,6 +84,9 @@ urlpatterns = [
     path("teacher/quizzes/<int:pk>/add-question/", views.quiz_question_add, name="quiz_question_add"),
     path("teacher/quizzes/<int:pk>/create-question/", views.quiz_question_create, name="quiz_question_create"),
     path("teacher/quizzes/<int:pk>/remove-question/<int:qq_pk>/", views.quiz_question_remove, name="quiz_question_remove"),
+    path("teacher/quizzes/<int:pk>/reorder/", views.quiz_question_reorder, name="quiz_question_reorder"),
+    path("teacher/quizzes/<int:pk>/toggle-freeze/<int:qq_pk>/", views.quiz_question_toggle_freeze, name="quiz_question_toggle_freeze"),
+    path("teacher/questions/<int:pk>/edit/", views.question_edit, name="question_edit"),
 
     # Roster management
     path("teacher/rosters/", views.roster_list, name="roster_list"),
@@ -111,4 +114,8 @@ urlpatterns = [
     path("teacher/standards/api/import/resources/", views.standards_api_import_resources, name="standards_api_import_resources"),
     path("teacher/standards/api/import/resources/ai/", views.standards_api_import_resources_ai, name="standards_api_import_resources_ai"),
     path("teacher/standards/api/import/objectives/ai/", views.standards_api_import_objectives_ai, name="standards_api_import_objectives_ai"),
+
+    # Unified Tab Data API (Provider Tab Configuration)
+    path("teacher/standards/api/tab-config/", views.standards_api_tab_config, name="standards_api_tab_config"),
+    path("teacher/standards/api/document/<int:document_id>/tab/<str:tab_id>/", views.standards_api_tab_data, name="standards_api_tab_data"),
 ]

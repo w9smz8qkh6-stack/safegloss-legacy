@@ -20,6 +20,14 @@
           {% csrf_token %}
 
           <div class="mb-3">
+            <label for="id_story" class="form-label">
+              <i class="bi bi-book me-1"></i>Story
+            </label>
+            {{ form.story }}
+            <div class="form-text">Link this quiz to a story for vocabulary-based questions.</div>
+          </div>
+
+          <div class="mb-3">
             <label for="id_title" class="form-label">Title <span class="text-danger">*</span></label>
             {{ form.title }}
           </div>
@@ -41,6 +49,31 @@
               </label>
               {{ form.time_limit_minutes }}
               <div class="form-text">Leave blank for no time limit. Students will see a countdown timer.</div>
+            </div>
+          </div>
+
+          <!-- Randomization Options -->
+          <div class="mb-4">
+            <label class="form-label">
+              <i class="bi bi-shuffle me-1"></i>Randomization Options
+            </label>
+            <div class="card bg-light">
+              <div class="card-body py-2">
+                <div class="form-check mb-2">
+                  {{ form.shuffle_questions }}
+                  <label class="form-check-label" for="id_shuffle_questions">
+                    Shuffle question order
+                  </label>
+                  <div class="form-text mt-0">Present questions in random order for each student.</div>
+                </div>
+                <div class="form-check">
+                  {{ form.shuffle_answers }}
+                  <label class="form-check-label" for="id_shuffle_answers">
+                    Shuffle answer choices
+                  </label>
+                  <div class="form-text mt-0">Randomize the order of answer options within each question.</div>
+                </div>
+              </div>
             </div>
           </div>
 

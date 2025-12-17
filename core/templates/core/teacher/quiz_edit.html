@@ -81,12 +81,22 @@
       </div>
       <div class="card-body">
         {% if questions %}
-          <div class="list-group list-group-flush">
+          <div class="alert alert-info small py-2 mb-3">
+            <i class="bi bi-grip-vertical me-1"></i> Drag to reorder questions.
+            <i class="bi bi-pin-angle ms-2 me-1"></i> Pin to freeze position when shuffling.
+          </div>
+          <div id="questions-list" class="list-group list-group-flush">
             {% for qq in questions %}
-              <div class="list-group-item d-flex justify-content-between align-items-start">
+              <div class="list-group-item question-item d-flex align-items-start"
+                   data-qq-id="{{ qq.pk }}"
+                   data-freeze="{{ qq.freeze_position|yesno:'true,false' }}"
+                   draggable="true">
+                <div class="drag-handle me-2 text-muted" style="cursor: grab;" title="Drag to reorder">
+                  <i class="bi bi-grip-vertical fs-5"></i>
+                </div>
                 <div class="flex-grow-1">
                   <div class="d-flex align-items-start">
-                    <span class="badge bg-secondary me-2">{{ forloop.counter }}</span>
+                    <span class="badge bg-secondary me-2 question-number">{{ forloop.counter }}</span>
                     <div>
                       <span>{{ qq.question.prompt_html|striptags|truncatewords:25 }}</span>
                       <br>
@@ -99,12 +109,25 @@
                     </div>
                   </div>
                 </div>
-                <form method="post" action="{% url 'core:quiz_question_remove' quiz.pk qq.pk %}" class="ms-2" onsubmit="return confirm('Remove this question from the quiz?');">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove from quiz">
-                    <i class="bi bi-trash"></i>
+                <div class="d-flex align-items-center ms-2">
+                  <button type="button"
+                          class="btn btn-sm freeze-btn me-1 {% if qq.freeze_position %}btn-warning{% else %}btn-outline-secondary{% endif %}"
+                          title="{% if qq.freeze_position %}Unfreeze position{% else %}Freeze position (won't shuffle){% endif %}"
+                          data-qq-id="{{ qq.pk }}">
+                    <i class="bi bi-pin-angle{% if qq.freeze_position %}-fill{% endif %}"></i>
                   </button>
-                </form>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'core:question_edit' qq.question.pk %}?next={% url 'core:quiz_edit' quiz.pk %}" class="btn btn-outline-secondary" title="Edit question">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="post" action="{% url 'core:quiz_question_remove' quiz.pk qq.pk %}" class="d-inline" onsubmit="return confirm('Remove this question from the quiz?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-outline-danger" title="Remove from quiz">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </div>
               </div>
             {% endfor %}
           </div>
@@ -126,4 +149,153 @@
     </div>
   </div>
 </div>
+
+<style>
+  .question-item {
+    transition: background-color 0.2s;
+  }
+  .question-item.dragging {
+    opacity: 0.5;
+    background-color: #f8f9fa;
+  }
+  .question-item.drag-over {
+    border-top: 2px solid #0d6efd;
+  }
+  .drag-handle:hover {
+    color: #0d6efd !important;
+  }
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const questionsList = document.getElementById('questions-list');
+  if (!questionsList) return;
+
+  let draggedItem = null;
+
+  // Drag and drop handlers
+  questionsList.querySelectorAll('.question-item').forEach(item => {
+    item.addEventListener('dragstart', function(e) {
+      draggedItem = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    item.addEventListener('dragend', function() {
+      this.classList.remove('dragging');
+      questionsList.querySelectorAll('.question-item').forEach(i => {
+        i.classList.remove('drag-over');
+      });
+      updateOrder();
+    });
+
+    item.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      if (this !== draggedItem) {
+        this.classList.add('drag-over');
+      }
+    });
+
+    item.addEventListener('dragleave', function() {
+      this.classList.remove('drag-over');
+    });
+
+    item.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+
+      if (this !== draggedItem) {
+        const allItems = [...questionsList.querySelectorAll('.question-item')];
+        const draggedIdx = allItems.indexOf(draggedItem);
+        const targetIdx = allItems.indexOf(this);
+
+        if (draggedIdx < targetIdx) {
+          this.after(draggedItem);
+        } else {
+          this.before(draggedItem);
+        }
+      }
+    });
+  });
+
+  // Update question numbers and save order to server
+  function updateOrder() {
+    const items = questionsList.querySelectorAll('.question-item');
+    const order = [];
+
+    items.forEach((item, index) => {
+      // Update visual number
+      const numberBadge = item.querySelector('.question-number');
+      if (numberBadge) {
+        numberBadge.textContent = index + 1;
+      }
+
+      order.push({
+        id: parseInt(item.dataset.qqId),
+        order: index,
+        freeze: item.dataset.freeze === 'true'
+      });
+    });
+
+    // Save to server
+    fetch('{% url "core:quiz_question_reorder" quiz.pk %}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token }}'
+      },
+      body: JSON.stringify({ order: order })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success) {
+        console.error('Failed to save order:', data.error);
+      }
+    })
+    .catch(err => console.error('Error saving order:', err));
+  }
+
+  // Freeze toggle handlers
+  questionsList.querySelectorAll('.freeze-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const qqId = this.dataset.qqId;
+      const item = this.closest('.question-item');
+      const icon = this.querySelector('i');
+
+      fetch(`/teacher/quizzes/{{ quiz.pk }}/toggle-freeze/${qqId}/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': '{{ csrf_token }}'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          item.dataset.freeze = data.freeze_position ? 'true' : 'false';
+
+          if (data.freeze_position) {
+            this.classList.remove('btn-outline-secondary');
+            this.classList.add('btn-warning');
+            icon.classList.remove('bi-pin-angle');
+            icon.classList.add('bi-pin-angle-fill');
+            this.title = 'Unfreeze position';
+          } else {
+            this.classList.remove('btn-warning');
+            this.classList.add('btn-outline-secondary');
+            icon.classList.remove('bi-pin-angle-fill');
+            icon.classList.add('bi-pin-angle');
+            this.title = 'Freeze position (won\'t shuffle)';
+          }
+        }
+      })
+      .catch(err => console.error('Error toggling freeze:', err));
+    });
+  });
+});
+</script>
 {% endblock %}

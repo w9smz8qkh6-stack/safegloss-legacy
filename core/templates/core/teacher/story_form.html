@@ -3,7 +3,13 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block extra_css %}
-<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.css" rel="stylesheet">
+<style>
+  /* Fix double chevron on Summernote dropdown buttons */
+  .note-btn-group .dropdown-toggle::after {
+    display: none;
+  }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -67,7 +73,7 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.js"></script>
 <script>
 $(document).ready(function() {
   $('#id_text_html').summernote({

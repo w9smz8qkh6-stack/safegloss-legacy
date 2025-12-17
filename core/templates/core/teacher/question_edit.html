@@ -6,13 +6,19 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div>
     <h1 class="h3 mb-0">
-      <i class="bi bi-plus-circle me-2"></i>{{ title }}
+      <i class="bi bi-pencil-square me-2"></i>{{ title }}
     </h1>
-    <small class="text-muted">Create a new question for this quiz</small>
+    <small class="text-muted">Modify the question and answer choices</small>
   </div>
-  <a href="{% url 'core:quiz_edit' quiz.pk %}" class="btn btn-outline-secondary">
+  {% if next %}
+  <a href="{{ next }}" class="btn btn-outline-secondary">
     <i class="bi bi-arrow-left me-2"></i>Back to Quiz
   </a>
+  {% else %}
+  <a href="{% url 'core:quiz_list' %}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-2"></i>Back to Quizzes
+  </a>
+  {% endif %}
 </div>
 
 <div class="row">
@@ -24,6 +30,9 @@
       <div class="card-body">
         <form method="post" id="question-form">
           {% csrf_token %}
+          {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
+          {% endif %}
 
           <div class="mb-3">
             <label for="id_question_type" class="form-label">Question Type <span class="text-danger">*</span></label>
@@ -40,7 +49,7 @@
             {{ form.default_points }}
           </div>
 
-          <div id="choices-section" class="mb-3">
+          <div id="choices-section" class="mb-3{% if question.question_type not in 'mcq_single,mcq_multi' %} d-none{% endif %}">
             <label class="form-label">Answer Choices</label>
             <div class="alert alert-info small">
               <i class="bi bi-info-circle me-1"></i>
@@ -50,67 +59,81 @@
               <!-- Choice A -->
               <div class="input-group mb-2">
                 <div class="input-group-text">
-                  <input type="checkbox" name="choice_correct_0" class="form-check-input mt-0" title="Correct answer">
+                  <input type="checkbox" name="choice_correct_0" class="form-check-input mt-0" title="Correct answer"
+                         {% if choices.A and choices.A.is_correct %}checked{% endif %}>
                 </div>
                 <span class="input-group-text">A)</span>
-                <input type="text" name="choice_text_0" class="form-control" placeholder="Choice A">
+                <input type="text" name="choice_text_0" class="form-control" placeholder="Choice A"
+                       value="{{ choices.A.text_html|default:'' }}">
                 <div class="input-group-text" title="Freeze position (won't shuffle)">
-                  <input type="checkbox" name="choice_freeze_0" class="form-check-input mt-0">
+                  <input type="checkbox" name="choice_freeze_0" class="form-check-input mt-0"
+                         {% if choices.A and choices.A.freeze_position %}checked{% endif %}>
                   <i class="bi bi-pin-angle ms-1 small"></i>
                 </div>
               </div>
               <!-- Choice B -->
               <div class="input-group mb-2">
                 <div class="input-group-text">
-                  <input type="checkbox" name="choice_correct_1" class="form-check-input mt-0" title="Correct answer">
+                  <input type="checkbox" name="choice_correct_1" class="form-check-input mt-0" title="Correct answer"
+                         {% if choices.B and choices.B.is_correct %}checked{% endif %}>
                 </div>
                 <span class="input-group-text">B)</span>
-                <input type="text" name="choice_text_1" class="form-control" placeholder="Choice B">
+                <input type="text" name="choice_text_1" class="form-control" placeholder="Choice B"
+                       value="{{ choices.B.text_html|default:'' }}">
                 <div class="input-group-text" title="Freeze position (won't shuffle)">
-                  <input type="checkbox" name="choice_freeze_1" class="form-check-input mt-0">
+                  <input type="checkbox" name="choice_freeze_1" class="form-check-input mt-0"
+                         {% if choices.B and choices.B.freeze_position %}checked{% endif %}>
                   <i class="bi bi-pin-angle ms-1 small"></i>
                 </div>
               </div>
               <!-- Choice C -->
               <div class="input-group mb-2">
                 <div class="input-group-text">
-                  <input type="checkbox" name="choice_correct_2" class="form-check-input mt-0" title="Correct answer">
+                  <input type="checkbox" name="choice_correct_2" class="form-check-input mt-0" title="Correct answer"
+                         {% if choices.C and choices.C.is_correct %}checked{% endif %}>
                 </div>
                 <span class="input-group-text">C)</span>
-                <input type="text" name="choice_text_2" class="form-control" placeholder="Choice C">
+                <input type="text" name="choice_text_2" class="form-control" placeholder="Choice C"
+                       value="{{ choices.C.text_html|default:'' }}">
                 <div class="input-group-text" title="Freeze position (won't shuffle)">
-                  <input type="checkbox" name="choice_freeze_2" class="form-check-input mt-0">
+                  <input type="checkbox" name="choice_freeze_2" class="form-check-input mt-0"
+                         {% if choices.C and choices.C.freeze_position %}checked{% endif %}>
                   <i class="bi bi-pin-angle ms-1 small"></i>
                 </div>
               </div>
               <!-- Choice D -->
               <div class="input-group mb-2">
                 <div class="input-group-text">
-                  <input type="checkbox" name="choice_correct_3" class="form-check-input mt-0" title="Correct answer">
+                  <input type="checkbox" name="choice_correct_3" class="form-check-input mt-0" title="Correct answer"
+                         {% if choices.D and choices.D.is_correct %}checked{% endif %}>
                 </div>
                 <span class="input-group-text">D)</span>
-                <input type="text" name="choice_text_3" class="form-control" placeholder="Choice D">
+                <input type="text" name="choice_text_3" class="form-control" placeholder="Choice D"
+                       value="{{ choices.D.text_html|default:'' }}">
                 <div class="input-group-text" title="Freeze position (won't shuffle)">
-                  <input type="checkbox" name="choice_freeze_3" class="form-check-input mt-0">
+                  <input type="checkbox" name="choice_freeze_3" class="form-check-input mt-0"
+                         {% if choices.D and choices.D.freeze_position %}checked{% endif %}>
                   <i class="bi bi-pin-angle ms-1 small"></i>
                 </div>
               </div>
             </div>
           </div>
 
-          <div id="true-false-section" class="mb-3 d-none">
+          <div id="true-false-section" class="mb-3{% if question.question_type != 'true_false' %} d-none{% endif %}">
             <label class="form-label">Correct Answer</label>
             <div class="btn-group w-100" role="group">
-              <input type="radio" class="btn-check" name="true_false_answer" id="tf_true" value="true">
+              <input type="radio" class="btn-check" name="true_false_answer" id="tf_true" value="true"
+                     {% if tf_answer == 'true' %}checked{% endif %}>
               <label class="btn btn-outline-success" for="tf_true">True</label>
-              <input type="radio" class="btn-check" name="true_false_answer" id="tf_false" value="false">
+              <input type="radio" class="btn-check" name="true_false_answer" id="tf_false" value="false"
+                     {% if tf_answer == 'false' %}checked{% endif %}>
               <label class="btn btn-outline-danger" for="tf_false">False</label>
             </div>
           </div>
 
-          <div id="short-answer-section" class="mb-3 d-none">
+          <div id="short-answer-section" class="mb-3{% if question.question_type != 'short_answer' %} d-none{% endif %}">
             <label for="expected_answer" class="form-label">Expected Answer (for reference)</label>
-            <textarea name="expected_answer" class="form-control" rows="2" placeholder="Enter the expected answer..."></textarea>
+            <textarea name="expected_answer" class="form-control" rows="2" placeholder="Enter the expected answer...">{{ expected_answer }}</textarea>
             <div class="form-text">This is shown to teachers as a reference. Short answer questions are graded manually.</div>
           </div>
 
@@ -129,9 +152,13 @@
 
           <div class="d-flex gap-2">
             <button type="submit" class="btn btn-primary">
-              <i class="bi bi-check-circle me-2"></i>Create & Add to Quiz
+              <i class="bi bi-check-circle me-2"></i>Save Changes
             </button>
-            <a href="{% url 'core:quiz_edit' quiz.pk %}" class="btn btn-outline-secondary">Cancel</a>
+            {% if next %}
+            <a href="{{ next }}" class="btn btn-outline-secondary">Cancel</a>
+            {% else %}
+            <a href="{% url 'core:quiz_list' %}" class="btn btn-outline-secondary">Cancel</a>
+            {% endif %}
           </div>
         </form>
       </div>
@@ -144,11 +171,22 @@
         <i class="bi bi-lightbulb me-2"></i>Tips
       </div>
       <div class="card-body small">
-        <p><strong>Multiple Choice:</strong> Provide 4 options and mark the correct one.</p>
+        <p><strong>Multiple Choice:</strong> Provide up to 4 options and mark the correct one(s).</p>
         <p><strong>True/False:</strong> Select whether the statement is true or false.</p>
         <p><strong>Short Answer:</strong> Students type a free-form response.</p>
         <hr>
-        <p class="mb-0 text-muted">Questions are also saved to your item bank for reuse in other quizzes.</p>
+        <p class="mb-0 text-muted">Changes will affect this question in all quizzes where it's used.</p>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">
+        <i class="bi bi-info-circle me-2"></i>Question Info
+      </div>
+      <div class="card-body small">
+        <p><strong>ID:</strong> {{ question.pk }}</p>
+        <p><strong>Type:</strong> {{ question.get_question_type_display }}</p>
+        <p class="mb-0"><strong>Used in:</strong> {{ question.quiz_questions.count }} quiz(es)</p>
       </div>
     </div>
   </div>
@@ -167,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
     trueFalseSection.classList.add('d-none');
     shortAnswerSection.classList.add('d-none');
 
-    if (type === 'mcq_single' || type === 'mcq_multiple') {
+    if (type === 'mcq_single' || type === 'mcq_multi') {
       choicesSection.classList.remove('d-none');
     } else if (type === 'true_false') {
       trueFalseSection.classList.remove('d-none');

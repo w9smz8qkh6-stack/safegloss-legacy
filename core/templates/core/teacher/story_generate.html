@@ -297,7 +297,17 @@
           <input type="hidden" name="lexile_band" value="{{ generation_params.lexile_band }}">
           <input type="hidden" name="word_count" value="{{ generation_params.word_count }}">
 
-          <div class="mb-3">
+          <!-- Formatted Preview (shown after AI generation) -->
+          <div id="story-preview-container" class="d-none mb-3">
+            <label class="form-label">Generated Story</label>
+            <div id="story-preview" class="p-3 bg-light border rounded" style="line-height: 1.8; max-height: 400px; overflow-y: auto;"></div>
+            <button type="button" id="edit-story-btn" class="btn btn-sm btn-outline-secondary mt-2">
+              <i class="bi bi-pencil me-1"></i>Edit Raw HTML
+            </button>
+          </div>
+
+          <!-- Raw HTML Editor (hidden by default after AI generation) -->
+          <div id="story-textarea-container" class="mb-3">
             <label for="story_text" class="form-label">Generated Story</label>
             <textarea name="story_text" id="story_text" class="form-control" rows="8"
                       placeholder="Click 'Generate Story with AI' above or paste a story here..."></textarea>
@@ -315,6 +325,9 @@
           const error = document.getElementById('ai-error');
           const textarea = document.getElementById('story_text');
           const model = document.getElementById('ai_model').value;
+          const previewContainer = document.getElementById('story-preview-container');
+          const preview = document.getElementById('story-preview');
+          const textareaContainer = document.getElementById('story-textarea-container');
 
           // Reset state
           error.classList.add('d-none');
@@ -335,8 +348,10 @@
 
             if (data.success) {
               textarea.value = data.story_text;
-              textarea.style.height = 'auto';
-              textarea.style.height = textarea.scrollHeight + 'px';
+              // Show formatted preview, hide textarea
+              preview.innerHTML = data.story_text;
+              previewContainer.classList.remove('d-none');
+              textareaContainer.classList.add('d-none');
             } else {
               error.textContent = data.error || 'Generation failed';
               error.classList.remove('d-none');
@@ -348,6 +363,19 @@
             btn.disabled = false;
             loading.classList.add('d-none');
           }
+        });
+
+        // Toggle between preview and raw HTML editing
+        document.getElementById('edit-story-btn').addEventListener('click', function() {
+          const previewContainer = document.getElementById('story-preview-container');
+          const textareaContainer = document.getElementById('story-textarea-container');
+          const textarea = document.getElementById('story_text');
+
+          previewContainer.classList.add('d-none');
+          textareaContainer.classList.remove('d-none');
+          textarea.style.height = 'auto';
+          textarea.style.height = Math.max(200, textarea.scrollHeight) + 'px';
+          textarea.focus();
         });
         </script>
       </div>

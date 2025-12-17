@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import models
-from django.db.models import Count, Max, Case, When, IntegerField
+from django.db.models import Count, Max, Case, When, IntegerField, Q
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from functools import wraps
@@ -1597,6 +1597,7 @@ def quiz_question_create(request, pk):
                 for i, label in enumerate(labels):
                     choice_text = request.POST.get(f"choice_text_{i}", "").strip()
                     is_correct = request.POST.get(f"choice_correct_{i}") == "on"
+                    freeze_position = request.POST.get(f"choice_freeze_{i}") == "on"
                     if choice_text:
                         ItemBankChoice.objects.create(
                             question=question,
@@ -1604,6 +1605,7 @@ def quiz_question_create(request, pk):
                             text_html=choice_text,
                             is_correct=is_correct,
                             order=i,
+                            freeze_position=freeze_position,
                         )
             elif question.question_type == "true_false":
                 # Create True/False choices
@@ -1662,6 +1664,147 @@ def quiz_question_remove(request, pk, qq_pk):
         messages.success(request, "Question removed from quiz.")
 
     return redirect("core:quiz_edit", pk=pk)
+
+
+@login_required
+@teacher_required
+@require_POST
+def quiz_question_reorder(request, pk):
+    """Reorder questions in a quiz via AJAX."""
+    import json
+    quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
+
+    try:
+        data = json.loads(request.body)
+        question_order = data.get("order", [])
+
+        for item in question_order:
+            qq_id = item.get("id")
+            new_order = item.get("order")
+            freeze = item.get("freeze", False)
+
+            QuizQuestion.objects.filter(pk=qq_id, quiz=quiz).update(
+                order=new_order,
+                freeze_position=freeze
+            )
+
+        return JsonResponse({"success": True})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+@login_required
+@teacher_required
+@require_POST
+def quiz_question_toggle_freeze(request, pk, qq_pk):
+    """Toggle freeze_position for a quiz question."""
+    quiz = get_object_or_404(Quiz, pk=pk, owner=request.user)
+    quiz_question = get_object_or_404(QuizQuestion, pk=qq_pk, quiz=quiz)
+
+    quiz_question.freeze_position = not quiz_question.freeze_position
+    quiz_question.save()
+
+    return JsonResponse({
+        "success": True,
+        "freeze_position": quiz_question.freeze_position
+    })
+
+
+@login_required
+@teacher_required
+def question_edit(request, pk):
+    """Edit an item bank question and its answer choices."""
+    question = get_object_or_404(ItemBankQuestion, pk=pk, owner=request.user)
+
+    if request.method == "POST":
+        form = ItemBankQuestionForm(request.POST, instance=question)
+        if form.is_valid():
+            question = form.save()
+
+            # Handle choices based on question type
+            if question.question_type in ["mcq_single", "mcq_multi"]:
+                # Update existing choices or create new ones
+                labels = ["A", "B", "C", "D"]
+                existing_choices = {c.label: c for c in question.choices.all()}
+
+                for i, label in enumerate(labels):
+                    choice_text = request.POST.get(f"choice_text_{i}", "").strip()
+                    is_correct = request.POST.get(f"choice_correct_{i}") == "on"
+                    freeze_position = request.POST.get(f"choice_freeze_{i}") == "on"
+
+                    if label in existing_choices:
+                        choice = existing_choices[label]
+                        if choice_text:
+                            choice.text_html = choice_text
+                            choice.is_correct = is_correct
+                            choice.order = i
+                            choice.freeze_position = freeze_position
+                            choice.save()
+                        else:
+                            choice.delete()
+                    elif choice_text:
+                        ItemBankChoice.objects.create(
+                            question=question,
+                            label=label,
+                            text_html=choice_text,
+                            is_correct=is_correct,
+                            order=i,
+                            freeze_position=freeze_position,
+                        )
+
+            elif question.question_type == "true_false":
+                tf_answer = request.POST.get("true_false_answer", "true")
+                question.choices.all().delete()
+                ItemBankChoice.objects.create(
+                    question=question,
+                    label="",
+                    text_html="True",
+                    is_correct=(tf_answer == "true"),
+                    order=0,
+                )
+                ItemBankChoice.objects.create(
+                    question=question,
+                    label="",
+                    text_html="False",
+                    is_correct=(tf_answer == "false"),
+                    order=1,
+                )
+
+            elif question.question_type == "short_answer":
+                expected_answer = request.POST.get("expected_answer", "").strip()
+                if expected_answer:
+                    question.metadata["expected_answer"] = expected_answer
+                    question.save()
+
+            messages.success(request, "Question updated successfully.")
+
+            # Redirect back to the referring quiz if available
+            next_url = request.POST.get("next") or request.GET.get("next")
+            if next_url:
+                return redirect(next_url)
+            return redirect("core:quiz_list")
+    else:
+        form = ItemBankQuestionForm(instance=question)
+
+    # Get existing choices for pre-populating the form
+    choices = {c.label: c for c in question.choices.all()}
+
+    # Get True/False answer if applicable
+    tf_answer = "true"
+    if question.question_type == "true_false":
+        true_choice = question.choices.filter(text_html="True").first()
+        if true_choice and not true_choice.is_correct:
+            tf_answer = "false"
+
+    return render(request, "core/teacher/question_edit.html", {
+        "question": question,
+        "form": form,
+        "choices": choices,
+        "tf_answer": tf_answer,
+        "expected_answer": question.metadata.get("expected_answer", ""),
+        "title": "Edit Question",
+        "next": request.GET.get("next", ""),
+    })
 
 
 @login_required
@@ -2817,11 +2960,29 @@ def standards_api_programs(request):
 
     # Filter out redundant parent programs (e.g., Cambridge "Cambridge International" wrapper)
     def _skip_program(p: AuthorityProgram) -> bool:
-        if p.authority.code == "CAMBRIDGE" and p.code == "CAM_INTL":
+        if p.authority.code == "CAMBRIDGE" and p.code in ("CAM_INTL", "CAM_STARTERS"):
+            return True
+        if p.authority.code == "IB" and p.code == "IB_INTL":
+            return True
+        if p.authority.code == "COLLEGE_BOARD" and p.code == "CB_AP":
             return True
         if p.authority.code in ("US_STATE_STANDARDS", "US_STATES") and p.name.strip().lower() == "us state standards":
             return True
         return False
+
+    # Custom sort order for Cambridge programs
+    cambridge_order = {
+        "CAM_PRIMARY": 0,
+        "CAM_LOWER_SECONDARY": 1,
+        "CAM_IGCSE": 2,
+        "CAM_AS_A_LEVEL": 3,
+        "CAM_O_LEVEL": 4,
+    }
+
+    def _sort_key(p: AuthorityProgram):
+        if p.authority.code == "CAMBRIDGE" and p.code in cambridge_order:
+            return (p.authority.name, cambridge_order[p.code], p.name)
+        return (p.authority.name, 99, p.name)
 
     seen = set()
     data = [
@@ -2832,7 +2993,7 @@ def standards_api_programs(request):
             "authority_code": p.authority.code,
             "authority_name": p.authority.name,
         }
-        for p in programs
+        for p in sorted(programs, key=_sort_key)
         if not _skip_program(p)
         if not (
             (p.authority_id, p.name.lower().strip()) in seen or seen.add((p.authority_id, p.name.lower().strip()))
@@ -4110,3 +4271,266 @@ def _import_resources_payload(payload: list[dict]) -> dict:
         results["processed"] += 1
 
     return results
+
+
+# =============================================================================
+# Unified Tab Data API (Provider Tab Configuration)
+# =============================================================================
+
+@login_required
+def standards_api_tab_config(request):
+    """
+    Get tab configuration for an authority/program.
+
+    Query params:
+    - authority_code: Authority code (e.g., CAMBRIDGE)
+    - program_code: Optional program code for program-specific overrides
+    """
+    from core.models import ProviderTabConfig
+
+    authority_code = request.GET.get("authority_code", "")
+    program_code = request.GET.get("program_code", "")
+
+    if not authority_code:
+        return JsonResponse({"error": "authority_code is required"}, status=400)
+
+    authority = StandardsAuthority.objects.filter(code=authority_code).first()
+    if not authority:
+        return JsonResponse({"error": f"Authority not found: {authority_code}"}, status=404)
+
+    program = None
+    if program_code:
+        program = AuthorityProgram.objects.filter(
+            authority=authority,
+            code=program_code,
+        ).first()
+
+    # Get authority-level configs
+    authority_configs = {
+        c.tab_id: c
+        for c in ProviderTabConfig.objects.filter(
+            authority=authority,
+            program__isnull=True,
+            is_active=True,
+        )
+    }
+
+    # Get program-specific configs (override authority)
+    if program:
+        program_configs = {
+            c.tab_id: c
+            for c in ProviderTabConfig.objects.filter(
+                program=program,
+                is_active=True,
+            )
+        }
+        # Merge: program overrides authority
+        authority_configs.update(program_configs)
+
+    # If no configs found, return empty (frontend will use defaults)
+    if not authority_configs:
+        return JsonResponse({"tabs": [], "using_defaults": True})
+
+    # Convert to serializable format
+    tabs = sorted(authority_configs.values(), key=lambda c: (c.sort_order, c.tab_id))
+    tab_list = [
+        {
+            "id": c.tab_id,
+            "label": c.label,
+            "icon": c.icon,
+            "fetch_method": c.fetch_method,
+            "static_description": c.static_description,
+            "static_action_label": c.static_action_label,
+            "static_action_url_field": c.static_action_url_field,
+        }
+        for c in tabs
+    ]
+
+    return JsonResponse({"tabs": tab_list, "using_defaults": False})
+
+
+@login_required
+def standards_api_tab_data(request, document_id, tab_id):
+    """
+    Unified endpoint for fetching tab data.
+    Routes to appropriate fetcher based on tab config.
+
+    URL params:
+    - document_id: StandardsDocument ID
+    - tab_id: Tab identifier (e.g., 'objectives', 'resources', 'syllabus')
+
+    Query params:
+    - force_refresh: Set to '1' to bypass cache
+    """
+    from core.models import TabDataCache, ObjectiveNode
+    from core.services.external.ai_fetcher import UnifiedAIFetcher, get_tab_config
+
+    document = get_object_or_404(
+        StandardsDocument.objects.select_related("authority_program__authority"),
+        pk=document_id,
+        is_active=True,
+    )
+
+    force_refresh = request.GET.get("force_refresh") == "1"
+
+    # Get tab config (may be None if no database config exists)
+    tab_config = get_tab_config(document, tab_id)
+
+    # Check cache first (unless forcing refresh)
+    if not force_refresh:
+        cache = TabDataCache.objects.filter(
+            document=document,
+            tab_id=tab_id,
+            fetch_status="success",
+        ).first()
+        if cache and cache.is_fresh():
+            return JsonResponse({
+                "data": cache.data,
+                "cached": True,
+                "fetched_at": cache.fetched_at.isoformat(),
+            })
+
+    # Determine fetch method
+    fetch_method = tab_config.fetch_method if tab_config else "none"
+
+    # Route to appropriate fetcher
+    try:
+        if fetch_method == "ai_extract":
+            fetcher = UnifiedAIFetcher()
+            data = fetcher.fetch_tab_data(document, tab_config=tab_config, force_refresh=True)
+        elif fetch_method == "objectives":
+            data = _fetch_objectives_data(document)
+        elif fetch_method == "resources":
+            data = _fetch_resources_data(document, tab_id)
+        elif fetch_method == "custom" and tab_config and tab_config.custom_handler:
+            data = _call_custom_handler(tab_config.custom_handler, document)
+        else:
+            # Static content or no config - return document-derived data
+            data = _get_static_tab_data(document, tab_id, tab_config)
+
+        return JsonResponse({
+            "data": data,
+            "cached": False,
+            "fetch_method": fetch_method,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "error": str(e),
+            "fetch_method": fetch_method,
+        }, status=500)
+
+
+def _fetch_objectives_data(document) -> dict:
+    """Fetch objectives tree for a document."""
+    from core.models import ObjectiveNode
+
+    def build_tree(parent=None):
+        nodes = ObjectiveNode.objects.filter(
+            document=document,
+            parent=parent,
+        ).order_by("sort_order")
+
+        return [
+            {
+                "id": n.pk,
+                "code": n.code,
+                "text": n.text,
+                "node_type": n.node_type,
+                "children": build_tree(n),
+            }
+            for n in nodes
+        ]
+
+    objectives = build_tree(None)
+    return {
+        "objectives": objectives,
+        "count": ObjectiveNode.objects.filter(document=document).count(),
+    }
+
+
+def _fetch_resources_data(document, tab_id: str = "official_resources") -> dict:
+    """Fetch resources for a document's program."""
+    queryset = AuthorityProgramMedia.objects.filter(
+        authority_program=document.authority_program,
+    )
+
+    # Filter by official vs unofficial based on tab
+    if tab_id == "official_resources":
+        # Official = recommendation_tier is 'official' OR resource_category is 'official'
+        queryset = queryset.filter(
+            Q(recommendation_tier="official") | Q(resource_category="official")
+        )
+    elif tab_id == "unofficial_resources":
+        # Unofficial = everything that's not official
+        queryset = queryset.exclude(
+            Q(recommendation_tier="official") & Q(resource_category="official")
+        )
+
+    resources = queryset.order_by("recommendation_tier", "title")
+
+    # Group by category
+    grouped = {}
+    for r in resources:
+        cat = r.resource_category or "other"
+        if cat not in grouped:
+            grouped[cat] = []
+        grouped[cat].append({
+            "id": r.pk,
+            "title": r.title,
+            "author": r.author,
+            "publisher": r.publisher,
+            "source_url": r.source_url,
+            "cover_image_url": r.cover_image_url,
+            "media_type": r.media_type,
+            "recommendation_tier": r.recommendation_tier,
+            "audience": r.audience,
+            "is_companion": r.is_companion,
+        })
+
+    return {
+        "resources": grouped,
+        "count": resources.count(),
+    }
+
+
+def _get_static_tab_data(document, tab_id: str, tab_config) -> dict:
+    """Get static data derived from document fields."""
+    data = {
+        "course_name": document.source_title,
+        "syllabus_code": document.syllabus_code,
+        "source_url": document.source_url,
+        "description": document.description,
+        "subject": document.subject,
+        "grade_level": document.grade_level,
+        "version": document.version_label,
+        "authority": document.authority_program.authority.name,
+        "program": document.authority_program.name,
+    }
+
+    # Add static config content if available
+    if tab_config:
+        data["static_description"] = tab_config.static_description
+        data["static_action_label"] = tab_config.static_action_label
+        if tab_config.static_action_url_field:
+            data["action_url"] = getattr(document, tab_config.static_action_url_field, "")
+
+    return data
+
+
+def _call_custom_handler(handler_path: str, document):
+    """
+    Call a custom handler function by dotted path.
+
+    Handler should be a function that takes a document and returns a dict.
+    Example: 'core.services.external.cambridge.fetch_cambridge_assets'
+    """
+    import importlib
+
+    try:
+        module_path, func_name = handler_path.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        handler = getattr(module, func_name)
+        return handler(document)
+    except Exception as e:
+        raise ValueError(f"Failed to call custom handler '{handler_path}': {e}")

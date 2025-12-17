@@ -9,6 +9,36 @@
     border-radius: 0.5rem;
     padding: 1rem;
   }
+  .filter-content {
+    margin-top: 0.75rem;
+  }
+  /* Offcanvas filter drawer */
+  .offcanvas-filter {
+    width: 380px !important;
+  }
+  .offcanvas-filter .offcanvas-header {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+  }
+  .offcanvas-filter .offcanvas-body {
+    padding: 1rem;
+  }
+  .filter-toggle-btn {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1030;
+    border-radius: 0 0.5rem 0.5rem 0;
+    padding: 0.75rem 0.5rem;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  }
+  /* Hide toggle when offcanvas is open */
+  .offcanvas.show ~ .filter-toggle-btn,
+  .offcanvas.showing ~ .filter-toggle-btn {
+    opacity: 0;
+    pointer-events: none;
+  }
   /* Hierarchical Tree Filter */
   .filter-tree {
     border: 1px solid #dee2e6;
@@ -688,64 +718,71 @@
   </div>
 </div>
 
-<div class="row">
-  <!-- Filters Panel -->
-  <div class="col-lg-4 col-xl-3 mb-4">
-    <div class="filter-section">
-      <h5 class="mb-3"><i class="bi bi-funnel me-2"></i>Standards Browser</h5>
-
-      <!-- Hierarchical Tree Filter -->
-      <div id="filter-tree" class="filter-tree">
-        {% for auth in authorities %}
-        <div class="tree-node tree-depth-0" data-type="authority" data-id="{{ auth.pk }}" data-code="{{ auth.code }}">
-          <div class="tree-node-header">
-            <span class="tree-expand-icon"><i class="bi bi-chevron-right"></i></span>
-            <input type="checkbox" class="form-check-input tree-node-checkbox authority-checkbox"
-                   value="{{ auth.pk }}" data-code="{{ auth.code }}">
-            <span class="tree-node-icon authority"><i class="bi bi-building"></i></span>
-            <span class="tree-node-label">{{ auth.name }}</span>
-          </div>
-          <div class="tree-node-children" data-loaded="false">
-            <div class="tree-loading">
-              <i class="bi bi-arrow-repeat spin me-1"></i>Click to load programs...
-            </div>
-          </div>
-        </div>
-        {% empty %}
-        <div class="text-muted small p-3">No standards authorities available</div>
-        {% endfor %}
-      </div>
-
-      <!-- Selection Summary -->
-      <div id="selection-summary" class="selection-summary d-none">
-        <div class="d-flex justify-content-between align-items-center">
-          <span id="selection-text">No selection</span>
-          <button type="button" class="btn btn-sm btn-link p-0 text-danger" id="clear-selection">
-            <i class="bi bi-x-circle"></i>
-          </button>
-        </div>
-      </div>
-
-      <hr class="my-3">
-
-      <!-- Options -->
-      <div class="mb-3">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" id="show-internal-codes" checked>
-          <label class="form-check-label small" for="show-internal-codes">
-            Show official codes
-          </label>
-        </div>
-      </div>
-
-      <button id="search-btn" class="btn btn-primary w-100">
-        <i class="bi bi-journal-text me-2"></i>Browse Courses
-      </button>
-    </div>
+<!-- Offcanvas Filter Drawer -->
+<div class="offcanvas offcanvas-start offcanvas-filter" tabindex="-1" id="filterDrawer" aria-labelledby="filterDrawerLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="filterDrawerLabel"><i class="bi bi-funnel me-2"></i>Standards Browser</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
+  <div class="offcanvas-body">
+    <!-- Hierarchical Tree Filter -->
+    <div id="filter-tree" class="filter-tree">
+      {% for auth in authorities %}
+      <div class="tree-node tree-depth-0" data-type="authority" data-id="{{ auth.pk }}" data-code="{{ auth.code }}">
+        <div class="tree-node-header">
+          <span class="tree-expand-icon"><i class="bi bi-chevron-right"></i></span>
+          <input type="checkbox" class="form-check-input tree-node-checkbox authority-checkbox"
+                 value="{{ auth.pk }}" data-code="{{ auth.code }}">
+          <span class="tree-node-icon authority"><i class="bi bi-building"></i></span>
+          <span class="tree-node-label">{{ auth.name }}</span>
+        </div>
+        <div class="tree-node-children" data-loaded="false">
+          <div class="tree-loading">
+            <i class="bi bi-arrow-repeat spin me-1"></i>Click to load programs...
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="text-muted small p-3">No standards authorities available</div>
+      {% endfor %}
+    </div>
 
-  <!-- Results Panel -->
-  <div class="col-lg-8 col-xl-9">
+    <!-- Selection Summary -->
+    <div id="selection-summary" class="selection-summary d-none">
+      <div class="d-flex justify-content-between align-items-center">
+        <span id="selection-text">No selection</span>
+        <button type="button" class="btn btn-sm btn-link p-0 text-danger" id="clear-selection">
+          <i class="bi bi-x-circle"></i>
+        </button>
+      </div>
+    </div>
+
+    <hr class="my-3">
+
+    <!-- Options -->
+    <div class="mb-3">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="show-internal-codes" checked>
+        <label class="form-check-label small" for="show-internal-codes">
+          Show official codes
+        </label>
+      </div>
+    </div>
+
+    <button id="search-btn" class="btn btn-primary w-100">
+      <i class="bi bi-journal-text me-2"></i>Browse Courses
+    </button>
+  </div>
+</div>
+
+<!-- Toggle button for filter drawer -->
+<button class="btn btn-primary filter-toggle-btn" type="button" data-bs-toggle="offcanvas" data-bs-target="#filterDrawer" aria-controls="filterDrawer">
+  <i class="bi bi-funnel"></i>
+</button>
+
+<div class="row">
+  <!-- Results Panel (now full width) -->
+  <div class="col-12">
     <div id="results-container">
       <div class="empty-state">
         <i class="bi bi-journal-text fs-1 d-block mb-3"></i>
@@ -1300,36 +1337,18 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
 
         // Toggle expand/collapse on header click
+        // NOTE: No automatic fetching here - all data loading happens on tab click
         courseCard.querySelector('.course-header').addEventListener('click', function() {
           courseCard.classList.toggle('expanded');
-          const isExpanded = courseCard.classList.contains('expanded');
-          if (isExpanded && doc.authority_code === 'CAMBRIDGE') {
-            // Lazy load objectives once
-            if (!courseCard.dataset.objectivesLoaded) {
-              triggerObjectiveSync(doc, courseCard);
-              courseCard.dataset.objectivesLoaded = '1';
-            }
-            // Lazy load assets once (independent of objectives)
-            if (!courseCard.dataset.assetsLoaded) {
-              showCambridgeAssetLoading(courseCard);
-              fetchCambridgeAssets(doc.id, courseCard).then(assets => {
-                renderCambridgeAssets(courseCard, assets);
-                courseCard.dataset.assetsLoaded = '1';
-              }).catch(err => {
-                console.error(err);
-                showToast('Error loading assets: ' + err.message, 'error');
-                addStatus(courseCard, 'Asset load failed: ' + err.message, 'error');
-              });
-            }
-          }
         });
 
-        // Tab switching
+        // Tab switching with lazy data loading
         courseCard.querySelectorAll('.course-tab').forEach(tab => {
-          tab.addEventListener('click', function(e) {
+          tab.addEventListener('click', async function(e) {
             e.stopPropagation();
             const tabName = this.dataset.tab;
             const tabContent = courseCard.querySelector('.course-tab-content');
+            const pane = tabContent.querySelector(`[data-pane="${tabName}"]`);
 
             // Update active tab
             courseCard.querySelectorAll('.course-tab').forEach(t => t.classList.remove('active'));
@@ -1337,7 +1356,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Update active pane
             tabContent.querySelectorAll('.course-tab-pane').forEach(p => p.classList.remove('active'));
-            tabContent.querySelector(`[data-pane="${tabName}"]`)?.classList.add('active');
+            pane?.classList.add('active');
+
+            // Lazy load tab data if not already loaded (skip overview - it's static)
+            if (pane && !pane.dataset.loaded && tabName !== 'overview') {
+              // Show loading state
+              const originalContent = pane.innerHTML;
+              pane.innerHTML = `
+                <div class="text-center py-4">
+                  <span class="spinner-border spinner-border-sm"></span>
+                  <p class="mb-0 mt-2 small text-muted">Loading ${tabName.replace(/_/g, ' ')}...</p>
+                </div>
+              `;
+
+              try {
+                const result = await fetchUnifiedTabData(doc.id, tabName);
+                if (result.error) {
+                  pane.innerHTML = `<div class="alert alert-warning mb-0">${escapeHtml(result.error)}</div>`;
+                } else {
+                  renderTabContent(pane, tabName, result.data, doc);
+                  pane.dataset.loaded = '1';
+                }
+              } catch (err) {
+                console.error('Tab data fetch failed:', err);
+                pane.innerHTML = `<div class="alert alert-danger mb-0">Failed to load: ${escapeHtml(err.message)}</div>`;
+              }
+            }
           });
         });
 
@@ -1351,8 +1395,1184 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // =============================================================================
+  // Unified Tab Data API Functions
+  // =============================================================================
+
+  // Cache for API-fetched tab configs by authority code
+  const tabConfigCache = {};
+
+  /**
+   * Fetch tab configuration from the API for a given authority/program.
+   * Falls back to hardcoded defaults if API fails or returns empty.
+   */
+  async function fetchTabConfigFromAPI(authorityCode, programCode = '') {
+    const cacheKey = `${authorityCode}:${programCode}`;
+    if (tabConfigCache[cacheKey]) {
+      return tabConfigCache[cacheKey];
+    }
+
+    try {
+      const params = new URLSearchParams({ authority_code: authorityCode });
+      if (programCode) params.append('program_code', programCode);
+
+      const resp = await fetch(`{% url 'core:standards_api_tab_config' %}?${params}`);
+      if (!resp.ok) {
+        console.warn(`Tab config API returned ${resp.status}, using defaults`);
+        return null;
+      }
+
+      const data = await resp.json();
+      if (data.using_defaults || !data.tabs || data.tabs.length === 0) {
+        return null; // Use hardcoded defaults
+      }
+
+      // Cache the result
+      tabConfigCache[cacheKey] = data.tabs;
+      return data.tabs;
+    } catch (err) {
+      console.warn('Failed to fetch tab config from API:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Unified function to fetch data for a specific tab.
+   * Uses the new unified tab data API endpoint.
+   */
+  async function fetchUnifiedTabData(documentId, tabId, forceRefresh = false) {
+    const params = forceRefresh ? '?force_refresh=1' : '';
+    const url = `{% url 'core:standards_api_tab_data' document_id=0 tab_id='PLACEHOLDER' %}`
+      .replace('/0/', `/${documentId}/`)
+      .replace('/PLACEHOLDER/', `/${tabId}/`);
+
+    const resp = await fetch(url + params);
+    if (!resp.ok) {
+      throw new Error(`Tab data API returned ${resp.status}`);
+    }
+    return resp.json();
+  }
+
+  /**
+   * Render fetched tab content into a pane.
+   * Handles different tab types with appropriate rendering.
+   */
+  /**
+   * Create refresh button header for tab panels.
+   */
+  function createRefreshHeader(tabId, doc) {
+    const tabLabel = tabId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return `
+      <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+        <small class="text-muted">Last fetched: ${new Date().toLocaleTimeString()}</small>
+        <button class="btn btn-sm btn-outline-secondary refresh-tab-btn"
+                data-document-id="${doc.id}"
+                data-tab-id="${tabId}"
+                title="Refresh ${tabLabel}">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+    `;
+  }
+
+  /**
+   * Attach click handler to refresh button in a pane.
+   */
+  function attachRefreshHandler(pane, doc) {
+    const refreshBtn = pane.querySelector('.refresh-tab-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', function() {
+        handleTabRefresh(this, pane, doc);
+      });
+    }
+  }
+
+  /**
+   * Handle refresh button click - re-fetch tab data with force refresh.
+   */
+  async function handleTabRefresh(button, pane, doc) {
+    const tabId = button.dataset.tabId;
+    const documentId = button.dataset.documentId;
+
+    // Show loading state
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Refreshing...';
+
+    try {
+      const result = await fetchUnifiedTabData(documentId, tabId, true); // force refresh
+      if (result.error) {
+        pane.innerHTML = `<div class="alert alert-warning mb-0">${escapeHtml(result.error)}</div>`;
+      } else {
+        renderTabContent(pane, tabId, result.data, doc);
+      }
+    } catch (err) {
+      console.error('Tab refresh failed:', err);
+      // Restore button state on error
+      button.disabled = false;
+      button.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Refresh';
+      pane.insertAdjacentHTML('afterbegin', `
+        <div class="alert alert-danger alert-dismissible fade show mb-2">
+          Refresh failed: ${escapeHtml(err.message)}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `);
+    }
+  }
+
+  function renderTabContent(pane, tabId, data, doc) {
+    // Store doc info on pane for refresh
+    pane.dataset.documentId = doc.id;
+    pane.dataset.tabId = tabId;
+
+    // Create refresh header (skip for overview which is static)
+    const refreshHeader = tabId !== 'overview' ? createRefreshHeader(tabId, doc) : '';
+
+    // Handle objectives tab
+    if (tabId === 'objectives') {
+      // Check for College Board AP format (with big_ideas hierarchy)
+      if (data.big_ideas && data.big_ideas.length > 0) {
+        pane.innerHTML = refreshHeader + renderCollegeBoardObjectives(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      // Standard objectives tree format
+      if (data.objectives) {
+        if (data.objectives.length === 0) {
+          pane.innerHTML = `
+            ${refreshHeader}
+            <div class="alert alert-info mb-0">
+              <i class="bi bi-info-circle me-2"></i>No learning objectives found for this course yet.
+            </div>
+          `;
+          attachRefreshHandler(pane, doc);
+          return;
+        }
+        pane.innerHTML = `
+          ${refreshHeader}
+          ${data.methodology_note ? `
+            <div class="alert alert-light small mb-3">
+              <i class="bi bi-lightbulb me-2"></i>${escapeHtml(data.methodology_note)}
+            </div>
+          ` : ''}
+          <div class="objectives-tree">
+            ${renderObjectivesTree(data.objectives)}
+          </div>
+          <div class="small text-muted mt-2">${data.count || data.objectives.length} objectives</div>
+          ${doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View Official Page</a>` : ''}
+        `;
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+    }
+
+    // Handle resources tabs (both AI-extracted and database formats)
+    if (tabId === 'official_resources' || tabId === 'unofficial_resources') {
+      // Check for AI-extracted format (standard or Cambridge format)
+      if (data.textbooks || data.guides || data.past_papers || data.digital_resources ||
+          data.video_courses || data.websites || data.student_resources ||
+          data.teacher_resources || data.exam_materials) {
+        pane.innerHTML = refreshHeader + renderAIResourcesData(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      // Check for database format (grouped by category)
+      if (data.resources) {
+        const resources = data.resources;
+        const allResources = Object.values(resources).flat();
+        if (allResources.length === 0) {
+          pane.innerHTML = `
+            ${refreshHeader}
+            <div class="alert alert-info mb-0">
+              <i class="bi bi-info-circle me-2"></i>No resources found for this course yet.
+            </div>
+          `;
+          attachRefreshHandler(pane, doc);
+          return;
+        }
+        pane.innerHTML = refreshHeader + renderResourcesGrouped(resources);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      // No resources found
+      pane.innerHTML = `
+        ${refreshHeader}
+        <div class="alert alert-info mb-0">
+          <i class="bi bi-info-circle me-2"></i>No resources found for this course yet.
+        </div>
+      `;
+      attachRefreshHandler(pane, doc);
+      return;
+    }
+
+    // Handle AI-extracted structured data (syllabus, examinations, etc.)
+    if (data && typeof data === 'object') {
+      // Check for College Board CED structure
+      if (data.big_ideas || data.units || data.exam_structure) {
+        pane.innerHTML = refreshHeader + renderCEDData(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      // Check for Scheme of Work structure
+      if (data.terms || data.total_teaching_hours) {
+        pane.innerHTML = refreshHeader + renderSchemeOfWorkData(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      // Check for Cambridge syllabus structure (with subject_content)
+      if (data.subject_content || data.guided_learning_hours) {
+        pane.innerHTML = refreshHeader + renderCambridgeSyllabusData(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      // Check for common AI extraction patterns
+      if (data.aims || data.assessment_objectives || data.content_outline) {
+        pane.innerHTML = refreshHeader + renderSyllabusData(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      if (data.exam_format || data.papers) {
+        pane.innerHTML = refreshHeader + renderExaminationsData(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+      if (data.textbooks || data.guides || data.past_papers || data.digital_resources) {
+        pane.innerHTML = refreshHeader + renderResourcesData(data, doc);
+        attachRefreshHandler(pane, doc);
+        return;
+      }
+
+      // Generic structured data display
+      pane.innerHTML = refreshHeader + renderGenericData(data, doc);
+      attachRefreshHandler(pane, doc);
+      return;
+    }
+
+    // Fallback: show raw data or placeholder
+    pane.innerHTML = `
+      ${refreshHeader}
+      <div class="alert alert-secondary mb-0">
+        <pre class="mb-0 small">${escapeHtml(JSON.stringify(data, null, 2))}</pre>
+      </div>
+    `;
+    attachRefreshHandler(pane, doc);
+  }
+
+  /**
+   * Render objectives as a nested tree.
+   * Shows source indicator (explicit/inferred) when available.
+   */
+  function renderObjectivesTree(objectives, level = 0) {
+    if (!objectives || objectives.length === 0) return '';
+    return `
+      <ul class="objectives-list ${level === 0 ? 'root' : ''}" style="padding-left: ${level > 0 ? '1.5rem' : '0'}; list-style: none;">
+        ${objectives.map(obj => `
+          <li class="objective-item mb-2">
+            <div class="d-flex align-items-start gap-2">
+              <span class="objective-code badge bg-secondary">${escapeHtml(obj.code || '')}</span>
+              <div class="flex-grow-1">
+                <span class="objective-text">${escapeHtml(obj.text || '')}</span>
+                ${obj.source === 'inferred' ? '<span class="badge bg-warning text-dark ms-1" style="font-size: 0.65em;">inferred</span>' : ''}
+              </div>
+            </div>
+            ${obj.children && obj.children.length > 0 ? renderObjectivesTree(obj.children, level + 1) : ''}
+          </li>
+        `).join('')}
+      </ul>
+    `;
+  }
+
+  /**
+   * Render College Board AP objectives with Big Ideas hierarchy.
+   * Shows Skills Framework, Big Ideas with Enduring Understandings and Learning Objectives.
+   */
+  function renderCollegeBoardObjectives(data, doc) {
+    let html = '<div class="ap-objectives-content">';
+
+    // Methodology note
+    if (data.methodology_note) {
+      html += `
+        <div class="alert alert-light small mb-3">
+          <i class="bi bi-info-circle me-2"></i>${escapeHtml(data.methodology_note)}
+        </div>
+      `;
+    }
+
+    // Skills Framework (if present)
+    if (data.skills_framework && data.skills_framework.length > 0) {
+      html += `
+        <div class="mb-4">
+          <h6 class="border-bottom pb-2"><i class="bi bi-tools me-2"></i>Skills & Practices</h6>
+          <div class="row g-2">
+            ${data.skills_framework.map(cat => `
+              <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                  <div class="card-header py-2 bg-light">
+                    <span class="badge bg-primary me-2">${escapeHtml(cat.code || '')}</span>
+                    <strong>${escapeHtml(cat.skill_category || '')}</strong>
+                  </div>
+                  <div class="card-body py-2 small">
+                    ${cat.description ? `<p class="text-muted mb-2">${escapeHtml(cat.description)}</p>` : ''}
+                    ${cat.skills && cat.skills.length > 0 ? `
+                      <ul class="list-unstyled mb-0">
+                        ${cat.skills.map(s => `
+                          <li class="mb-1">
+                            <span class="badge bg-secondary me-1">${escapeHtml(s.code || '')}</span>
+                            ${escapeHtml(s.name || s.description || '')}
+                          </li>
+                        `).join('')}
+                      </ul>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Big Ideas with full hierarchy
+    if (data.big_ideas && data.big_ideas.length > 0) {
+      const docId = doc.id || Math.random().toString(36).substr(2, 9);
+      html += `
+        <div class="mb-3">
+          <h6 class="border-bottom pb-2"><i class="bi bi-lightbulb me-2"></i>Big Ideas & Learning Objectives</h6>
+          <div class="accordion" id="ap-big-ideas-${docId}">
+            ${data.big_ideas.map((bi, biIdx) => `
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button ${biIdx > 0 ? 'collapsed' : ''}" type="button"
+                          data-bs-toggle="collapse" data-bs-target="#bi-${docId}-${biIdx}">
+                    <span class="badge bg-primary me-2">${escapeHtml(bi.abbreviation || bi.code || '')}</span>
+                    <strong>${escapeHtml(bi.title || bi.name || '')}</strong>
+                  </button>
+                </h2>
+                <div id="bi-${docId}-${biIdx}" class="accordion-collapse collapse ${biIdx === 0 ? 'show' : ''}" data-bs-parent="#ap-big-ideas-${docId}">
+                  <div class="accordion-body">
+                    ${bi.description ? `<p class="text-muted mb-3">${escapeHtml(bi.description)}</p>` : ''}
+
+                    ${bi.enduring_understandings && bi.enduring_understandings.length > 0 ? `
+                      <div class="enduring-understandings">
+                        ${bi.enduring_understandings.map((eu, euIdx) => `
+                          <div class="eu-item mb-3 border-start border-3 border-info ps-3">
+                            <div class="eu-header mb-2">
+                              <span class="badge bg-info text-dark me-2">${escapeHtml(eu.code || `EU ${biIdx + 1}.${euIdx + 1}`)}</span>
+                              <span class="fw-semibold">${escapeHtml(eu.statement || '')}</span>
+                            </div>
+
+                            ${eu.learning_objectives && eu.learning_objectives.length > 0 ? `
+                              <div class="learning-objectives ms-3">
+                                ${eu.learning_objectives.map(lo => `
+                                  <div class="lo-item mb-2 p-2 bg-light rounded">
+                                    <div class="d-flex align-items-start">
+                                      <span class="badge bg-success me-2">${escapeHtml(lo.code || '')}</span>
+                                      <div class="flex-grow-1">
+                                        <div>${escapeHtml(lo.statement || '')}</div>
+
+                                        ${lo.essential_knowledge && lo.essential_knowledge.length > 0 ? `
+                                          <div class="essential-knowledge mt-2 ms-3 small">
+                                            <div class="text-muted fw-semibold mb-1">Essential Knowledge:</div>
+                                            <ul class="list-unstyled mb-0">
+                                              ${lo.essential_knowledge.map(ek => `
+                                                <li class="mb-1">
+                                                  <span class="badge bg-secondary me-1" style="font-size: 0.7em;">${escapeHtml(ek.code || '')}</span>
+                                                  <span class="text-muted">${escapeHtml(ek.statement || '')}</span>
+                                                </li>
+                                              `).join('')}
+                                            </ul>
+                                          </div>
+                                        ` : ''}
+                                      </div>
+                                    </div>
+                                  </div>
+                                `).join('')}
+                              </div>
+                            ` : ''}
+                          </div>
+                        `).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Also show the flat objectives tree if present (as a collapsible section)
+    if (data.objectives && data.objectives.length > 0) {
+      const treeDocId = doc.id || Math.random().toString(36).substr(2, 9);
+      html += `
+        <div class="mt-4">
+          <h6 class="border-bottom pb-2 cursor-pointer" data-bs-toggle="collapse" data-bs-target="#flat-objectives-tree-${treeDocId}" style="cursor: pointer;">
+            <i class="bi bi-list-nested me-2"></i>Objectives Tree View
+            <i class="bi bi-chevron-down float-end"></i>
+          </h6>
+          <div class="collapse" id="flat-objectives-tree-${treeDocId}">
+            <div class="objectives-tree mt-2">
+              ${renderObjectivesTree(data.objectives)}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Count of learning objectives
+    let loCount = 0;
+    if (data.big_ideas) {
+      data.big_ideas.forEach(bi => {
+        if (bi.enduring_understandings) {
+          bi.enduring_understandings.forEach(eu => {
+            if (eu.learning_objectives) {
+              loCount += eu.learning_objectives.length;
+            }
+          });
+        }
+      });
+    }
+    if (loCount > 0) {
+      html += `<div class="small text-muted mt-2">${loCount} learning objectives across ${data.big_ideas.length} big ideas</div>`;
+    }
+
+    // Link to official page
+    if (doc.source_url) {
+      html += `
+        <a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+          <i class="bi bi-box-arrow-up-right me-1"></i>View Course & Exam Description
+        </a>
+      `;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render resources grouped by category.
+   */
+  function renderResourcesGrouped(resourcesByCategory) {
+    const categoryLabels = {
+      official: 'Official Resources',
+      endorsed: 'Endorsed Resources',
+      non_textbook: 'Additional Resources',
+      offering: 'Courses & Offerings',
+      youtube: 'Video Resources',
+      other: 'Other Resources'
+    };
+
+    return Object.entries(resourcesByCategory).map(([category, resources]) => {
+      if (!resources || resources.length === 0) return '';
+      return `
+        <div class="resource-category mb-3">
+          <h6 class="text-muted mb-2">${categoryLabels[category] || category}</h6>
+          <div class="resource-grid">
+            ${resources.map(r => `
+              <div class="resource-item d-flex gap-2 p-2 border rounded mb-2">
+                ${r.cover_image_url ? `<img src="${r.cover_image_url}" class="resource-thumb" style="width:50px;height:auto;">` : ''}
+                <div class="flex-grow-1">
+                  <div class="fw-semibold">${r.source_url ? `<a href="${r.source_url}" target="_blank">${escapeHtml(r.title)}</a>` : escapeHtml(r.title)}</div>
+                  ${r.author ? `<div class="small text-muted">${escapeHtml(r.author)}</div>` : ''}
+                  ${r.publisher ? `<div class="small text-muted">${escapeHtml(r.publisher)}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  /**
+   * Render syllabus/curriculum data.
+   */
+  function renderSyllabusData(data, doc) {
+    let html = '<div class="syllabus-content">';
+
+    if (data.aims && data.aims.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-bullseye me-2"></i>Aims</h6>
+          <ul class="small">${data.aims.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>
+        </div>
+      `;
+    }
+
+    if (data.assessment_objectives && data.assessment_objectives.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-list-check me-2"></i>Assessment Objectives</h6>
+          <ul class="small">${data.assessment_objectives.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul>
+        </div>
+      `;
+    }
+
+    if (data.content_outline && data.content_outline.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-journal-text me-2"></i>Content Outline</h6>
+          <ul class="small">
+            ${data.content_outline.map(c => `
+              <li>
+                <strong>${escapeHtml(c.topic || c.name || '')}</strong>
+                ${c.subtopics ? `<ul>${c.subtopics.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    if (data.assessment_structure) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-clipboard-check me-2"></i>Assessment Structure</h6>
+          ${data.assessment_structure.components ? `
+            <table class="table table-sm small">
+              <thead><tr><th>Component</th><th>Weight</th><th>Duration</th></tr></thead>
+              <tbody>
+                ${data.assessment_structure.components.map(c => `
+                  <tr>
+                    <td>${escapeHtml(c.name || '')}</td>
+                    <td>${escapeHtml(c.weight || '')}</td>
+                    <td>${escapeHtml(c.duration || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    if (doc.source_url) {
+      html += `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>View Official Document</a>`;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render Cambridge-specific syllabus data with subject_content structure.
+   */
+  function renderCambridgeSyllabusData(data, doc) {
+    let html = '<div class="cambridge-syllabus-content">';
+
+    // Header info
+    if (data.syllabus_code || data.guided_learning_hours) {
+      html += `
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          ${data.syllabus_code ? `<span class="badge bg-primary">${escapeHtml(data.syllabus_code)}</span>` : ''}
+          ${data.guided_learning_hours ? `<span class="small text-muted"><i class="bi bi-clock me-1"></i>${escapeHtml(data.guided_learning_hours)} guided learning hours</span>` : ''}
+        </div>
+      `;
+    }
+
+    // Aims
+    if (data.aims && data.aims.length > 0) {
+      html += `
+        <div class="mb-4">
+          <h6><i class="bi bi-bullseye me-2"></i>Syllabus Aims</h6>
+          <ul class="small mb-0">
+            ${data.aims.map((a, i) => `<li>${escapeHtml(typeof a === 'string' ? a : a.text || a.name || JSON.stringify(a))}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    // Assessment Objectives (AOs)
+    if (data.assessment_objectives && data.assessment_objectives.length > 0) {
+      html += `
+        <div class="mb-4">
+          <h6><i class="bi bi-list-check me-2"></i>Assessment Objectives</h6>
+          <div class="row g-2">
+            ${data.assessment_objectives.map(ao => `
+              <div class="col-md-6">
+                <div class="border rounded p-2 h-100">
+                  <div class="fw-semibold">${escapeHtml(ao.code || '')} - ${escapeHtml(ao.name || '')}</div>
+                  ${ao.weighting ? `<span class="badge bg-secondary small">${escapeHtml(ao.weighting)}</span>` : ''}
+                  ${ao.description ? `<div class="small text-muted mt-1">${escapeHtml(ao.description)}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Subject Content (the detailed topic structure)
+    if (data.subject_content && data.subject_content.length > 0) {
+      html += `
+        <div class="mb-4">
+          <h6><i class="bi bi-journal-text me-2"></i>Subject Content</h6>
+          <div class="accordion accordion-flush" id="syllabusContent">
+            ${data.subject_content.map((section, idx) => `
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button ${idx > 0 ? 'collapsed' : ''} py-2" type="button" data-bs-toggle="collapse" data-bs-target="#section${idx}">
+                    <strong>${escapeHtml(section.section || '')}:</strong>&nbsp;${escapeHtml(section.title || '')}
+                  </button>
+                </h2>
+                <div id="section${idx}" class="accordion-collapse collapse ${idx === 0 ? 'show' : ''}" data-bs-parent="#syllabusContent">
+                  <div class="accordion-body py-2">
+                    ${section.topics && section.topics.length > 0 ? `
+                      <ul class="small mb-0">
+                        ${section.topics.map(topic => `
+                          <li class="mb-2">
+                            <strong>${escapeHtml(topic.number || '')} ${escapeHtml(topic.title || '')}</strong>
+                            ${topic.content_points && topic.content_points.length > 0 ? `
+                              <ul class="text-muted">
+                                ${topic.content_points.map(cp => `<li>${escapeHtml(cp)}</li>`).join('')}
+                              </ul>
+                            ` : ''}
+                          </li>
+                        `).join('')}
+                      </ul>
+                    ` : '<span class="text-muted small">No topics listed</span>'}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Assessment Structure
+    if (data.assessment_structure && data.assessment_structure.components) {
+      html += `
+        <div class="mb-4">
+          <h6><i class="bi bi-clipboard-check me-2"></i>Assessment Structure</h6>
+          <div class="table-responsive">
+            <table class="table table-sm small table-bordered">
+              <thead class="table-light">
+                <tr>
+                  <th>Paper</th>
+                  <th>Name</th>
+                  <th>Duration</th>
+                  <th>Marks</th>
+                  <th>Weighting</th>
+                  <th>Format</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.assessment_structure.components.map(c => `
+                  <tr>
+                    <td>${escapeHtml(c.paper || '')}</td>
+                    <td>${escapeHtml(c.name || '')}</td>
+                    <td>${escapeHtml(c.duration || '')}</td>
+                    <td>${escapeHtml(c.marks || '')}</td>
+                    <td>${escapeHtml(c.weighting || '')}</td>
+                    <td>${escapeHtml(c.format || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    if (doc.source_url) {
+      html += `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>View Official Syllabus</a>`;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render Scheme of Work data with terms and units structure.
+   */
+  function renderSchemeOfWorkData(data, doc) {
+    let html = '<div class="scheme-of-work-content">';
+
+    // Header info
+    html += `
+      <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+        <span class="fw-semibold">Scheme of Work</span>
+        ${data.total_teaching_hours ? `<span class="badge bg-info"><i class="bi bi-clock me-1"></i>${escapeHtml(data.total_teaching_hours)}</span>` : ''}
+      </div>
+    `;
+
+    // Revision weeks note
+    if (data.revision_weeks) {
+      html += `
+        <div class="alert alert-light small mb-3">
+          <i class="bi bi-calendar-event me-2"></i><strong>Revision period:</strong> ${escapeHtml(data.revision_weeks)}
+        </div>
+      `;
+    }
+
+    // Terms and Units
+    if (data.terms && data.terms.length > 0) {
+      html += `<div class="scheme-terms">`;
+      data.terms.forEach((term, termIdx) => {
+        html += `
+          <div class="term-section mb-4">
+            <h6 class="bg-light p-2 rounded mb-2">
+              <i class="bi bi-calendar3 me-2"></i>Term ${escapeHtml(term.term || (termIdx + 1))}
+              ${term.weeks ? `<span class="small text-muted ms-2">(Weeks ${escapeHtml(term.weeks)})</span>` : ''}
+            </h6>
+            ${term.units && term.units.length > 0 ? `
+              <div class="units-list">
+                ${term.units.map(unit => `
+                  <div class="unit-card border rounded p-3 mb-2">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                      <div>
+                        <strong>Unit ${escapeHtml(unit.unit_number || '')}:</strong> ${escapeHtml(unit.title || '')}
+                      </div>
+                      <div class="text-end small text-muted">
+                        ${unit.weeks ? `Weeks ${escapeHtml(unit.weeks)}` : ''}
+                        ${unit.hours ? ` | ${escapeHtml(unit.hours)} hrs` : ''}
+                      </div>
+                    </div>
+
+                    ${unit.topics && unit.topics.length > 0 ? `
+                      <div class="mb-2">
+                        <span class="small text-muted">Topics:</span>
+                        <span class="small">${unit.topics.map(t => escapeHtml(t)).join(', ')}</span>
+                      </div>
+                    ` : ''}
+
+                    ${unit.learning_objectives && unit.learning_objectives.length > 0 ? `
+                      <div class="mb-2">
+                        <span class="small text-muted">Learning Objectives:</span>
+                        <span class="small">${unit.learning_objectives.map(lo => `<span class="badge bg-light text-dark me-1">${escapeHtml(lo)}</span>`).join('')}</span>
+                      </div>
+                    ` : ''}
+
+                    ${unit.assessment_objectives && unit.assessment_objectives.length > 0 ? `
+                      <div class="mb-2">
+                        <span class="small text-muted">Assessment Objectives:</span>
+                        <span class="small">${unit.assessment_objectives.map(ao => `<span class="badge bg-secondary me-1">${escapeHtml(ao)}</span>`).join('')}</span>
+                      </div>
+                    ` : ''}
+
+                    ${unit.suggested_activities && unit.suggested_activities.length > 0 ? `
+                      <div class="mb-2">
+                        <span class="small text-muted">Activities:</span>
+                        <ul class="small mb-0 ps-3">
+                          ${unit.suggested_activities.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
+                        </ul>
+                      </div>
+                    ` : ''}
+
+                    ${unit.resources && unit.resources.length > 0 ? `
+                      <div class="mb-2">
+                        <span class="small text-muted">Resources:</span>
+                        <span class="small">${unit.resources.map(r => escapeHtml(r)).join(', ')}</span>
+                      </div>
+                    ` : ''}
+
+                    ${unit.assessment ? `
+                      <div class="small">
+                        <span class="text-muted">Assessment:</span> ${escapeHtml(unit.assessment)}
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<div class="text-muted small">No units defined for this term</div>'}
+          </div>
+        `;
+      });
+      html += `</div>`;
+    } else {
+      html += `<div class="alert alert-info">No terms/units data available.</div>`;
+    }
+
+    // Notes
+    if (data.notes) {
+      html += `
+        <div class="alert alert-light small mt-3">
+          <i class="bi bi-info-circle me-2"></i><strong>Notes:</strong> ${escapeHtml(data.notes)}
+        </div>
+      `;
+    }
+
+    if (doc.source_url) {
+      html += `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View Official Syllabus</a>`;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render College Board Course & Exam Description (CED) data.
+   */
+  function renderCEDData(data, doc) {
+    let html = '<div class="ced-content">';
+
+    // Course Overview
+    if (data.course_overview) {
+      html += `
+        <div class="mb-3">
+          <p class="text-muted">${escapeHtml(data.course_overview)}</p>
+        </div>
+      `;
+    }
+
+    // Big Ideas
+    if (data.big_ideas && data.big_ideas.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-lightbulb me-2"></i>Big Ideas</h6>
+          <div class="row g-2">
+            ${data.big_ideas.map(bi => `
+              <div class="col-md-6">
+                <div class="border rounded p-2 h-100">
+                  <div class="fw-semibold">${escapeHtml(bi.name || '')}${bi.abbreviation ? ` <span class="badge bg-secondary">${escapeHtml(bi.abbreviation)}</span>` : ''}</div>
+                  ${bi.description ? `<div class="small text-muted">${escapeHtml(bi.description)}</div>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Units
+    if (data.units && data.units.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-collection me-2"></i>Units</h6>
+          <div class="accordion accordion-flush" id="ced-units">
+            ${data.units.map((unit, idx) => `
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#unit-${idx}">
+                    <span class="me-2">Unit ${unit.number || idx + 1}:</span>
+                    <span class="fw-normal">${escapeHtml(unit.title || '')}</span>
+                    ${unit.weight ? `<span class="badge bg-info ms-auto me-2">${escapeHtml(unit.weight)}</span>` : ''}
+                  </button>
+                </h2>
+                <div id="unit-${idx}" class="accordion-collapse collapse" data-bs-parent="#ced-units">
+                  <div class="accordion-body small">
+                    ${unit.topics && unit.topics.length > 0 ? `
+                      <div class="mb-2">
+                        <strong>Topics:</strong>
+                        <ul class="mb-0">${unit.topics.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>
+                      </div>
+                    ` : ''}
+                    ${unit.key_concepts && unit.key_concepts.length > 0 ? `
+                      <div>
+                        <strong>Key Concepts:</strong>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                          ${unit.key_concepts.map(c => `<span class="badge bg-light text-dark">${escapeHtml(c)}</span>`).join('')}
+                        </div>
+                      </div>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Skills
+    if (data.skills && data.skills.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-tools me-2"></i>Skills</h6>
+          <div class="row g-2">
+            ${data.skills.map(skill => `
+              <div class="col-md-6">
+                <div class="border rounded p-2">
+                  <div class="fw-semibold small">${escapeHtml(skill.name || '')}</div>
+                  ${skill.skills && skill.skills.length > 0 ? `
+                    <ul class="small mb-0 ps-3">${skill.skills.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Exam Structure
+    if (data.exam_structure) {
+      const exam = data.exam_structure;
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-pencil-square me-2"></i>Exam Structure</h6>
+          ${exam.duration ? `<p class="small mb-2"><strong>Duration:</strong> ${escapeHtml(exam.duration)}</p>` : ''}
+          ${exam.sections && exam.sections.length > 0 ? `
+            <table class="table table-sm small">
+              <thead><tr><th>Section</th><th>Questions</th><th>Time</th><th>Weight</th></tr></thead>
+              <tbody>
+                ${exam.sections.map(s => `
+                  <tr>
+                    <td>${escapeHtml(s.name || '')}</td>
+                    <td>${s.questions || ''}</td>
+                    <td>${escapeHtml(s.time || '')}</td>
+                    <td>${escapeHtml(s.weight || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    // Calculator & Formula Sheet
+    if (data.calculator_policy || data.formula_sheet) {
+      html += `<div class="mb-3 small">`;
+      if (data.calculator_policy) {
+        html += `<p class="mb-1"><i class="bi bi-calculator me-1"></i><strong>Calculator:</strong> ${escapeHtml(data.calculator_policy)}</p>`;
+      }
+      if (data.formula_sheet) {
+        html += `<p class="mb-0"><i class="bi bi-file-text me-1"></i><strong>Formula Sheet:</strong> ${escapeHtml(data.formula_sheet)}</p>`;
+      }
+      html += `</div>`;
+    }
+
+    // Link to official document
+    if (doc.source_url) {
+      html += `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>View on College Board</a>`;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render examinations data.
+   */
+  function renderExaminationsData(data, doc) {
+    let html = '<div class="examinations-content">';
+
+    if (data.exam_format) {
+      html += `<p class="small">${escapeHtml(data.exam_format)}</p>`;
+    }
+
+    if (data.papers && data.papers.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-file-earmark-text me-2"></i>Exam Papers</h6>
+          <table class="table table-sm small">
+            <thead><tr><th>Paper</th><th>Duration</th><th>Marks</th><th>Weight</th></tr></thead>
+            <tbody>
+              ${data.papers.map(p => `
+                <tr>
+                  <td>${escapeHtml(p.name || '')}</td>
+                  <td>${escapeHtml(p.duration || '')}</td>
+                  <td>${p.marks || ''}</td>
+                  <td>${escapeHtml(p.weighting || '')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    if (data.grading) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-graph-up me-2"></i>Grading</h6>
+          <p class="small mb-1">Scale: ${escapeHtml(data.grading.scale || '')}</p>
+          ${data.grading.thresholds ? `<p class="small text-muted">${escapeHtml(data.grading.thresholds)}</p>` : ''}
+        </div>
+      `;
+    }
+
+    if (data.specimen_papers && data.specimen_papers.length > 0) {
+      html += `
+        <div class="mb-3">
+          <h6><i class="bi bi-file-pdf me-2"></i>Specimen Papers</h6>
+          <ul class="small">
+            ${data.specimen_papers.map(p => `
+              <li>${p.url ? `<a href="${p.url}" target="_blank">${escapeHtml(p.title)}</a>` : escapeHtml(p.title)}</li>
+            `).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render resources data from AI extraction.
+   */
+  function renderResourcesData(data, doc) {
+    let html = '<div class="resources-content">';
+
+    const sections = [
+      { key: 'textbooks', label: 'Textbooks', icon: 'bi-book' },
+      { key: 'guides', label: 'Guides', icon: 'bi-journal' },
+      { key: 'past_papers', label: 'Past Papers', icon: 'bi-file-earmark' },
+      { key: 'digital_resources', label: 'Digital Resources', icon: 'bi-laptop' }
+    ];
+
+    for (const section of sections) {
+      const items = data[section.key];
+      if (items && items.length > 0) {
+        html += `
+          <div class="mb-3">
+            <h6><i class="${section.icon} me-2"></i>${section.label}</h6>
+            <ul class="small">
+              ${items.map(item => `
+                <li>
+                  ${item.url ? `<a href="${item.url}" target="_blank">${escapeHtml(item.title)}</a>` : escapeHtml(item.title)}
+                  ${item.authors ? ` - ${escapeHtml(item.authors.join(', '))}` : ''}
+                  ${item.publisher ? ` (${escapeHtml(item.publisher)})` : ''}
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        `;
+      }
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render AI-extracted resources data (official or unofficial).
+   * Handles both official format (textbooks, guides, past_papers, digital_resources)
+   * and unofficial format (textbooks, guides, video_courses, websites).
+   */
+  function renderAIResourcesData(data, doc) {
+    let html = '<div class="ai-resources-content">';
+
+    // Support both standard and Cambridge resource formats
+    const sections = [
+      // Cambridge format
+      { key: 'student_resources', label: 'Student Resources', icon: 'bi-person' },
+      { key: 'teacher_resources', label: 'Teacher Resources', icon: 'bi-person-badge' },
+      { key: 'exam_materials', label: 'Exam Materials', icon: 'bi-file-earmark-check' },
+      // Standard format
+      { key: 'textbooks', label: 'Textbooks', icon: 'bi-book' },
+      { key: 'guides', label: 'Guides & Study Materials', icon: 'bi-journal' },
+      { key: 'past_papers', label: 'Past Papers', icon: 'bi-file-earmark' },
+      { key: 'digital_resources', label: 'Digital Resources', icon: 'bi-laptop' },
+      { key: 'video_courses', label: 'Video Courses', icon: 'bi-play-circle' },
+      { key: 'websites', label: 'Websites', icon: 'bi-globe' }
+    ];
+
+    let hasContent = false;
+    for (const section of sections) {
+      const items = data[section.key];
+      if (items && items.length > 0) {
+        hasContent = true;
+        html += `
+          <div class="mb-4">
+            <h6 class="border-bottom pb-2 mb-3"><i class="${section.icon} me-2"></i>${section.label}</h6>
+            <div class="row g-3">
+              ${items.map(item => `
+                <div class="col-md-6">
+                  <div class="border rounded p-3 h-100 d-flex">
+                    ${item.cover_url ? `
+                      <div class="me-3 flex-shrink-0">
+                        <img src="${escapeHtml(item.cover_url)}" alt="Cover"
+                             style="width: 80px; height: 100px; object-fit: cover; border-radius: 4px;"
+                             onerror="this.style.display='none'">
+                      </div>
+                    ` : ''}
+                    <div class="flex-grow-1">
+                      <div class="fw-semibold">
+                        ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank">${escapeHtml(item.title || item.name || 'Resource')}</a>` : escapeHtml(item.title || item.name || 'Resource')}
+                      </div>
+                      ${item.authors && item.authors.length > 0 ? `<div class="small text-muted">By ${escapeHtml(item.authors.join(', '))}</div>` : ''}
+                      ${item.publisher ? `<div class="small text-muted">${escapeHtml(item.publisher)}</div>` : ''}
+                      ${item.type ? `<div class="small"><span class="badge bg-light text-dark">${escapeHtml(item.type)}</span></div>` : ''}
+                      ${item.isbn ? `<div class="small text-muted">ISBN: ${escapeHtml(item.isbn)}</div>` : ''}
+                      ${item.description ? `<div class="small text-muted mt-1">${escapeHtml(item.description)}</div>` : ''}
+                      ${item.platform ? `<div class="small"><span class="badge bg-secondary">${escapeHtml(item.platform)}</span></div>` : ''}
+                      ${item.year ? `<div class="small text-muted">${escapeHtml(item.year)}${item.session ? ` - ${escapeHtml(item.session)}` : ''}</div>` : ''}
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    if (!hasContent) {
+      html += `
+        <div class="alert alert-info mb-0">
+          <i class="bi bi-info-circle me-2"></i>No resources found for this course yet.
+        </div>
+      `;
+    }
+
+    if (doc.source_url) {
+      html += `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-box-arrow-up-right me-1"></i>View Official Page</a>`;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  /**
+   * Render generic data as a formatted display.
+   */
+  function renderGenericData(data, doc) {
+    // Filter out internal fields
+    const displayData = { ...data };
+    delete displayData.course_name;
+    delete displayData.syllabus_code;
+    delete displayData.source_url;
+    delete displayData.static_description;
+    delete displayData.static_action_label;
+
+    // If there's meaningful content, render it nicely
+    const keys = Object.keys(displayData);
+    if (keys.length === 0) {
+      return `
+        <div class="alert alert-info mb-0">
+          <i class="bi bi-info-circle me-2"></i>No additional data available for this tab.
+          ${doc.source_url ? `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary ms-2"><i class="bi bi-box-arrow-up-right me-1"></i>View Source</a>` : ''}
+        </div>
+      `;
+    }
+
+    let html = '<div class="generic-content">';
+    for (const key of keys) {
+      const value = displayData[key];
+      const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+      if (Array.isArray(value) && value.length > 0) {
+        html += `
+          <div class="mb-3">
+            <h6>${escapeHtml(label)}</h6>
+            <ul class="small">${value.map(v => `<li>${escapeHtml(typeof v === 'object' ? JSON.stringify(v) : v)}</li>`).join('')}</ul>
+          </div>
+        `;
+      } else if (typeof value === 'string' && value) {
+        html += `
+          <div class="mb-3">
+            <h6>${escapeHtml(label)}</h6>
+            <p class="small">${escapeHtml(value)}</p>
+          </div>
+        `;
+      }
+    }
+
+    if (doc.source_url) {
+      html += `<a href="${doc.source_url}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up-right me-1"></i>View Source</a>`;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
   // Render tabs based on tab_config
   function renderCourseTabs(doc) {
+    // Hardcoded fallback configs (kept for backwards compatibility)
     const tabConfigs = {
       cambridge: [
         { id: 'overview', label: 'Overview', icon: 'bi-info-circle' },
@@ -1906,30 +3126,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderResourceTabContent(doc, tabId) {
     const containerId = `resources-container-${doc.id}-${tabId}`;
     return `
-      <div class="d-flex align-items-center gap-2 mb-2">
-        <button class="btn btn-outline-primary btn-sm find-resources-btn"
-                data-authority-id="${doc.authority_id}"
-                data-program-id="${doc.program_id}"
-                data-document-id="${doc.id}"
-                data-syllabus-code="${doc.syllabus_code || ''}"
-                data-target="${containerId}">
-          <i class="bi bi-search"></i>Find resources
-        </button>
-        <button class="btn btn-outline-secondary btn-sm load-resources-btn"
-                data-program-id="${doc.program_id}"
-                data-document-id="${doc.id}"
-                data-syllabus-code="${doc.syllabus_code || ''}"
-                data-target="${containerId}">
-          <i class="bi bi-arrow-clockwise"></i>Refresh list
-        </button>
-        <button class="btn btn-outline-success btn-sm ai-import-resources-btn"
-                data-document-id="${doc.id}"
-                data-program-id="${doc.program_id}"
-                data-syllabus-code="${doc.syllabus_code || ''}"
-                data-target="${containerId}">
-          <i class="bi bi-magic"></i>AI import
-        </button>
-      </div>
       <div id="${containerId}" data-syllabus-code="${doc.syllabus_code || ''}" class="resource-results-placeholder small text-muted">
         No resources loaded yet.
       </div>
@@ -2280,62 +3476,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function attachResourceTabHandlers(courseCard, doc) {
-    courseCard.querySelectorAll('.find-resources-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const target = this.dataset.target;
-        startResourceSync(this.dataset.authorityId, this.dataset.programId, target, this);
-      });
-    });
-
-    courseCard.querySelectorAll('.load-resources-btn').forEach(btn => {
-      btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const target = this.dataset.target;
-        fetchResourcesForProgram(this.dataset.programId, target, this);
-      });
-    });
-
-    courseCard.querySelectorAll('.ai-import-resources-btn').forEach(btn => {
-      btn.addEventListener('click', async function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const target = this.dataset.target;
-        const button = this;
-        const courseCard = button.closest('.course-document');
-        button.disabled = true;
-        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> AI import...';
-        addStatus(courseCard, 'Requesting AI resource import...', 'info');
-        try {
-          const resp = await fetch('{% url "core:standards_api_import_resources_ai" %}', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': csrfToken,
-            },
-            body: `document_id=${button.dataset.documentId}`
-          });
-          const data = await resp.json();
-          if (data.error) {
-            showToast(data.error, 'error');
-            addStatus(courseCard, 'AI import failed: ' + data.error, 'error');
-          } else {
-            showToast('AI resources imported', 'success');
-            addStatus(courseCard, 'AI resources imported.', 'success');
-            // Refresh resources list to show new items
-            fetchResourcesForProgram(button.dataset.programId, target, button);
-          }
-        } catch (err) {
-          showToast('AI import failed: ' + err.message, 'error');
-          addStatus(courseCard, 'AI import failed: ' + err.message, 'error');
-        } finally {
-          button.disabled = false;
-          button.innerHTML = '<i class="bi bi-magic"></i> AI import';
-        }
-      });
-    });
+    // Resource buttons removed - resources loaded via unified tab data API
   }
 
   // Escape HTML to prevent XSS

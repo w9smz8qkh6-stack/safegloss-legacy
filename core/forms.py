@@ -210,7 +210,7 @@ CourseUnitFormSet = inlineformset_factory(
 class QuizForm(forms.ModelForm):
     class Meta:
         model = Quiz
-        fields = ["story", "title", "instructions_html", "total_points", "time_limit_minutes"]
+        fields = ["story", "title", "instructions_html", "total_points", "time_limit_minutes", "shuffle_questions", "shuffle_answers"]
         widgets = {
             "story": forms.Select(attrs={"class": "form-select"}),
             "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Enter quiz title"}),
@@ -222,6 +222,8 @@ class QuizForm(forms.ModelForm):
                 "max": 180,
                 "placeholder": "e.g., 30"
             }),
+            "shuffle_questions": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "shuffle_answers": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):

@@ -5,7 +5,13 @@
 
 {% block extra_css %}
 {% if tab == 'content' or tab == 'segments' %}
-<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.css" rel="stylesheet">
+<style>
+  /* Fix double chevron on Summernote dropdown buttons */
+  .note-btn-group .dropdown-toggle::after {
+    display: none;
+  }
+</style>
 {% endif %}
 {% endblock %}
 
@@ -501,7 +507,7 @@ document.getElementById('autoSegmentBtn').addEventListener('click', async functi
 {% block extra_js %}
 {% if tab == 'content' or tab == 'segments' %}
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-bs5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/summernote@0.8.20/dist/summernote-lite.min.js"></script>
 <script>
 $(document).ready(function() {
   {% if tab == 'content' %}
@@ -520,11 +526,13 @@ $(document).ready(function() {
   $('.segment-content-editor').summernote({
     height: 200,
     toolbar: [
+      ['style', ['style']],
       ['font', ['bold', 'italic', 'underline', 'clear']],
       ['para', ['ul', 'ol', 'paragraph']],
       ['insert', ['link']],
       ['view', ['codeview']]
     ],
+    styleTags: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
   });
   {% endif %}
 });
