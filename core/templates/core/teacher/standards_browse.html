@@ -247,6 +247,21 @@
   .resource-tier-section:last-child {
     margin-bottom: 0;
   }
+  .status-log {
+    background: #f1f3f5;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    color: #495057;
+  }
+  .status-item { margin-bottom: 0.25rem; }
+  .status-item:last-child { margin-bottom: 0; }
+  .status-info { color: #0d6efd; }
+  .status-success { color: #198754; }
+  .status-error { color: #dc3545; }
+  .status-warn { color: #fd7e14; }
   .resource-tier-header {
     display: flex;
     align-items: center;
@@ -825,12 +840,14 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       // Poll job, then load objective tree
       pollJobStatus(data.job_id, courseCard.querySelector('.course-header'), async () => {
-        const [tree, assets] = await Promise.all([
-          fetchObjectiveTree(doc.id),
-          fetchCambridgeAssets(doc.id)
-        ]);
+        const tree = await fetchObjectiveTree(doc.id);
         renderObjectivePane(objectivesPane, tree);
-        renderCambridgeAssets(courseCard, assets);
+        // Avoid refetching assets if already loaded
+        if (!courseCard.dataset.assetsLoaded) {
+          const assets = await fetchCambridgeAssets(doc.id, courseCard);
+          renderCambridgeAssets(courseCard, assets);
+          courseCard.dataset.assetsLoaded = '1';
+        }
       });
     } catch (err) {
       showToast('Error syncing objectives: ' + err.message, 'error');
@@ -852,6 +869,19 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function renderCambridgeAssets(courseCard, assets) {
+    // Cache scraped resources on the card so we can append them alongside DB resources
+    if (assets) {
+      try {
+        courseCard.dataset.scrapedResources = JSON.stringify({
+          endorsed_resources: assets.endorsed_resources || [],
+          catalog_resources: assets.catalog_resources || [],
+          hachette_resources: assets.hachette_resources || [],
+        });
+      } catch (e) {
+        console.warn('Could not cache scraped resources', e);
+      }
+    }
+
     // Overview description
     if (assets?.description) {
       const descEl = courseCard.querySelector('.overview-description');
@@ -862,21 +892,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const syllabusPane = courseCard.querySelector('[data-pane="syllabus"]');
     if (syllabusPane && assets?.syllabus_pdf) {
-      syllabusPane.innerHTML = `
-        <div class="mb-2"><strong>${escapeHtml(assets.syllabus_pdf.label || assets.syllabus_pdf.text || 'Syllabus')}</strong></div>
-        <div class="ratio ratio-4x3 border rounded">
-          <iframe src="${assets.syllabus_pdf.local_url || assets.syllabus_pdf.url}" title="Syllabus" allow="fullscreen"></iframe>
-        </div>
-      `;
+      const pdfUrl = assets.syllabus_pdf.local_url || assets.syllabus_pdf.url;
+      const pdfLabel = escapeHtml(assets.syllabus_pdf.label || assets.syllabus_pdf.text || 'Syllabus');
+      const isPdf = pdfUrl && pdfUrl.toLowerCase().includes('.pdf');
+      if (!pdfUrl) {
+        syllabusPane.innerHTML = `<div class="alert alert-info mb-0">Syllabus link unavailable.</div>`;
+      } else {
+        syllabusPane.innerHTML = `
+          <div class="mb-2"><strong>${pdfLabel}</strong></div>
+          ${isPdf ? `
+            <div class="ratio ratio-4x3 border rounded mb-2">
+              <iframe src="${pdfUrl}" title="Syllabus" allow="fullscreen"></iframe>
+            </div>` : ''}
+          <a class="btn btn-sm btn-outline-primary" href="${pdfUrl}" target="_blank">Open syllabus</a>
+        `;
+      }
     }
     const schemePane = courseCard.querySelector('[data-pane="scheme"]');
     if (schemePane && assets?.scheme_pdf) {
-      schemePane.innerHTML = `
-        <div class="mb-2"><strong>${escapeHtml(assets.scheme_pdf.label || assets.scheme_pdf.text || 'Scheme of Work')}</strong></div>
-        <div class="ratio ratio-4x3 border rounded">
-          <iframe src="${assets.scheme_pdf.local_url || assets.scheme_pdf.url}" title="Scheme of Work" allow="fullscreen"></iframe>
-        </div>
-      `;
+      const pdfUrl = assets.scheme_pdf.local_url || assets.scheme_pdf.url;
+      const pdfLabel = escapeHtml(assets.scheme_pdf.label || assets.scheme_pdf.text || 'Scheme of Work');
+      const isPdf = pdfUrl && pdfUrl.toLowerCase().includes('.pdf');
+      if (!pdfUrl) {
+        schemePane.innerHTML = `<div class="alert alert-info mb-0">Scheme link unavailable.</div>`;
+      } else {
+        schemePane.innerHTML = `
+          <div class="mb-2"><strong>${pdfLabel}</strong></div>
+          ${isPdf ? `
+            <div class="ratio ratio-4x3 border rounded mb-2">
+              <iframe src="${pdfUrl}" title="Scheme of Work" allow="fullscreen"></iframe>
+            </div>` : ''}
+          <a class="btn btn-sm btn-outline-primary" href="${pdfUrl}" target="_blank">Open scheme</a>
+        `;
+      }
     }
     const examsPane = courseCard.querySelector('[data-pane="examinations"]');
     if (examsPane && assets?.past_papers?.length) {
@@ -893,52 +941,53 @@ document.addEventListener('DOMContentLoaded', function() {
         </table>
       `;
     }
-    if (assets?.endorsed_resources?.length) {
-      const resourcesPane = courseCard.querySelector('[data-pane="official_resources"]') ||
-                            courseCard.querySelector('[data-pane="unofficial_resources"]');
-      if (resourcesPane) {
+    // Show scraped resource links in a dedicated section (keeps AI/DB resources separate)
+    const resourcesPane = courseCard.querySelector('[data-pane="official_resources"]') ||
+                          courseCard.querySelector('[data-pane="unofficial_resources"]');
+    if (resourcesPane) {
+      const sections = [];
+      if (assets?.endorsed_resources?.length) {
         const items = assets.endorsed_resources.map(r => `
           <li class="mb-2">
             <div><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
             ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
           </li>
         `).join('');
-        resourcesPane.innerHTML = `
-          <h6>Endorsed Resources</h6>
+        sections.push(`
+          <h6 class="mt-3">Scraped: Endorsed Resources</h6>
           <ul class="mb-0">${items}</ul>
-        `;
+        `);
       }
-    }
-    if (assets?.catalog_resources?.length) {
-      const resourcesPane = courseCard.querySelector('[data-pane="official_resources"]') ||
-                            courseCard.querySelector('[data-pane="unofficial_resources"]');
-      if (resourcesPane) {
+      if (assets?.catalog_resources?.length) {
         const items = assets.catalog_resources.map(r => `
           <li class="mb-2">
             <div><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
             ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
           </li>
         `).join('');
-        resourcesPane.innerHTML += `
-          <h6 class="mt-2">Cambridge Catalog</h6>
+        sections.push(`
+          <h6 class="mt-3">Scraped: Cambridge Catalog</h6>
           <ul class="mb-0">${items}</ul>
-        `;
+        `);
       }
-    }
-    if (assets?.hachette_resources?.length) {
-      const resourcesPane = courseCard.querySelector('[data-pane="official_resources"]') ||
-                            courseCard.querySelector('[data-pane="unofficial_resources"]');
-      if (resourcesPane) {
+      if (assets?.hachette_resources?.length) {
         const items = assets.hachette_resources.map(r => `
           <li class="mb-2">
             <div><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
             ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
           </li>
         `).join('');
-        resourcesPane.innerHTML += `
-          <h6 class="mt-2">Hachette Catalog</h6>
+        sections.push(`
+          <h6 class="mt-3">Scraped: Hachette Catalog</h6>
           <ul class="mb-0">${items}</ul>
-        `;
+        `);
+      }
+      if (sections.length) {
+        resourcesPane.insertAdjacentHTML('beforeend', `
+          <div class="mt-2 scraped-resources-block">
+            ${sections.join('')}
+          </div>
+        `);
       }
     }
   }
@@ -1263,12 +1312,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Lazy load assets once (independent of objectives)
             if (!courseCard.dataset.assetsLoaded) {
               showCambridgeAssetLoading(courseCard);
-              fetchCambridgeAssets(doc.id).then(assets => {
+              fetchCambridgeAssets(doc.id, courseCard).then(assets => {
                 renderCambridgeAssets(courseCard, assets);
                 courseCard.dataset.assetsLoaded = '1';
               }).catch(err => {
                 console.error(err);
                 showToast('Error loading assets: ' + err.message, 'error');
+                addStatus(courseCard, 'Asset load failed: ' + err.message, 'error');
               });
             }
           }
@@ -1610,11 +1660,18 @@ document.addEventListener('DOMContentLoaded', function() {
             <h6 class="mb-1"><i class="bi bi-list-check me-2"></i>Learning Objectives</h6>
             <small class="text-muted">Standards and objectives for ${escapeHtml(doc.subject)} - ${escapeHtml(doc.grade_level)}</small>
           </div>
-          <button class="btn btn-primary btn-sm load-objectives-btn"
-                  data-document-id="${doc.id}"
-                  data-target="${containerId}">
-            <i class="bi bi-arrow-clockwise me-1"></i>Load Standards
-          </button>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-primary load-objectives-btn"
+                    data-document-id="${doc.id}"
+                    data-target="${containerId}">
+              <i class="bi bi-arrow-clockwise me-1"></i>Load Standards
+            </button>
+            <button class="btn btn-outline-success load-objectives-ai-btn"
+                    data-document-id="${doc.id}"
+                    data-target="${containerId}">
+              <i class="bi bi-magic me-1"></i>Fetch from AI
+            </button>
+          </div>
         </div>
         <div id="${containerId}" class="objectives-tree-container">
           <div class="text-center text-muted py-4">
@@ -1805,15 +1862,35 @@ document.addEventListener('DOMContentLoaded', function() {
     return sections.join('');
   }
 
-  async function fetchCambridgeAssets(documentId) {
-    const resp = await fetch(`{% url 'core:standards_api_document_assets' document_id=0 %}`.replace('/0/', `/${documentId}/`));
-    return resp.json();
+  async function fetchCambridgeAssets(documentId, courseCard = null) {
+    if (courseCard) addStatus(courseCard, 'Requesting course assets...', 'info');
+    try {
+      const resp = await fetch(`{% url 'core:standards_api_document_assets' document_id=0 %}`.replace('/0/', `/${documentId}/`));
+      const ctype = (resp.headers.get('content-type') || '').toLowerCase();
+      let data;
+      if (!ctype.includes('application/json')) {
+        const text = await resp.text();
+        throw new Error('Assets endpoint returned non-JSON: ' + text.slice(0, 120));
+      }
+      try {
+        data = await resp.json();
+      } catch (parseErr) {
+        const text = await resp.text();
+        throw new Error('Assets response not valid JSON: ' + text.slice(0, 120));
+      }
+      if (courseCard) addStatus(courseCard, 'Course assets loaded.', 'success');
+      return data;
+    } catch (err) {
+      if (courseCard) addStatus(courseCard, 'Course assets failed: ' + err.message, 'error');
+      throw err;
+    }
   }
 
   function showCambridgeAssetLoading(courseCard) {
     const syllabusPane = courseCard.querySelector('[data-pane="syllabus"]');
     const schemePane = courseCard.querySelector('[data-pane="scheme"]');
     const examsPane = courseCard.querySelector('[data-pane="examinations"]');
+    addStatus(courseCard, 'Fetching syllabus, scheme, and exams...', 'info');
     [syllabusPane, schemePane, examsPane].forEach(p => {
       if (p) {
         p.innerHTML = `
@@ -1834,16 +1911,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 data-authority-id="${doc.authority_id}"
                 data-program-id="${doc.program_id}"
                 data-document-id="${doc.id}"
+                data-syllabus-code="${doc.syllabus_code || ''}"
                 data-target="${containerId}">
           <i class="bi bi-search"></i>Find resources
         </button>
         <button class="btn btn-outline-secondary btn-sm load-resources-btn"
                 data-program-id="${doc.program_id}"
+                data-document-id="${doc.id}"
+                data-syllabus-code="${doc.syllabus_code || ''}"
                 data-target="${containerId}">
           <i class="bi bi-arrow-clockwise"></i>Refresh list
         </button>
+        <button class="btn btn-outline-success btn-sm ai-import-resources-btn"
+                data-document-id="${doc.id}"
+                data-program-id="${doc.program_id}"
+                data-syllabus-code="${doc.syllabus_code || ''}"
+                data-target="${containerId}">
+          <i class="bi bi-magic"></i>AI import
+        </button>
       </div>
-      <div id="${containerId}" class="resource-results-placeholder small text-muted">
+      <div id="${containerId}" data-syllabus-code="${doc.syllabus_code || ''}" class="resource-results-placeholder small text-muted">
         No resources loaded yet.
       </div>
     `;
@@ -1864,6 +1951,11 @@ document.addEventListener('DOMContentLoaded', function() {
       'both': 'Student & Teacher'
     }[audience] || (audience ? audience : '');
 
+    const isbnLine = (r.isbn_10 || r.isbn_13)
+      ? `<div class="resource-meta">ISBN: ${[r.isbn_10, r.isbn_13].filter(Boolean).join(' / ')}</div>`
+      : '';
+    const publisherLine = r.publisher ? `<div class="resource-meta">Publisher: ${escapeHtml(r.publisher)}</div>` : '';
+
     return `
       <div class="resource-card">
         ${r.cover_image_url
@@ -1883,6 +1975,8 @@ document.addEventListener('DOMContentLoaded', function() {
             ${r.platform ? `<span class="badge bg-secondary ms-1">${r.platform}</span>` : ''}
           </div>
           ${r.publisher_url ? `<div class="small"><a href="${r.publisher_url}" target="_blank" class="text-decoration-none"><i class="bi bi-box-arrow-up-right me-1"></i>Publisher page</a></div>` : ''}
+          ${publisherLine}
+          ${isbnLine}
           <div class="resource-badges">
             ${audienceLabel ? `<span class="audience-badge ${audience.replace(' ', '_')}">${audienceLabel}</span>` : ''}
             ${r.is_companion ? '<span class="companion-badge">Companion</span>' : ''}
@@ -1896,6 +1990,8 @@ document.addEventListener('DOMContentLoaded', function() {
   async function fetchResourcesForProgram(programId, containerId, triggerBtn = null) {
     const container = document.getElementById(containerId);
     if (!container) return;
+    const courseCard = container.closest('.course-document');
+    const syllabusCode = container.dataset.syllabusCode || triggerBtn?.dataset.syllabusCode || '';
     if (!programId) {
       container.innerHTML = '<div class="alert alert-warning mb-0">No program ID available for this course.</div>';
       return;
@@ -1909,14 +2005,45 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
     `;
     if (triggerBtn) triggerBtn.disabled = true;
+    addStatus(courseCard, 'Loading resources...', 'info');
 
     try {
-      const response = await fetch(`{% url 'core:standards_api_media' %}?programs=${programId}`);
+      const syllabusParam = syllabusCode ? `&syllabus_code=${encodeURIComponent(syllabusCode)}` : '';
+      const response = await fetch(`{% url 'core:standards_api_media' %}?programs=${programId}${syllabusParam}`);
       const data = await response.json();
-      if (!data.results || data.results.length === 0) {
+      // Try to enrich thumbnails from scraped metadata if missing
+      let enrichedResults = data.results || [];
+      if (courseCard && courseCard.dataset.scrapedResources && enrichedResults.length) {
+        try {
+          const scraped = JSON.parse(courseCard.dataset.scrapedResources);
+          const scrapedMap = new Map();
+          ['endorsed_resources', 'catalog_resources', 'hachette_resources'].forEach(key => {
+            (scraped?.[key] || []).forEach(item => {
+              if (item.url) {
+                scrapedMap.set(item.url.toLowerCase(), item);
+              }
+            });
+          });
+          enrichedResults = enrichedResults.map(r => {
+            if (!r.cover_image_url && r.source_url) {
+              const match = scrapedMap.get(r.source_url.toLowerCase());
+              if (match?.cover_image_url) {
+                return { ...r, cover_image_url: match.cover_image_url };
+              }
+            }
+            return r;
+          });
+        } catch (e) {
+          console.warn('Could not merge scraped thumbnails', e);
+        }
+      }
+
+      if (!enrichedResults || enrichedResults.length === 0) {
         container.innerHTML = '<div class="alert alert-info mb-0">No resources found yet for this course.</div>';
+        addStatus(courseCard, 'No resources found yet for this course.', 'warn');
       } else {
-        container.innerHTML = renderResourcesWithDebug(data.results);
+        container.innerHTML = renderResourcesWithDebug(enrichedResults);
+        addStatus(courseCard, `Loaded ${enrichedResults.length} resource(s).`, 'success');
         // Wire collapse toggles for resource tiers
         container.querySelectorAll('.resource-tier-header').forEach(header => {
           header.addEventListener('click', () => {
@@ -1927,9 +2054,65 @@ document.addEventListener('DOMContentLoaded', function() {
           });
         });
       }
+      // Append scraped links (if cached from assets) so they show alongside AI/DB resources
+      if (courseCard && courseCard.dataset.scrapedResources) {
+        try {
+          const scraped = JSON.parse(courseCard.dataset.scrapedResources);
+          const sections = [];
+          if (scraped?.endorsed_resources?.length) {
+            const items = scraped.endorsed_resources.map(r => `
+              <li class="mb-2">
+                ${r.cover_image_url ? `<img src="${r.cover_image_url}" class="me-2" style="width:60px;height:auto;object-fit:contain;vertical-align:middle;" loading="lazy" alt="">` : ''}
+                <div class="d-inline-block align-middle"><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
+                ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
+              </li>
+            `).join('');
+            sections.push(`
+              <h6 class="mt-3">Scraped: Endorsed Resources</h6>
+              <ul class="mb-0">${items}</ul>
+            `);
+          }
+          if (scraped?.catalog_resources?.length) {
+            const items = scraped.catalog_resources.map(r => `
+              <li class="mb-2">
+                ${r.cover_image_url ? `<img src="${r.cover_image_url}" class="me-2" style="width:60px;height:auto;object-fit:contain;vertical-align:middle;" loading="lazy" alt="">` : ''}
+                <div class="d-inline-block align-middle"><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
+                ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
+              </li>
+            `).join('');
+            sections.push(`
+              <h6 class="mt-3">Scraped: Cambridge Catalog</h6>
+              <ul class="mb-0">${items}</ul>
+            `);
+          }
+          if (scraped?.hachette_resources?.length) {
+            const items = scraped.hachette_resources.map(r => `
+              <li class="mb-2">
+                ${r.cover_image_url ? `<img src="${r.cover_image_url}" class="me-2" style="width:60px;height:auto;object-fit:contain;vertical-align:middle;" loading="lazy" alt="">` : ''}
+                <div class="d-inline-block align-middle"><a href="${r.url}" target="_blank">${escapeHtml(r.title || r.url)}</a></div>
+                ${r.description ? `<div class="small text-muted">${escapeHtml(r.description)}</div>` : ''}
+              </li>
+            `).join('');
+            sections.push(`
+              <h6 class="mt-3">Scraped: Hachette Catalog</h6>
+              <ul class="mb-0">${items}</ul>
+            `);
+          }
+          if (sections.length) {
+            container.insertAdjacentHTML('beforeend', `
+              <div class="mt-2 scraped-resources-block">
+                ${sections.join('')}
+              </div>
+            `);
+          }
+        } catch (e) {
+          console.warn('Could not append scraped resources', e);
+        }
+      }
     } catch (err) {
       console.error(err);
       container.innerHTML = `<div class="alert alert-danger mb-0">Error loading resources: ${err.message}</div>`;
+      addStatus(courseCard, 'Error loading resources: ' + err.message, 'error');
     } finally {
       if (triggerBtn) triggerBtn.disabled = false;
     }
@@ -1940,6 +2123,8 @@ document.addEventListener('DOMContentLoaded', function() {
     button.classList.add('syncing');
     const icon = button.querySelector('i');
     icon?.classList.add('spin');
+    const courseCard = document.getElementById(containerId)?.closest('.course-document');
+    addStatus(courseCard, 'Starting resource sync...', 'info');
 
     try {
       const response = await fetch('{% url "core:standards_api_sync_resources" %}', {
@@ -1955,13 +2140,19 @@ document.addEventListener('DOMContentLoaded', function() {
         showToast(data.error, 'error');
         icon?.classList.remove('spin');
         button.classList.remove('syncing');
+        addStatus(courseCard, 'Resource sync failed: ' + data.error, 'error');
         return;
       }
-      pollJobStatus(data.job_id, button, () => fetchResourcesForProgram(programId, containerId, button));
+      pollJobStatus(data.job_id, button, () => {
+        addStatus(courseCard, 'Resource sync complete. Refreshing resources...', 'success');
+        fetchResourcesForProgram(programId, containerId, button);
+      });
+      addStatus(courseCard, 'Resource sync queued.', 'info');
     } catch (err) {
       showToast('Error starting resource sync: ' + err.message, 'error');
       icon?.classList.remove('spin');
       button.classList.remove('syncing');
+      addStatus(courseCard, 'Error starting resource sync: ' + err.message, 'error');
     }
   }
 
@@ -1974,6 +2165,58 @@ document.addEventListener('DOMContentLoaded', function() {
         const documentId = this.dataset.documentId;
         const targetId = this.dataset.target;
         fetchObjectivesForDocument(documentId, targetId, this);
+      });
+    });
+
+    courseCard.querySelectorAll('.load-objectives-ai-btn').forEach(btn => {
+      btn.addEventListener('click', async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const documentId = this.dataset.documentId;
+        const targetId = this.dataset.target;
+        const button = this;
+        const container = document.getElementById(targetId);
+        const courseCard = button.closest('.course-document');
+        if (container) {
+          container.innerHTML = `
+            <div class="text-center py-4">
+              <span class="spinner-border spinner-border-sm"></span>
+              <p class="mb-0 mt-2 small text-muted">Requesting AI objectives...</p>
+            </div>
+          `;
+        }
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Fetching...';
+        addStatus(courseCard, 'Requesting AI objectives...', 'info');
+        try {
+          const resp = await fetch('{% url "core:standards_api_import_objectives_ai" %}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': csrfToken,
+            },
+            body: `document_id=${documentId}`
+          });
+          const data = await resp.json();
+          if (data.error) {
+            showToast(data.error, 'error');
+            addStatus(courseCard, 'AI objectives failed: ' + data.error, 'error');
+            if (container) container.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(data.error)}</div>`;
+          } else {
+            showToast('AI objectives loaded', 'success');
+            addStatus(courseCard, 'AI objectives loaded.', 'success');
+            if (container && data.objectives) {
+              container.innerHTML = renderObjectiveTree(data.objectives);
+            }
+          }
+        } catch (err) {
+          showToast('AI objectives failed: ' + err.message, 'error');
+          addStatus(courseCard, 'AI objectives failed: ' + err.message, 'error');
+          if (container) container.innerHTML = `<div class="alert alert-danger mb-0">AI error: ${escapeHtml(err.message)}</div>`;
+        } finally {
+          button.disabled = false;
+          button.innerHTML = '<i class="bi bi-magic me-1"></i>Fetch from AI';
+        }
       });
     });
   }
@@ -2054,6 +2297,45 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchResourcesForProgram(this.dataset.programId, target, this);
       });
     });
+
+    courseCard.querySelectorAll('.ai-import-resources-btn').forEach(btn => {
+      btn.addEventListener('click', async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const target = this.dataset.target;
+        const button = this;
+        const courseCard = button.closest('.course-document');
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> AI import...';
+        addStatus(courseCard, 'Requesting AI resource import...', 'info');
+        try {
+          const resp = await fetch('{% url "core:standards_api_import_resources_ai" %}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': csrfToken,
+            },
+            body: `document_id=${button.dataset.documentId}`
+          });
+          const data = await resp.json();
+          if (data.error) {
+            showToast(data.error, 'error');
+            addStatus(courseCard, 'AI import failed: ' + data.error, 'error');
+          } else {
+            showToast('AI resources imported', 'success');
+            addStatus(courseCard, 'AI resources imported.', 'success');
+            // Refresh resources list to show new items
+            fetchResourcesForProgram(button.dataset.programId, target, button);
+          }
+        } catch (err) {
+          showToast('AI import failed: ' + err.message, 'error');
+          addStatus(courseCard, 'AI import failed: ' + err.message, 'error');
+        } finally {
+          button.disabled = false;
+          button.innerHTML = '<i class="bi bi-magic"></i> AI import';
+        }
+      });
+    });
   }
 
   // Escape HTML to prevent XSS
@@ -2062,6 +2344,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  // Status log helpers (per course card)
+  function getStatusLog(courseCard) {
+    if (!courseCard) return null;
+    let log = courseCard.querySelector('.status-log');
+    if (!log) {
+      log = document.createElement('div');
+      log.className = 'status-log';
+      const body = courseCard.querySelector('.course-body');
+      if (body) body.prepend(log);
+    }
+    return log;
+  }
+
+  function addStatus(courseCard, message, variant = 'info') {
+    const log = getStatusLog(courseCard);
+    if (!log) return;
+    const ts = new Date().toLocaleTimeString();
+    log.insertAdjacentHTML('afterbegin',
+      `<div class="status-item status-${variant}">
+        <small class="text-muted">${ts}</small> — ${escapeHtml(message)}
+      </div>`);
   }
 
   // Render objective tree recursively

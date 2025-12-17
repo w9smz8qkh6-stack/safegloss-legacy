@@ -6,8 +6,15 @@ from django.db.models import Count, Max, Case, When, IntegerField
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from functools import wraps
+from django.conf import settings
 
 from django.http import JsonResponse
+from django.http import FileResponse, Http404
+import json
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+from openai import OpenAI
+from core.services.standards.import_service import _compute_sha256, _generate_internal_codes
 
 from .forms import (
     LessonFilterForm, StoryForm, StorySegmentFormSet, GlossaryForm, TermForm,
@@ -26,6 +33,7 @@ from .models import (
     AuthorityProgramMedia, AuthorityProgramMediaTag,
     # Background jobs
     BackgroundJob,
+    StandardsArtifact,
 )
 
 
@@ -2781,10 +2789,15 @@ def standards_browse(request):
 def standards_api_authorities(request):
     """API endpoint: return all active authorities as JSON."""
     authorities = StandardsAuthority.objects.filter(is_active=True).order_by("name")
-    data = [
-        {"id": a.pk, "code": a.code, "name": a.name}
-        for a in authorities
-    ]
+
+    seen_codes = set()
+    data = []
+    for a in authorities:
+        if a.code in seen_codes:
+            continue
+        seen_codes.add(a.code)
+        data.append({"id": a.pk, "code": a.code, "name": a.name})
+
     return JsonResponse({"authorities": data})
 
 
@@ -2802,6 +2815,15 @@ def standards_api_programs(request):
         is_active=True
     ).select_related("authority").order_by("authority__name", "name")
 
+    # Filter out redundant parent programs (e.g., Cambridge "Cambridge International" wrapper)
+    def _skip_program(p: AuthorityProgram) -> bool:
+        if p.authority.code == "CAMBRIDGE" and p.code == "CAM_INTL":
+            return True
+        if p.authority.code in ("US_STATE_STANDARDS", "US_STATES") and p.name.strip().lower() == "us state standards":
+            return True
+        return False
+
+    seen = set()
     data = [
         {
             "id": p.pk,
@@ -2811,6 +2833,10 @@ def standards_api_programs(request):
             "authority_name": p.authority.name,
         }
         for p in programs
+        if not _skip_program(p)
+        if not (
+            (p.authority_id, p.name.lower().strip()) in seen or seen.add((p.authority_id, p.name.lower().strip()))
+        )
     ]
     return JsonResponse({"programs": data})
 
@@ -2878,16 +2904,17 @@ def standards_api_courses(request):
     if subjects:
         queryset = queryset.filter(subject__in=subjects)
 
-    # Return course info with ID, name (source_title), and version_label
+    # Return course info with ID, syllabus_code, name (source_title), and version_label
     courses = (
         queryset
-        .values("id", "source_title", "version_label", "grade_level", "subject")
-        .order_by("subject", "grade_level", "source_title")
+        .values("id", "syllabus_code", "source_title", "version_label", "grade_level", "subject")
+        .order_by("subject", "syllabus_code", "source_title")
     )
 
     data = [
         {
             "id": c["id"],
+            "syllabus_code": c["syllabus_code"],
             "name": c["source_title"] or c["version_label"],
             "version_label": c["version_label"],
             "grade_level": c["grade_level"],
@@ -2958,14 +2985,39 @@ def _expand_grade_levels(selected_grades: list[str]) -> set[str]:
 @teacher_required
 def standards_api_results(request):
     """
-    API endpoint: return standards documents and objectives tree
-    based on filter criteria.
+    API endpoint: return course catalog organized by subject and grade level.
+    Returns courses (StandardsDocuments) as the browsable items.
     """
     program_ids = request.GET.getlist("programs")
+    document_id = request.GET.get("document_id")
     grades = request.GET.getlist("grades")
     subjects = request.GET.getlist("subjects")
     course_ids = request.GET.getlist("courses")
-    show_internal_codes = request.GET.get("internal_codes", "false") == "true"
+
+    if document_id:
+        doc = get_object_or_404(
+            StandardsDocument.objects.select_related("authority_program__authority"),
+            pk=document_id,
+        )
+        return JsonResponse({
+            "documents": [{
+                "id": doc.pk,
+                "syllabus_code": doc.syllabus_code,
+                "source_title": doc.source_title,
+                "authority_name": doc.authority_program.authority.name,
+                "authority_code": doc.authority_program.authority.code,
+                "authority_id": doc.authority_program.authority_id,
+                "program_name": doc.authority_program.name,
+                "program_id": doc.authority_program_id,
+                "program_code": doc.authority_program.code,
+                "subject": doc.subject,
+                "grade_level": doc.grade_level,
+                "version_label": doc.version_label,
+                "source_url": doc.source_url,
+                "description": doc.description or doc.acquisition_notes or "",
+                "tab_config": "cambridge" if doc.authority_program.authority.code == "CAMBRIDGE" else "default",
+            }]
+        })
 
     if not program_ids:
         return JsonResponse({"documents": [], "message": "Please select at least one program."})
@@ -2986,98 +3038,105 @@ def standards_api_results(request):
         queryset = queryset.filter(id__in=course_ids)
 
     queryset = queryset.order_by(
-        "authority_program__authority__name",
-        "authority_program__name",
         "subject",
+        "syllabus_code",
         "grade_level"
     )
 
     documents_data = []
     for doc in queryset:
-        # Get objectives tree for this document
-        nodes = ObjectiveNode.objects.filter(document=doc).order_by("sort_order")
+        authority_code = doc.authority_program.authority.code
 
-        # Build nested tree structure
-        def build_tree(parent_id=None):
-            children = []
-            for node in nodes:
-                if node.parent_id == parent_id:
-                    # When checkbox is ticked, show internal codes; when unticked show native/external
-                    code_display = node.code if show_internal_codes else node.internal_code
-                    children.append({
-                        "id": node.pk,
-                        "code": code_display or "",
-                        "native_code": node.code,
-                        "internal_code": node.internal_code,
-                        "text": node.text,
-                        "node_type": node.node_type,
-                        "children": build_tree(node.pk),
-                    })
-            return children
-
-        objective_tree = build_tree()
-
-        # Get resources for this program - show all tiers
-        resources = doc.authority_program.media.all().order_by(
-            # Order by tier priority: official first, then recommended, then commonly_used
-            models.Case(
-                models.When(recommendation_tier="official", then=0),
-                models.When(recommendation_tier="recommended", then=1),
-                models.When(recommendation_tier="commonly_used", then=2),
-                default=3,
-                output_field=models.IntegerField(),
-            ),
-            "title"
-        )[:15]  # Limit to 15 total resources across all tiers
-        resources_data = [
-            {
-                "id": media.pk,
-                "title": media.title,
-                "author": media.author,
-                "media_type": media.media_type,
-                "media_type_display": media.get_media_type_display(),
-                "platform": media.platform,
-                "platform_display": media.get_platform_display(),
-                "is_official": media.is_official,
-                "recommendation_tier": media.recommendation_tier,
-                "recommendation_tier_display": media.get_recommendation_tier_display() if hasattr(media, 'get_recommendation_tier_display') else media.recommendation_tier,
-                "endorsement_notes": media.endorsement_notes,
-                "recommending_organization": media.recommending_organization,
-                "cover_image_url": media.cover_image_url,
-                "source_url": media.source_url,
-            }
-            for media in resources
-        ]
+        # Determine tab configuration based on authority type
+        if authority_code == "CAMBRIDGE":
+            tab_config = "cambridge"
+        elif authority_code == "IB":
+            tab_config = "ib"
+        elif authority_code == "COLLEGE_BOARD":
+            tab_config = "college_board"
+        elif authority_code == "WIDA":
+            tab_config = "wida"
+        elif authority_code == "BRITISH_COUNCIL":
+            tab_config = "british_council"
+        elif authority_code == "ETS":
+            tab_config = "ets"
+        elif authority_code == "FOREIGN_MOE":
+            tab_config = "foreign_moe"
+        elif authority_code == "CCSS":
+            tab_config = "common_core"
+        elif authority_code.startswith("STATE_") or authority_code in ("US_STATES", "US_STATE_STANDARDS"):
+            tab_config = "us_state"
+        else:
+            tab_config = "default"
 
         documents_data.append({
             "id": doc.pk,
+            "syllabus_code": doc.syllabus_code,
+            "source_title": doc.source_title,
             "authority_name": doc.authority_program.authority.name,
-            "authority_code": doc.authority_program.authority.code,
+            "authority_id": doc.authority_program.authority_id,
+            "authority_code": authority_code,
             "program_name": doc.authority_program.name,
+            "program_id": doc.authority_program_id,
             "program_code": doc.authority_program.code,
             "subject": doc.subject,
             "grade_level": doc.grade_level,
             "version_label": doc.version_label,
-            "tier": doc.tier,
-            "tier_display": doc.get_tier_display(),
-            "source_publisher_name": doc.source_publisher_name,
-            "source_publisher_type": doc.source_publisher_type,
-            "source_publisher_type_display": doc.get_source_publisher_type_display() if doc.source_publisher_type else "",
             "source_url": doc.source_url,
-            "source_accessed_at": doc.source_accessed_at.isoformat() if doc.source_accessed_at else None,
-            "acquisition_method": doc.get_acquisition_method_display(),
-            "is_reference_only": doc.is_reference_only,
-            "status": doc.status,
-            "objective_count": nodes.count(),
-            "objectives": objective_tree,
-            "resources": resources_data,
-            "resources_count": doc.authority_program.media.count(),
+            "description": doc.description or doc.acquisition_notes or "",
+            "tab_config": tab_config,
         })
 
     return JsonResponse({
         "documents": documents_data,
         "total_documents": len(documents_data),
-        "show_internal_codes": show_internal_codes,
+    })
+
+
+@login_required
+@teacher_required
+def standards_api_document_objectives(request, document_id):
+    """
+    API endpoint: return the objective tree for a specific document (course).
+    Returns hierarchical structure: strands -> substrands -> objectives
+    """
+    try:
+        document = StandardsDocument.objects.select_related(
+            "authority_program__authority"
+        ).get(pk=document_id, is_active=True)
+    except StandardsDocument.DoesNotExist:
+        return JsonResponse({"error": "Document not found"}, status=404)
+
+    def build_tree(parent=None):
+        """Recursively build the objective tree."""
+        nodes = ObjectiveNode.objects.filter(
+            document=document,
+            parent=parent
+        ).order_by("sort_order", "code")
+
+        result = []
+        for node in nodes:
+            node_data = {
+                "id": node.pk,
+                "code": node.code,
+                "text": node.text,
+                "node_type": node.node_type,
+                "internal_code": node.internal_code,
+                "sort_order": node.sort_order,
+                "children": build_tree(parent=node)
+            }
+            result.append(node_data)
+        return result
+
+    objectives_tree = build_tree(parent=None)
+
+    return JsonResponse({
+        "document_id": document.pk,
+        "syllabus_code": document.syllabus_code,
+        "subject": document.subject,
+        "grade_level": document.grade_level,
+        "total_objectives": document.objective_nodes.count(),
+        "objectives": objectives_tree,
     })
 
 
@@ -3137,6 +3196,7 @@ def standards_api_search(request):
             "document_id": doc.pk,
             "subject": doc.subject,
             "grade_level": doc.grade_level,
+            "syllabus_code": doc.syllabus_code,
             "authority_code": doc.authority_program.authority.code,
             "authority_name": doc.authority_program.authority.name,
             "program_code": doc.authority_program.code,
@@ -3159,12 +3219,14 @@ def standards_api_media(request):
 
     Query parameters:
     - programs: Comma-separated program IDs to filter
+    - syllabus_code: If provided, only return media tagged with this syllabus code
     - official_only: If "true", only show official/endorsed resources
     - platform: Filter by platform (google_books, amazon, etc.)
     - media_type: Filter by type (book, guide, course, etc.)
     - q: Search by title/author/ISBN
     """
     program_ids = request.GET.getlist("programs")
+    syllabus_code = request.GET.get("syllabus_code", "").strip()
     official_only = request.GET.get("official_only", "").lower() == "true"
     platform = request.GET.get("platform", "").strip()
     media_type = request.GET.get("media_type", "").strip()
@@ -3178,6 +3240,10 @@ def standards_api_media(request):
     # Filter by programs
     if program_ids:
         qs = qs.filter(authority_program_id__in=program_ids)
+
+    # Filter by syllabus code when provided (course-specific resources)
+    if syllabus_code:
+        qs = qs.filter(features__syllabus_code=syllabus_code)
 
     # Filter by official status
     if official_only:
@@ -3216,10 +3282,15 @@ def standards_api_media(request):
             "isbn_13": media.isbn_13,
             "source_url": media.source_url,
             "cover_image_url": media.cover_image_url,
+            "publisher_url": media.publisher_url,
             "media_type": media.media_type,
             "media_type_display": media.get_media_type_display(),
             "platform": media.platform,
             "platform_display": media.get_platform_display(),
+            "retrieved_from": media.retrieved_from,
+            "resource_category": getattr(media, "resource_category", "") or "",
+            "audience": getattr(media, "audience", "") or "",
+            "is_companion": getattr(media, "is_companion", False),
             "is_official": media.is_official,
             "is_unofficial": media.is_unofficial,
             "endorsement_notes": media.endorsement_notes,
@@ -3239,6 +3310,598 @@ def standards_api_media(request):
 
 @login_required
 @teacher_required
+def standards_api_objectives(request, document_id):
+    """
+    API endpoint: return objective tree for a specific StandardsDocument.
+    """
+    doc = get_object_or_404(
+        StandardsDocument.objects.select_related("authority_program__authority"),
+        pk=document_id,
+        is_active=True,
+    )
+
+    def build_tree(parent=None):
+        nodes = ObjectiveNode.objects.filter(document=doc, parent=parent).order_by("sort_order")
+        data = []
+        for node in nodes:
+            data.append({
+                "id": node.pk,
+                "code": node.code,
+                "text": node.text,
+                "node_type": node.node_type,
+                "children": build_tree(node),
+            })
+        return data
+
+    return JsonResponse({
+        "document_id": doc.pk,
+        "objectives": build_tree(None),
+    })
+
+
+@login_required
+@teacher_required
+def standards_api_cambridge_assets(request, document_id):
+    """
+    Fetch syllabus, scheme (if present), and past paper/endorsed resource links from official Cambridge pages.
+    Runtime scrape per document to avoid aggressive crawling.
+    """
+    import requests
+    from bs4 import BeautifulSoup
+    from urllib.parse import urljoin
+
+    doc = get_object_or_404(
+        StandardsDocument.objects.select_related("authority_program__authority"),
+        pk=document_id,
+        is_active=True,
+    )
+
+    if doc.authority_program.authority.code != "CAMBRIDGE":
+        return JsonResponse({"error": "Only supported for Cambridge courses"}, status=400)
+
+    base_url = doc.source_url or ""
+    results = {
+        "syllabus_pdf": None,
+        "scheme_pdf": None,
+        "past_papers": [],
+        "endorsed_resources": [],
+        "catalog_resources": [],
+        "hachette_resources": [],
+        "description": "",
+    }
+
+    def fetch_html(url):
+        try:
+            resp = requests.get(url, timeout=20, headers={"User-Agent": "SafeglossBot/1.0"})
+            resp.raise_for_status()
+            return resp.text
+        except Exception as e:
+            return ""
+
+    def find_pdf_links(html, base):
+        links = []
+        if not html:
+            return links
+        soup = BeautifulSoup(html, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if ".pdf" not in href.lower():
+                continue
+            full = urljoin(base, href)
+            text = (a.get_text() or "").strip()
+            links.append({"url": full, "text": text})
+        return links
+
+    # Main course page: syllabus + maybe scheme + endorsed listings
+    main_html = fetch_html(base_url)
+    if main_html:
+        soup_main = BeautifulSoup(main_html, "html.parser")
+
+        def extract_overview(soup):
+            # Prefer a heading that includes "Syllabus overview"
+            heading = None
+            for tag in soup.find_all(["h1", "h2", "h3", "h4"]):
+                if "syllabus overview" in (tag.get_text() or "").lower():
+                    heading = tag
+                    break
+            if heading:
+                # Grab following paragraph(s) until next heading or empty
+                parts = []
+                for sib in heading.find_all_next():
+                    if sib.name in ["h1", "h2", "h3", "h4"]:
+                        break
+                    if sib.name == "p":
+                        txt = (sib.get_text() or "").strip()
+                        if txt:
+                            parts.append(txt)
+                    if len(parts) >= 2:  # stop after a couple paragraphs
+                        break
+                return "\n\n".join(parts)
+            # Fallback: meta description
+            meta_desc = soup.find("meta", attrs={"name": "description"})
+            if meta_desc and meta_desc.get("content"):
+                return meta_desc.get("content", "").strip()
+            # Fallback: first paragraph
+            first_p = soup.find("p")
+            if first_p:
+                return (first_p.get_text() or "").strip()
+            return ""
+
+        raw_desc = extract_overview(soup_main)
+        if raw_desc:
+            # Remove availability notice if present
+            notice = "Available in a limited number of Administrative zones. See our 'Syllabus availability notice' below for details."
+            results["description"] = raw_desc.replace(notice, "").strip()
+        else:
+            results["description"] = ""
+        # Cache description on document
+        if results["description"] and not doc.description:
+            doc.description = results["description"]
+            doc.save(update_fields=["description", "updated_at"])
+    pdfs = find_pdf_links(main_html, base_url)
+
+    def pick_link(keywords):
+        for p in pdfs:
+            text_lower = p["text"].lower()
+            url_lower = p["url"].lower()
+            if any(k in text_lower or k in url_lower for k in keywords):
+                return p
+        return None
+
+    syllabus_link = pick_link(["syllabus", "specimen", "sg"])
+    if syllabus_link:
+        results["syllabus_pdf"] = _download_artifact(syllabus_link, doc, "syllabus")
+
+    scheme_link = pick_link(["scheme", "sow"])
+    if scheme_link:
+        results["scheme_pdf"] = _download_artifact(scheme_link, doc, "scheme")
+
+    # Past papers page
+    past_url = urljoin(base_url + "/", "./past-papers/")
+    past_html = fetch_html(past_url)
+    past_pdfs = find_pdf_links(past_html, past_url)
+    for p in past_pdfs:
+        art = _download_artifact(p, doc, "past_paper")
+        results["past_papers"].append({
+            "name": art.get("label") or p["text"] or p["url"].split("/")[-1],
+            "url": art.get("local_url") or art.get("remote_url") or p["url"],
+            "remote_url": art.get("remote_url"),
+        })
+
+    # Endorsed resources page
+    endorsed_url = urljoin(base_url + "/", "./endorsed-resources/")
+    endorsed_html = fetch_html(endorsed_url)
+    results["endorsed_resources"] = _extract_endorsed_resources(endorsed_html, endorsed_url, doc)
+
+    # Cambridge catalog search (official cambridge.org products)
+    results["catalog_resources"] = _search_cambridge_catalog(doc)
+    # Hachette Learning catalog search (public pages)
+    results["hachette_resources"] = _search_hachette_catalog(doc)
+
+    return JsonResponse(results)
+
+
+def _download_artifact(link: dict, doc: StandardsDocument, kind: str, download: bool = True) -> dict:
+    """
+    Download a PDF and register a StandardsArtifact; return local/remote URLs and label.
+    """
+    url = link.get("url")
+    label = (link.get("text") or "").strip() or url.split("/")[-1]
+    if not download:
+        return {"remote_url": url, "label": label}
+
+    try:
+        resp = requests.get(url, timeout=25, headers={"User-Agent": "SafeglossBot/1.0"})
+        resp.raise_for_status()
+        content = resp.content
+    except Exception:
+        return {"remote_url": url, "label": label}
+
+    # Validate PDF content (some endpoints serve HTML/captcha)
+    content_type = resp.headers.get("Content-Type", "").lower()
+    if "pdf" not in content_type and not content.startswith(b"%PDF"):
+        return {"remote_url": url, "label": label}
+
+    # Build safe filename
+    import re, os
+    safe_label = re.sub(r"[^a-zA-Z0-9._-]+", "_", label)[:80]
+    if not safe_label.lower().endswith(".pdf"):
+        safe_label += ".pdf"
+    base_dir = os.path.join("data", "artifacts", "cambridge", f"doc_{doc.pk}")
+    os.makedirs(base_dir, exist_ok=True)
+    file_path = os.path.join(base_dir, safe_label)
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    artifact = StandardsArtifact.objects.create(
+        file_path=file_path,
+        remote_url=url,
+        content_type="pdf",
+        sha256_hash=_compute_sha256(content),
+        file_size_bytes=len(content),
+        original_filename=safe_label,
+        metadata={"kind": kind, "document_id": doc.pk},
+    )
+
+    return {
+        "remote_url": url,
+        "local_url": reverse("core:standards_api_artifact_download", args=[artifact.pk]),
+        "label": label,
+        "artifact_id": artifact.pk,
+    }
+
+
+def _extract_endorsed_resources(html: str, base_url: str, doc: StandardsDocument) -> list[dict]:
+    """
+    Extract endorsed resources from the endorsed-resources page, avoiding nav noise.
+    Prefer links under the 'Endorsed resources' heading and PDF/product links.
+    """
+    if not html:
+        return []
+    soup = BeautifulSoup(html, "html.parser")
+    main = soup.find("main") or soup.find(attrs={"role": "main"}) or soup
+
+    def collect_links(scope):
+        found = []
+        for a in scope.find_all("a", href=True):
+            text = (a.get_text() or "").strip()
+            href = a["href"]
+            if not text:
+                continue
+            full = urljoin(base_url, href)
+            if href.startswith("#") or href.startswith("mailto:"):
+                continue
+            # Allow PDFs and Cambridge product/resource pages
+            if ".pdf" in href.lower() or "cambridge.org" in href or "cambridgeinternational.org" in href:
+                found.append({"title": text, "url": full})
+        return found
+
+    # Scope under heading containing "endorsed resources"
+    section_links = []
+    for h in main.find_all(["h1", "h2", "h3", "h4"]):
+        if "endorsed resources" in (h.get_text() or "").lower():
+            siblings = []
+            for sib in h.find_all_next():
+                if sib.name in ["h1", "h2", "h3", "h4"]:
+                    break
+                siblings.append(sib)
+            wrapper = BeautifulSoup("<div></div>", "html.parser")
+            container = wrapper.div
+            for s in siblings:
+                container.append(s)
+            section_links = collect_links(container)
+            break
+
+    if section_links:
+        return [_enrich_resource_link(link) for link in section_links]
+
+    # Fallback: PDFs only from main content
+    pdfs = []
+    for a in main.find_all("a", href=True):
+        href = a["href"]
+        if ".pdf" not in href.lower():
+            continue
+        text = (a.get_text() or "").strip()
+        full = urljoin(base_url, href)
+        if text or full:
+            pdfs.append({"title": text or full.split("/")[-1], "url": full})
+    return [_enrich_resource_link(link) for link in pdfs]
+
+
+def _search_cambridge_catalog(doc: StandardsDocument) -> list[dict]:
+    """
+    Light search on cambridge.org for the course title/syllabus code.
+    Avoids aggressive crawling; returns top product links with metadata.
+    """
+    import urllib.parse
+    query_parts = [doc.source_title or "", doc.syllabus_code or ""]
+    query = " ".join([q for q in query_parts if q]).strip()
+    if not query:
+        return []
+    search_url = f"https://www.cambridge.org/gb/education/search?searchTerm={urllib.parse.quote(query)}"
+    try:
+        resp = requests.get(search_url, timeout=10, headers={"User-Agent": "SafeglossBot/1.0"})
+        resp.raise_for_status()
+    except Exception:
+        return []
+    if "text/html" not in resp.headers.get("Content-Type", "").lower():
+        return []
+    soup = BeautifulSoup(resp.text, "html.parser")
+    items = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = (a.get_text() or "").strip()
+        if not text:
+            continue
+        if "/education/subject/" not in href:
+            continue
+        full = href if href.startswith("http") else f"https://www.cambridge.org{href}"
+        items.append({"title": text, "url": full})
+        if len(items) >= 5:
+            break
+    return [_enrich_resource_link(link) for link in items]
+
+
+def _search_hachette_catalog(doc: StandardsDocument) -> list[dict]:
+    """
+    Light search on hachettelearning.com for Cambridge titles.
+    Uses site search with course title/syllabus code; keeps a few matches.
+    """
+    import urllib.parse
+    query_parts = [doc.source_title or "", doc.syllabus_code or ""]
+    query = " ".join([q for q in query_parts if q]).strip()
+    if not query:
+        return []
+    search_url = f"https://www.hachettelearning.com/?s={urllib.parse.quote(query)}"
+    try:
+        resp = requests.get(search_url, timeout=10, headers={"User-Agent": "SafeglossBot/1.0"})
+        resp.raise_for_status()
+    except Exception:
+        return []
+    if "text/html" not in resp.headers.get("Content-Type", "").lower():
+        return []
+    soup = BeautifulSoup(resp.text, "html.parser")
+    items = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        text = (a.get_text() or "").strip()
+        if not text:
+            continue
+        if "hachettelearning.com" not in href:
+            continue
+        if "cambridge" not in href.lower():
+            continue
+        items.append({"title": text, "url": href})
+        if len(items) >= 5:
+            break
+    return [_enrich_resource_link(link) for link in items]
+
+
+def _enrich_resource_link(link: dict) -> dict:
+    """
+    Fetch a resource link and try to extract title/description/image metadata.
+    Light-touch: short timeout, no JS, skip if HTML looks like captcha.
+    """
+    url = link.get("url")
+    title = link.get("title") or url.split("/")[-1]
+    data = {
+        "title": title,
+        "url": url,
+        "description": "",
+        "cover_image_url": "",
+        "author": "",
+        "publisher": "",
+    }
+    try:
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "SafeglossBot/1.0"})
+        resp.raise_for_status()
+        ctype = resp.headers.get("Content-Type", "")
+        if "html" not in ctype.lower():
+            return data
+        soup = BeautifulSoup(resp.text, "html.parser")
+        # Captcha check
+        if "captcha" in soup.get_text(" ", strip=True).lower():
+            return data
+        og_title = soup.find("meta", property="og:title")
+        og_desc = soup.find("meta", property="og:description")
+        og_image = soup.find("meta", property="og:image")
+        if og_title and og_title.get("content"):
+            data["title"] = og_title["content"]
+        if og_desc and og_desc.get("content"):
+            data["description"] = og_desc["content"]
+        if og_image and og_image.get("content"):
+            data["cover_image_url"] = og_image["content"]
+        # Fallback description: first paragraph
+        if not data["description"]:
+            p = soup.find("p")
+            if p:
+                desc = (p.get_text() or "").strip()
+                data["description"] = desc[:500]
+    except Exception:
+        return data
+    return data
+
+
+@login_required
+@teacher_required
+def standards_api_artifact_download(request, artifact_id):
+    """
+    Serve an artifact file (PDF).
+    """
+    try:
+        artifact = StandardsArtifact.objects.get(pk=artifact_id)
+    except StandardsArtifact.DoesNotExist:
+        raise Http404()
+
+    try:
+        return FileResponse(open(artifact.file_path, "rb"), content_type="application/pdf")
+    except FileNotFoundError:
+        raise Http404()
+
+
+@login_required
+@teacher_required
+@require_POST
+def standards_api_import_resources_ai(request):
+    """
+    Call OpenRouter to fetch resource metadata for a document (Cambridge) and import it.
+    """
+    document_id = request.POST.get("document_id")
+    if not document_id:
+        return JsonResponse({"error": "document_id is required"}, status=400)
+    try:
+        document_id = int(document_id)
+    except ValueError:
+        return JsonResponse({"error": "document_id must be an integer"}, status=400)
+
+    doc = get_object_or_404(
+        StandardsDocument.objects.select_related("authority_program__authority"),
+        pk=document_id,
+        is_active=True,
+    )
+
+    if doc.authority_program.authority.code != "CAMBRIDGE":
+        return JsonResponse({"error": "Only supported for Cambridge courses"}, status=400)
+
+    api_key = getattr(settings, "OPENROUTER_API_KEY", None)
+    if not api_key:
+        return JsonResponse({"error": "OPENROUTER_API_KEY not configured"}, status=500)
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+
+    prompt = f"""
+You are an expert at gathering publicly available official Cambridge International course materials.
+Return a JSON array with exactly one entry for THIS course only (do not include other courses):
+- course_code (string)
+- course_name (string)
+- syllabi: list of objects {{title, url, format="pdf", version_label, notes}}
+- past_papers: list of objects {{title, session, url, paper_code, notes}}
+- endorsed_resources: list of objects {{
+    title,
+    authors[], publisher,
+    isbn_10, isbn_13,
+    format,
+    url, cover_image_url,
+    audience ("student"|"teacher"|"both"),
+    is_companion (true if a companion/extra such as workbook, teacher's resource, digital access, online extras, DVD),
+    notes
+  }}
+Include ALL endorsed/official resources for this course, both student-facing and teacher-facing, including companion media (workbooks, teacher's resources, digital coursebooks, online extras, DVDs, etc).
+Only include publicly accessible URLs. If you do not find an item, leave the list empty. Do not invent resources.
+Course:
+{doc.source_title} ({doc.syllabus_code})
+    """.strip()
+
+    try:
+        completion = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You return only valid JSON as described."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=1200,
+        )
+        content = completion.choices[0].message.content
+        payload = json.loads(content)
+        if isinstance(payload, dict):
+            # Expect a list; wrap if single object
+            payload = [payload]
+    except Exception as e:
+        return JsonResponse({"error": f"OpenRouter call failed: {e}"}, status=500)
+
+    results = _import_resources_payload(payload)
+    return JsonResponse({"import_result": results})
+
+
+@login_required
+@teacher_required
+@require_POST
+def standards_api_import_objectives_ai(request):
+    """
+    Call OpenRouter to fetch learning objectives for a document and import them as a numbered tree.
+    """
+    document_id = request.POST.get("document_id")
+    if not document_id:
+        return JsonResponse({"error": "document_id is required"}, status=400)
+    try:
+        document_id = int(document_id)
+    except ValueError:
+        return JsonResponse({"error": "document_id must be an integer"}, status=400)
+
+    doc = get_object_or_404(
+        StandardsDocument.objects.select_related("authority_program__authority"),
+        pk=document_id,
+        is_active=True,
+    )
+
+    api_key = getattr(settings, "OPENROUTER_API_KEY", None)
+    if not api_key:
+        return JsonResponse({"error": "OPENROUTER_API_KEY not configured"}, status=500)
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=api_key,
+    )
+
+    prompt = f"""
+You are an expert at summarizing and structuring Cambridge International learning objectives.
+Return a JSON object with a single key "objectives": an array of hierarchical nodes for THIS course only.
+Each node: {{ "title": string, "code": string (optional), "children": [] }}
+- Keep hierarchy and number like "1", "1.1", "1.1.1" etc. If no native code, create clear numbered codes.
+- Include all key learning and assessment objectives you know for this course.
+- Do not include any other courses.
+Course: {doc.source_title} ({doc.syllabus_code})
+    """.strip()
+
+    try:
+        completion = client.chat.completions.create(
+            model="openai/gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You return only valid JSON as described."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=2000,
+        )
+        content = completion.choices[0].message.content
+        payload = json.loads(content)
+    except Exception as e:
+        return JsonResponse({"error": f"OpenRouter call failed: {e}"}, status=500)
+
+    nodes = payload.get("objectives") if isinstance(payload, dict) else None
+    if not isinstance(nodes, list):
+        return JsonResponse({"error": "Invalid objectives payload"}, status=400)
+
+    # Replace existing objectives with AI tree
+    ObjectiveNode.objects.filter(document=doc).delete()
+
+    created_nodes = []
+
+    def create_nodes(items, parent=None, prefix=""):
+        for idx, item in enumerate(items, start=1):
+            title = item.get("title") or item.get("text") or ""
+            raw_code = item.get("code") or ""
+            code = raw_code if raw_code else (prefix + str(idx) if prefix else str(idx))
+            node = ObjectiveNode.objects.create(
+                document=doc,
+                parent=parent,
+                node_type="objective",
+                code=code,
+                text=title,
+                sort_order=idx,
+            )
+            created_nodes.append(node)
+            children = item.get("children") or []
+            create_nodes(children, node, prefix=code + ".")
+
+    create_nodes(nodes, parent=None, prefix="")
+
+    # Generate internal codes for consistency
+    _generate_internal_codes(list(ObjectiveNode.objects.filter(document=doc)))
+
+    # Build response tree
+    def build_tree(parent=None):
+        qs = ObjectiveNode.objects.filter(document=doc, parent=parent).order_by("sort_order")
+        data = []
+        for n in qs:
+            data.append({
+                "id": n.pk,
+                "code": n.code,
+                "text": n.text,
+                "node_type": n.node_type,
+                "children": build_tree(n),
+            })
+        return data
+
+    return JsonResponse({"objectives": build_tree(None)})
+
+
+@login_required
+@teacher_required
 @require_POST
 def standards_api_sync_objectives(request):
     """
@@ -3246,10 +3909,14 @@ def standards_api_sync_objectives(request):
 
     POST parameters:
     - authority_id: ID of the StandardsAuthority to sync
+    - document_id: optional StandardsDocument ID to sync only that course
+    - syllabus_url: optional override for syllabus URL (provider-dependent)
     """
     from core.services.jobs import enqueue_authority_objectives_sync
 
     authority_id = request.POST.get("authority_id")
+    document_id = request.POST.get("document_id")
+    syllabus_url = request.POST.get("syllabus_url")
     if not authority_id:
         return JsonResponse({"error": "authority_id is required"}, status=400)
 
@@ -3264,9 +3931,18 @@ def standards_api_sync_objectives(request):
     except StandardsAuthority.DoesNotExist:
         return JsonResponse({"error": f"Authority not found: {authority_id}"}, status=404)
 
+    document_ids = None
+    if document_id:
+        try:
+            document_ids = [int(document_id)]
+        except ValueError:
+            return JsonResponse({"error": "document_id must be an integer"}, status=400)
+
     # Enqueue the job
     job = enqueue_authority_objectives_sync(
         authority_id=authority_id,
+        document_ids=document_ids,
+        extra_params={"syllabus_url": syllabus_url} if syllabus_url else None,
         created_by=request.user,
     )
 
@@ -3288,10 +3964,12 @@ def standards_api_sync_resources(request):
 
     POST parameters:
     - authority_id: ID of the StandardsAuthority to sync
+    - document_id: optional StandardsDocument ID to limit sync to one course
     """
     from core.services.jobs import enqueue_authority_resources_sync
 
     authority_id = request.POST.get("authority_id")
+    document_id = request.POST.get("document_id")
     if not authority_id:
         return JsonResponse({"error": "authority_id is required"}, status=400)
 
@@ -3306,9 +3984,17 @@ def standards_api_sync_resources(request):
     except StandardsAuthority.DoesNotExist:
         return JsonResponse({"error": f"Authority not found: {authority_id}"}, status=404)
 
+    document_ids = None
+    if document_id:
+        try:
+            document_ids = [int(document_id)]
+        except ValueError:
+            return JsonResponse({"error": "document_id must be an integer"}, status=400)
+
     # Enqueue the job
     job = enqueue_authority_resources_sync(
         authority_id=authority_id,
+        document_ids=document_ids,
         created_by=request.user,
     )
 
@@ -3346,3 +4032,81 @@ def standards_api_job_status(request, job_id):
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
     })
+
+
+@login_required
+@teacher_required
+@require_POST
+def standards_api_import_resources(request):
+    """
+    Import resources from an external JSON payload (e.g., OpenRouter output).
+
+    Expected payload: list of course objects with course_code/syllabus_code and arrays:
+    syllabi, past_papers, endorsed_resources (see prompt schema).
+    """
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    if not isinstance(payload, list):
+        return JsonResponse({"error": "Payload must be a list of courses"}, status=400)
+
+    results = _import_resources_payload(payload)
+    return JsonResponse(results)
+
+
+def _import_resources_payload(payload: list[dict]) -> dict:
+    results = {"processed": 0, "errors": []}
+
+    for course in payload:
+        code = course.get("course_code") or course.get("syllabus_code")
+        name = course.get("course_name", "")
+        doc = None
+        if code:
+            doc = StandardsDocument.objects.filter(syllabus_code=code).first()
+        if not doc and name:
+            doc = StandardsDocument.objects.filter(source_title__icontains=name).first()
+        if not doc:
+            results["errors"].append(f"No document found for {code or name}")
+            continue
+
+        # Import syllabi/past papers as artifacts
+        for item in course.get("syllabi", []):
+            _download_artifact({"url": item.get("url"), "text": item.get("title")}, doc, "syllabus")
+        for item in course.get("past_papers", []):
+            _download_artifact({"url": item.get("url"), "text": item.get("title")}, doc, "past_paper")
+
+        # Import endorsed resources as AuthorityProgramMedia
+        for res in course.get("endorsed_resources", []):
+            try:
+                AuthorityProgramMedia.objects.update_or_create(
+                    authority_program=doc.authority_program,
+                    source_url=res.get("url") or "",
+                    defaults={
+                        "title": res.get("title", "")[:500],
+                        "author": ", ".join(res.get("authors", []))[:500],
+                        "publisher": (res.get("publisher") or "")[:255],
+                        "isbn_10": (res.get("isbn_10") or "")[:10],
+                        "isbn_13": (res.get("isbn_13") or "")[:13],
+                        "cover_image_url": res.get("cover_image_url") or "",
+                        "media_type": "book",
+                        "platform": "publisher",
+                        "recommendation_tier": "official",
+                        "resource_category": res.get("resource_category") or "endorsed",
+                        "audience": res.get("audience") or "general",
+                        "is_companion": bool(res.get("is_companion", False)),
+                        "description": res.get("notes", "")[:500],
+                        "endorsement_notes": res.get("notes", "")[:500],
+                        "features": {
+                            "syllabus_code": doc.syllabus_code,
+                            "course_title": doc.source_title,
+                        },
+                    },
+                )
+            except Exception as e:
+                results["errors"].append(f"{code}: resource import failed for {res.get('title')}: {e}")
+
+        results["processed"] += 1
+
+    return results
