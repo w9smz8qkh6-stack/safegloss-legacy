@@ -9,7 +9,7 @@ django-extensions>=3.2
 django-ckeditor>=6.7
 textstat>=0.7
 openai>=1.0
-posthog>=3.0
+posthog>=7.38.3
 gunicorn>=21.0
 whitenoise>=6.6
 cryptography==50.0.0
