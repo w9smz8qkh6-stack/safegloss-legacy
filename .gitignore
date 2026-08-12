@@ -3,15 +3,24 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Django
 *.sqlite3
 staticfiles/
 media/
+pdf_storage/
 
 # Environment
 .env
 .env.*
+!.env.example
+!**/.env.example
 config/
 venv/
 rgx/venv/
@@ -31,3 +40,8 @@ rgx/.git/
 
 # Archives
 *.zip
+
+# Private/local standards source material and derived datasets
+data/**
+!data/README.md
+docs/gpt/

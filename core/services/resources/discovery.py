@@ -64,7 +64,10 @@ def fetch_url(
     Returns:
         FetchResult with response data
     """
-    cache_key = f"discovery:fetch:{hashlib.md5(url.encode()).hexdigest()}"
+    cache_key = (
+        "discovery:fetch:"
+        f"{hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()}"
+    )
 
     if use_cache:
         cached = cache.get(cache_key)

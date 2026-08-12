@@ -12,7 +12,11 @@ if env_file.exists():
     environ.Env.read_env(env_file)
 
 DEBUG = env("DEBUG")
-SECRET_KEY = env("SECRET_KEY", default="dev-insecure")
+if DEBUG:
+    SECRET_KEY = env("SECRET_KEY", default="dev-insecure")
+else:
+    # Production must fail closed rather than silently use a known key.
+    SECRET_KEY = env("SECRET_KEY")
 
 # Handle Render's RENDER_EXTERNAL_HOSTNAME
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default=None)
@@ -132,6 +136,22 @@ OPENROUTER_API_KEY = env("OPENROUTER_API_KEY", default="")
 ANTHROPIC_API_KEY = env("ANTHROPIC_API_KEY", default="")
 POSTHOG_API_KEY = env("POSTHOG_API_KEY", default="")
 POSTHOG_HOST = env("POSTHOG_HOST", default="")
+
+# Production transport and cookie security. HSTS remains opt-in because
+# enabling it before HTTPS works on every domain can lock users out.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"
+    SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+        "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+        default=False,
+    )
+    SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
 
 # Authentication backends (required for social auth)
 AUTHENTICATION_BACKENDS = [

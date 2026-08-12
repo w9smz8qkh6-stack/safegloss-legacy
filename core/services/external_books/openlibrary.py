@@ -33,6 +33,11 @@ class OpenLibraryService(ExternalBookService):
 
     def _make_request(self, url: str) -> Optional[dict]:
         """Make an HTTP GET request and return JSON response."""
+        parsed_url = urllib.parse.urlparse(url)
+        if parsed_url.scheme != "https" or parsed_url.netloc != "openlibrary.org":
+            logger.error("Refusing non-Open Library API URL")
+            return None
+
         headers = {
             "User-Agent": self.USER_AGENT,
             "Accept": "application/json",
@@ -40,7 +45,8 @@ class OpenLibraryService(ExternalBookService):
         req = urllib.request.Request(url, headers=headers)
 
         try:
-            with urllib.request.urlopen(req, timeout=self.TIMEOUT) as response:
+            # The scheme and host are allowlisted immediately above.
+            with urllib.request.urlopen(req, timeout=self.TIMEOUT) as response:  # nosec B310
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.URLError as e:
             logger.error(f"Open Library API request failed: {e}")

@@ -38,14 +38,14 @@ class TestExtractMetrics:
         """Test dialogue detection with double quotes."""
         text = '"Hello," said John. "How are you?" asked Mary.'
         metrics = extract_metrics(text)
-        assert metrics.dialogue_sentences > 0
+        assert metrics.dialogue_sentence_count > 0
         assert metrics.dialogue_ratio > 0
 
     def test_dialogue_detection_single_quotes(self):
         """Test dialogue detection with single quotes."""
         text = "'Hello,' said John. 'How are you?' asked Mary."
         metrics = extract_metrics(text)
-        assert metrics.dialogue_sentences > 0
+        assert metrics.dialogue_sentence_count > 0
 
     def test_no_dialogue(self):
         """Test text without dialogue."""
@@ -117,7 +117,7 @@ class TestTextMetricsDataclass:
             long_sentence_count=1,
             long_sentence_ratio=0.1,
             long_sentence_threshold=20,
-            dialogue_sentences=3,
+            dialogue_sentence_count=3,
             dialogue_ratio=0.3,
             passive_voice_count=2,
             passive_voice_ratio=0.2,
@@ -150,7 +150,7 @@ class TestMetricsEdgeCases:
         """Test handling of numbers."""
         text = "There were 100 people. About 50 stayed."
         metrics = extract_metrics(text)
-        assert metrics.total_words >= 8
+        assert metrics.total_words == 7
 
     def test_contractions(self):
         """Test handling of contractions."""

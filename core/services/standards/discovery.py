@@ -76,7 +76,10 @@ def fetch_page(
     Returns:
         Tuple of (content, content_type, error)
     """
-    cache_key = f"standards:fetch:{hashlib.md5(url.encode()).hexdigest()}"
+    cache_key = (
+        "standards:fetch:"
+        f"{hashlib.md5(url.encode(), usedforsecurity=False).hexdigest()}"
+    )
 
     if use_cache:
         cached = cache.get(cache_key)

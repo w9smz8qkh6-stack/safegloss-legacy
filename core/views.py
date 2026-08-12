@@ -2799,7 +2799,8 @@ Example output format:
             headers=headers,
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=90) as response:
+        # The request target is the fixed HTTPS OpenRouter endpoint above.
+        with urllib.request.urlopen(req, timeout=90) as response:  # nosec B310
             result = json.loads(response.read().decode("utf-8"))
 
         content = result["choices"][0]["message"]["content"]

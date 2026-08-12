@@ -21,6 +21,7 @@ Safegloss Legacy is a Django 5 + PostgreSQL reading experiment platform that del
 - `core/` — Django app (models, views, templates, static assets, story_engine utilities).
 - `rgx_project/` — Django project settings and URLs.
 - `docs/` — specifications, wireframes, AI prompting guides, roadmap, and VS Code agent prompt context.
+- `data/` — local-only standards sources and derived datasets; public copies are intentionally excluded.
 - `rules/` — JSON rule libraries (age, lexile, genre, ELL, style profiles) consumed by the prompt composer.
 - `templates/` and `staticfiles/` — collected/static assets and auth templates.
 - `render.yaml` — Render deployment definition (web service + Postgres).

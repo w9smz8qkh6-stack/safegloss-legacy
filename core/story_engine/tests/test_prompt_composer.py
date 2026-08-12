@@ -21,7 +21,8 @@ class TestPromptComposer:
     def test_composer_initialization(self, composer):
         """Test that composer initializes without errors."""
         assert composer is not None
-        assert composer.SYSTEM_MESSAGE is not None
+        assert composer.SYSTEM_MESSAGE_FICTION is not None
+        assert composer.SYSTEM_MESSAGE_NONFICTION is not None
 
     def test_compose_returns_prompt(self, composer, builder):
         """Test that compose returns a ComposedPrompt."""
