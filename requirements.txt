@@ -14,5 +14,5 @@ openai>=1.0
 posthog>=7.38.3
 gunicorn>=26.0.0
 whitenoise>=6.6
-beautifulsoup4>=4.12
+beautifulsoup4>=4.15.0
 requests>=2.32
