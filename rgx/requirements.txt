@@ -11,7 +11,7 @@ textstat>=0.7
 openai>=1.0
 posthog>=7.38.3
 gunicorn>=26.0.0
-whitenoise>=6.6
+whitenoise>=6.12.0
 beautifulsoup4>=4.12
 requests>=2.32
 cryptography==50.0.0
