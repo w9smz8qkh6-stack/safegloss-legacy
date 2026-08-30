@@ -1,30 +1,37 @@
-# Security Policy
+# Security policy
 
 ## Project status
 
-Safegloss Legacy is an in-development legacy project and does not currently
-publish supported release versions. Do not deploy it with real student,
-teacher, research, or production data without an independent security and
-privacy review.
+SafeGloss Legacy is a research reconstruction, not a supported production
+service. Do not process real participant or institutional data without an
+independent security, privacy, consent, retention, and research-governance
+review.
 
-## Reporting a vulnerability
+Report vulnerabilities privately through [GitHub private vulnerability
+reporting](https://github.com/w9smz8qkh6-stack/safegloss-legacy/security/advisories/new).
+Do not include live secrets or personal data.
 
-Please do not disclose suspected vulnerabilities, credentials, or personal
-data in a public issue. Use GitHub's
-[private vulnerability reporting](https://github.com/w9smz8qkh6-stack/safegloss-legacy/security/advisories/new)
-and include the affected component, reproduction steps, impact, and any
-suggested mitigation. Do not include live secrets; revoke or rotate them first.
+## Operational controls
 
-## Deployment notes
+- Copy `.env.example` to an untracked `.env` and replace all placeholders.
+- Production `APP_KEY` must be a unique random value of at least 32 characters.
+- Terminate TLS in front of Apache and verify the application sees HTTPS so its
+  session cookie receives the `Secure` flag.
+- Keep the web container read-only and MySQL off public interfaces; the provided
+  Compose file follows those defaults.
+- Back up and test restoration of the MySQL volume before a real replication.
+- Treat user profiles, consent timestamps, events, scores, IP-adjacent server
+  logs, and captured mail reports as sensitive research data.
+- `MAIL_TRANSPORT=database` is the safe non-delivering default. Enabling `smtp`
+  transmits participant/session information to `RESEARCH_REPORT_TO`; configure
+  only an approved destination and secret store. The adapter requires TLS peer
+  verification.
+- Review account lifecycle, password policy, role provisioning, join-code
+  distribution, retention, export, incident response, and participant withdrawal
+  procedures before collecting data.
 
-- Set `DEBUG=False` in production.
-- Provide a unique, randomly generated `SECRET_KEY`; production startup fails
-  when it is absent.
-- Restrict `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` to the deployed domains.
-- Use HTTPS and secure cookies. Enable HSTS only after HTTPS is verified for
-  every applicable domain and subdomain.
-- Keep credentials in the deployment platform's secret store, not in Git.
-- Treat database exports, uploaded media, generated PDFs, and analytics data as
-  sensitive and keep them outside the repository.
-- Review authentication, authorization, retention, and consent requirements
-  before processing student or research data.
+The application uses password hashing, prepared statements, CSRF tokens,
+server-side sessions, output escaping, allowlisted rich HTML, role checks,
+content-security and framing headers, semantic treatment storage, and
+server-received timestamps. These controls reduce risk but do not substitute for
+deployment review or an external security assessment.

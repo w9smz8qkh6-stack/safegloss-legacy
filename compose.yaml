@@ -1,0 +1,58 @@
+name: safegloss-legacy
+
+services:
+  web:
+    build:
+      context: .
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      APP_KEY: ${APP_KEY:-local-development-key-change-before-sharing}
+      APP_URL: ${APP_URL:-http://localhost:8088}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-safegloss_legacy}
+      DB_USER: ${DB_USER:-safegloss}
+      DB_PASSWORD: ${DB_PASSWORD:-safegloss-local-only}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-database}
+      MAIL_FROM: ${MAIL_FROM:-webmaster@safegloss.invalid}
+      RESEARCH_REPORT_TO: ${RESEARCH_REPORT_TO:-researcher@safegloss.invalid}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_ENCRYPTION: ${SMTP_ENCRYPTION:-starttls}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8088}:80"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/apache2
+    security_opt:
+      - no-new-privileges:true
+
+  db:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-safegloss_legacy}
+      MYSQL_USER: ${DB_USER:-safegloss}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-safegloss-local-only}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-safegloss-root-local-only}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - legacy_mysql:/var/lib/mysql
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  legacy_mysql:

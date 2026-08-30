@@ -1,47 +1,24 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-coverage.xml
-htmlcov/
-
-# Django
-*.sqlite3
-staticfiles/
-media/
-pdf_storage/
-
-# Environment
+# Local configuration and research data
 .env
 .env.*
 !.env.example
-!**/.env.example
-config/
-venv/
-rgx/venv/
-rgx/config/
+*.sql.gz
+*.sql.zst
+backups/
+exports/
 
-# IDE
+# Editor and operating-system files
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# macOS
 .DS_Store
 
-# Nested git (legacy)
-rgx/.git/
+# Test and coverage output
+coverage/
+*.log
+__pycache__/
+*.py[cod]
 
 # Archives
 *.zip
-
-# Private/local standards source material and derived datasets
-data/**
-!data/README.md
-docs/gpt/

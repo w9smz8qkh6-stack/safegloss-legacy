@@ -16,9 +16,9 @@ relevant durable documentation during the same task.
   unresolved ambiguity.
 - `docs/REPOSITORY_AUDIT.md` records current drift, reusable evidence, missing
   behavior, and the replacement boundary.
-- `PROJECT_OVERVIEW.md`, `SAFEGLOSS_PROJECT_OVERVIEW.md`, and older feature
-  plans are historical or transitional unless the reconstruction documents
-  explicitly make them current. Do not let them override archival evidence.
+- `docs/ARCHITECTURE.md` governs executable structure, research invariants,
+  trust boundaries, persistence, and the current implementation boundary.
+- `CHANGELOG.md` records externally meaningful reconstruction milestones.
 - `SECURITY.md`, `.env.example`, setup/deployment guidance, data documentation,
   and user-facing help govern operational, privacy, rights, and interface
   claims.
@@ -38,7 +38,7 @@ available and safe, then review the diff. A passing generator, freshness, link,
 or path check is evidence only and does not prove that explanatory text or
 historical interpretation is accurate.
 
-Run `python scripts/check_documentation_updates.py` and the affected repository
+Run `python3 scripts/check_documentation_updates.py` and the affected repository
 checks before handoff. If another canonical SafeGloss repository depends on an
 archival fact changed here, update its affected documentation in the original
 task while keeping histories and verification separate.

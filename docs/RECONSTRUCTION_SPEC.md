@@ -20,6 +20,21 @@ Terms used below:
 - **Safety adaptation**: a present-day control that does not intentionally alter
   the research behavior.
 
+## Implementation status
+
+The repository now runs as a PHP 8.4/Apache and MySQL 8.4 application from a
+clean Docker Compose checkout. The implemented slice covers all three roles,
+registration and treatment assignment, authoring managers, roster-assigned
+lessons, the complete student sequence, instrumentation and derived measures,
+research logs, gradebook, and safe report capture or explicit SMTP.
+
+This executable milestone is not a claim of perfect source recovery. Known
+fidelity gaps are historical glossary/lesson XML exchange (the schemas are not
+preserved), full edit/delete manager operations, the original rich editor and
+word counter, language-equivalent authoring UI, and multimedia authoring. The
+database reserves equivalents and rich safe HTML so these can be reconstructed
+without changing the core treatment model when better evidence appears.
+
 ## Purpose
 
 The application is a portable, database-driven research platform for delivering
@@ -152,8 +167,9 @@ located.
 1. The student chooses a lesson from **My Lessons**.
 2. An introduction states the purpose, instructions, or time limits.
 3. Continuing loads the reading and records `reading_start`.
-4. Clicking a gloss target opens either a near-text or right-margin tooltip,
-   based on the student's treatment. Opening and closing are separately timed.
+4. Clicking a gloss target opens either a near-text tooltip for the
+   **contiguous** treatment or a right-margin tooltip for the non-contiguous
+   (`margin`) treatment. Opening and closing are separately timed.
 5. Continuing records `reading_end` and opens the comprehension quiz. The
    student cannot return to the passage while taking the quiz.
 6. Finishing scores the quiz, records completion, shows the score, and returns
@@ -232,13 +248,14 @@ A clean checkout must provide:
 - a local non-delivering mail capture path;
 - synthetic or clearly licensed demonstration content;
 - deterministic setup instructions; and
-- automated checks for treatment assignment, access control, event pairing,
-  derived measures, answer randomization, and scoring.
+- automated domain checks for treatment mapping/assignment, event pairing,
+  derived measures, and scoring, plus a documented fresh-database workflow for
+  role boundaries, answer randomization, and the complete lesson lifecycle.
 
 ## Explicit non-goals
 
-The following features in the current Django repository are not established as
-part of the 2014 system:
+The following features from the removed Django reconstruction are not
+established as part of the 2014 system:
 
 - AI story, glossary, or quiz generation;
 - external book discovery;

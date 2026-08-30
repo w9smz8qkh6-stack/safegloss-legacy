@@ -1,41 +1,24 @@
 # Contributing
 
-This is a legacy, in-development project. Before opening a substantial change,
-use a GitHub issue to confirm that the work fits the intended direction.
+SafeGloss Legacy is a bounded historical reconstruction. Changes should improve
+reproducibility, safety, or fidelity to the dissertation—not turn Legacy into a
+general literacy platform or a template for newer SafeGloss products.
 
-## Development checks
+Before implementing a behavioral change:
 
-Create an isolated environment and install both dependency sets:
+1. identify its dissertation chapter, section, figure, table, or appendix;
+2. label undocumented implementation details as inferred or safety adaptations;
+3. preserve the semantic rule that near gloss is contiguous;
+4. use synthetic or clearly licensed test content; and
+5. update the reconstruction and operational documentation in the same change.
 
-```bash
-python -m pip install -r requirements.txt -r requirements-dev.txt
-```
+Run the checks documented in [README.md](README.md). For database-facing
+changes, also initialize a fresh MySQL volume and exercise the affected role and
+lesson workflow. Pull requests should explain the evidence, behavior, schema or
+operational impact, documentation changes, and exact checks run.
 
-Before submitting a pull request, run:
-
-```bash
-python manage.py check
-pytest -q core/story_engine/tests
-python scripts/check_documentation_updates.py
-```
-
-## Documentation completion
-
-Documentation is part of the implementation. Every change to code,
-reconstructed behavior, interfaces, tests, scripts, dependencies,
-configuration, security, deployment, operations, architecture, research
-interpretation, or user-visible output must update the relevant durable
-documentation during the same task. Follow
-[`docs/DOCUMENTATION_MAINTENANCE.md`](docs/DOCUMENTATION_MAINTENANCE.md) and
-compare the finished work semantically with the reconstruction specification,
-repository audit, cited evidence, setup, security, rights, and user guidance.
-The path check above is evidence only; it cannot establish historical or
-explanatory accuracy.
-
-Keep credentials, user data, database exports, uploaded media, and generated
-artifacts out of commits. Use `.env.example` to document configuration names
-with placeholders only.
-
-Pull requests should explain the behavior changed, any migrations or deployment
-impact, documentation updated, and checks that were run. Keep changes focused
-and add regression coverage when practical.
+Do not commit `.env`, credentials, participant records, database exports,
+captured mail reports, copyrighted study content, or generated deployment data.
+Do not add AI generation, standards catalogs, external-book discovery, PWA
+behavior, hosted integrations, or newer SafeGloss architecture without primary
+historical evidence.

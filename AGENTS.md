@@ -62,7 +62,7 @@ path checks are evidence only.
 If accurate documentation cannot be updated because a repository or source is
 unavailable, overlapping work conflicts, rights are unresolved, or a required
 fact cannot be verified, report the task incomplete with the exact document,
-claim, and blocker. Run `python scripts/check_documentation_updates.py` before
+claim, and blocker. Run `python3 scripts/check_documentation_updates.py` before
 handoff.
 
 After checks pass, commit task-owned changes and push the current branch to its

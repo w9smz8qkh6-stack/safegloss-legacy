@@ -1,6 +1,0 @@
-<option value="">---------</option>
-{% for quiz in quizzes %}
-<option value="{{ quiz.pk }}">{{ quiz.title }}</option>
-{% empty %}
-<option value="" disabled>No quizzes for this story</option>
-{% endfor %}

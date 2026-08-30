@@ -1,55 +1,96 @@
 # SafeGloss Legacy
 
-SafeGloss Legacy is a living replication of the PHP/MySQL Web application used
-for Brendan O. Downey's 2014 doctoral study of digital vocabulary annotations
-and reading comprehension among university English-language learners.
+SafeGloss Legacy is a living reconstruction of the PHP/MySQL web application
+used for Brendan O. Downey's 2014 doctoral research on digital vocabulary
+annotations and reading comprehension among university English-language
+learners. The original source and deployment were lost; the dissertation's
+descriptions and screenshots are the primary reconstruction evidence.
 
-The original application was lost after the study. The dissertation preserves
-enough description, screenshots, study materials, and instrumentation details
-to reconstruct it. This repository exists to make that research platform
-replicable again while retaining its historically specific architecture and
-workflow.
+This repository is intentionally a software museum artifact: runnable and safe
+enough for new replications, but governed by the original research workflow
+rather than the architecture or feature set of newer SafeGloss products.
 
-## Preservation status
+## What runs now
 
-The repository currently contains a later Django reconstruction that drifted
-into a broader literacy product. That implementation is being audited against
-the dissertation before replacement with a faithful, deployable PHP/MySQL
-replica. Until that work is complete, the current code should not be treated as
-an accurate reproduction of the 2014 application or as a supported production
-release.
+The executable application is a compact PHP 8.4/Apache monolith backed by MySQL
+8.4. It implements:
 
-The evidence-based target is documented in
-[`docs/RECONSTRUCTION_SPEC.md`](docs/RECONSTRUCTION_SPEC.md), and the current
-repository drift is summarized in
-[`docs/REPOSITORY_AUDIT.md`](docs/REPOSITORY_AUDIT.md).
+- student, instructor, and researcher roles;
+- site-code registration, consent acknowledgement, proficiency survey, and
+  balanced treatment assignment;
+- an explicit semantic treatment mode where **near gloss is contiguous** and
+  right-margin gloss is non-contiguous;
+- configurable historical A/B label mappings because Chapter 3 and Table 3 of
+  the dissertation conflict;
+- story, glossary, quiz, roster, and lesson authoring;
+- the introduction → reading → quiz → score student sequence;
+- UTC microsecond event logging for reading and gloss open/close actions;
+- derived reading/gloss durations, scoring, researcher logs, and gradebook; and
+- detailed post-quiz reports captured in MySQL by default, with optional
+  verified-TLS SMTP delivery.
 
-## Intended character
+The earlier Django/PostgreSQL literacy-product reconstruction was removed from
+the current tree. Git history preserves it for study. It is not part of the
+Legacy runtime.
 
-- **Living:** it should run from a clean checkout and permit new replications.
-- **Archival:** original roles, screens, workflows, treatments, and measures
-  govern the product rather than present-day SafeGloss requirements.
-- **Transparent:** reconstructed details and unresolved ambiguities are labeled
-  rather than presented as recovered source code.
-- **Safe to operate:** supported runtimes, secure authentication, isolated local
-  mail, and reproducible deployment may be used without redesigning the study.
+## Run locally
 
-Newer SafeGloss products may reference this project as a research artifact, but
-Legacy is not their codebase, upstream, or architectural template.
+Requirements: Docker Engine with Docker Compose v2.
 
-## Rights and data
+```bash
+cp .env.example .env
+# Replace every placeholder in .env, especially APP_KEY and database passwords.
+docker compose up -d --build
+docker compose exec web php /var/www/safegloss/bin/setup.php site \
+  "Example University" 4821 chapter3
+docker compose exec web php /var/www/safegloss/bin/setup.php user \
+  instructor instructor instructor@example.invalid 4821
+```
 
-The dissertation includes a study passage and assessment adapted from
-third-party instructional material. Those materials are evidence about the
-original study but are not automatically redistributable as application seed
-data. Demonstration fixtures must use synthetic or clearly licensed content
-unless separate permission is established.
+Open <http://localhost:8088>. Students and additional instructors can register
+with the four-digit site code. Create a researcher account with the same setup
+command but omit the site code:
 
-Never commit participant data, credentials, mail-server secrets, database
-exports, or production configuration.
+```bash
+docker compose exec web php /var/www/safegloss/bin/setup.php user \
+  researcher researcher researcher@example.invalid
+```
 
-## License
+`chapter3` maps A to margin and B to contiguous. `table3` maps A to contiguous
+and B to margin. Both profiles persist the semantic treatment separately from
+the historical label.
 
-Original code in this repository is available under the [MIT License](LICENSE).
-The license does not grant rights to the dissertation, third-party readings,
+MySQL initializes `database/migrations/001_initial.sql` only when its named
+volume is empty. Do not remove a volume that contains needed research data.
+
+## Verify
+
+```bash
+docker compose config --quiet
+docker build --tag safegloss-legacy:verification .
+docker run --rm safegloss-legacy:verification \
+  php /var/www/safegloss/tests/domain_test.php
+docker run --rm --entrypoint sh safegloss-legacy:verification -c \
+  'find /var/www/html /var/www/safegloss -name "*.php" -print0 | xargs -0 -n1 php -l'
+python3 scripts/check_documentation_updates.py
+```
+
+The evidence and remaining fidelity gaps are recorded in
+[`docs/RECONSTRUCTION_SPEC.md`](docs/RECONSTRUCTION_SPEC.md). The code layout
+and trust boundaries are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Preservation and rights
+
+- No participant data, credentials, database exports, mail secrets, or
+  production configuration belong in Git.
+- The study passage and quiz adapted third-party instructional material. They
+  are evidence, not redistributable seed content. Use synthetic or clearly
+  licensed materials unless rights are independently established.
+- Database mail capture is deliberately non-delivering. Real SMTP is an
+  explicit deployment decision.
+- This reconstruction is not recovered original source code. Inferred and
+  safety-adapted behavior is labeled in the specification.
+
+Original repository code is available under the [MIT License](LICENSE). That
+license does not grant rights to the dissertation, third-party readings,
 assessments, trademarks, or datasets.
