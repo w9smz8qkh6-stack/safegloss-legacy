@@ -1,77 +1,55 @@
-# Safegloss Legacy
+# SafeGloss Legacy
 
-Safegloss Legacy is a Django application for creating and delivering leveled
-reading material, glossaries, quizzes, and standards-aligned learning content.
-It also contains an older reading-experiment implementation under `rgx/` for
-historical reference.
+SafeGloss Legacy is a living replication of the PHP/MySQL Web application used
+for Brendan O. Downey's 2014 doctoral study of digital vocabulary annotations
+and reading comprehension among university English-language learners.
 
-This repository is a legacy, in-development codebase. It is suitable for
-review and experimentation, but it should not be treated as a supported or
-production-ready release without an independent security and deployment
-review.
+The original application was lost after the study. The dissertation preserves
+enough description, screenshots, study materials, and instrumentation details
+to reconstruct it. This repository exists to make that research platform
+replicable again while retaining its historically specific architecture and
+workflow.
 
-## What is here
+## Preservation status
 
-- `core/` — the current Django app, including authoring, reading, quiz,
-  standards, background-job, and story-generation features.
-- `acquire/` — external text discovery and acquisition integrations.
-- `rgx_project/` — current Django project settings and URLs.
-- `rgx/` — an older self-contained snapshot retained for reference.
-- `rules/` — versioned JSON constraints used by the story and quiz engines.
-- `data/` — local-only standards source material and derived datasets. These
-  files are intentionally excluded from the public repository; see
-  [`data/README.md`](data/README.md).
-- `docs/` — architecture notes, product specifications, and implementation
-  guides of varying age.
+The repository currently contains a later Django reconstruction that drifted
+into a broader literacy product. That implementation is being audited against
+the dissertation before replacement with a faithful, deployable PHP/MySQL
+replica. Until that work is complete, the current code should not be treated as
+an accurate reproduction of the 2014 application or as a supported production
+release.
 
-For a more detailed system summary, see
-[`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md). Some design documents describe
-planned behavior and may be ahead of the implementation.
+The evidence-based target is documented in
+[`docs/RECONSTRUCTION_SPEC.md`](docs/RECONSTRUCTION_SPEC.md), and the current
+repository drift is summarized in
+[`docs/REPOSITORY_AUDIT.md`](docs/REPOSITORY_AUDIT.md).
 
-## Local setup
+## Intended character
 
-Prerequisites:
+- **Living:** it should run from a clean checkout and permit new replications.
+- **Archival:** original roles, screens, workflows, treatments, and measures
+  govern the product rather than present-day SafeGloss requirements.
+- **Transparent:** reconstructed details and unresolved ambiguities are labeled
+  rather than presented as recovered source code.
+- **Safe to operate:** supported runtimes, secure authentication, isolated local
+  mail, and reproducible deployment may be used without redesigning the study.
 
-- Python 3.12+
-- PostgreSQL 14+
+Newer SafeGloss products may reference this project as a research artifact, but
+Legacy is not their codebase, upstream, or architectural template.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example config/dev.env
-```
+## Rights and data
 
-Edit `config/dev.env`, create the configured PostgreSQL database, and then run:
+The dissertation includes a study passage and assessment adapted from
+third-party instructional material. Those materials are evidence about the
+original study but are not automatically redistributable as application seed
+data. Demonstration fixtures must use synthetic or clearly licensed content
+unless separate permission is established.
 
-```bash
-python manage.py migrate
-python manage.py runserver
-```
-
-The application can start without optional AI and analytics keys, but the
-corresponding integrations will be unavailable.
-
-## Verification
-
-```bash
-python manage.py check
-pytest -q core/story_engine/tests
-```
-
-The current automated suite covers the story-engine utilities. Broader Django
-integration coverage is incomplete.
-
-## Security and sensitive data
-
-Configuration belongs in environment variables or the ignored
-`config/dev.env`; never commit credentials or production data. See
-[`SECURITY.md`](SECURITY.md) for reporting guidance and the repository's
-security limitations.
+Never commit participant data, credentials, mail-server secrets, database
+exports, or production configuration.
 
 ## License
 
-The original Safegloss source code in this repository is available under the
-[MIT License](LICENSE). The license does not grant rights to third-party
-standards, books, assessment materials, trademarks, or datasets, which are not
-included in the public repository.
+Original code in this repository is available under the [MIT License](LICENSE).
+The license does not grant rights to the dissertation, third-party readings,
+assessments, trademarks, or datasets.
